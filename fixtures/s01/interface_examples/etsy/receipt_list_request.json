@@ -1,0 +1,15 @@
+{
+  "method": "GET",
+  "path": "/v3/application/shops/7001/receipts",
+  "query": {
+    "min_last_modified": 1792227600,
+    "max_last_modified": 1792227960,
+    "limit": 1,
+    "offset": 0,
+    "sort_on": "updated",
+    "sort_order": "asc"
+  },
+  "headers": {
+    "Authorization": "Bearer LOCAL_TEST_TOKEN"
+  }
+}

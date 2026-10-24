@@ -1,0 +1,1676 @@
+{
+  "01_Timeline": [
+    [
+      "UTC time",
+      "Source",
+      "Order",
+      "Source action",
+      "Pipeline action",
+      "Kind",
+      "Why it matters"
+    ],
+    [
+      "09:00",
+      "Website",
+      "W1001",
+      "Create unpaid order",
+      "No read",
+      "Business event",
+      "No historical snapshot is generated merely from the event."
+    ],
+    [
+      "09:01",
+      "Website",
+      "W1001",
+      "Payment succeeds",
+      "No read",
+      "Business event",
+      "Orders.updated_at advances atomically."
+    ],
+    [
+      "09:02",
+      "eBay",
+      "12-10001-10001",
+      "Paid order; fulfillment NOT_STARTED",
+      "No read",
+      "Business event",
+      "Two source lines, three units."
+    ],
+    [
+      "09:03",
+      "Website + eBay",
+      "W1001 / 12-10001-10001",
+      "No new business event",
+      "Read WEB_R1 and EB_R1",
+      "Observation",
+      "First observed snapshot for each order."
+    ],
+    [
+      "09:04",
+      "Etsy",
+      "9001001",
+      "Payment; emit order.paid",
+      "Delivery delayed",
+      "Business event",
+      "Creation/payment time exists, but no receipt snapshot read yet."
+    ],
+    [
+      "09:05",
+      "Etsy",
+      "9001001",
+      "Mark shipped; emit order.shipped",
+      "No read",
+      "Business event",
+      "Receipt last update is now 09:05."
+    ],
+    [
+      "09:06",
+      "Etsy",
+      "9001001",
+      "Deliver paid notification",
+      "Read ET_R1 receipt",
+      "Observation",
+      "Receipt is already paid and shipped."
+    ],
+    [
+      "09:07",
+      "Etsy",
+      "9001001",
+      "Deliver shipped notification",
+      "Read ET_R2 same receipt",
+      "Observation",
+      "Different message; same snapshot → no new history."
+    ],
+    [
+      "09:08",
+      "Etsy",
+      "9001001",
+      "Redeliver paid notification",
+      "Deduplicate inbox",
+      "Delivery",
+      "No extra receipt fetch in this proposed worker policy."
+    ],
+    [
+      "09:10",
+      "Website",
+      "W1001",
+      "Cancellation request PENDING",
+      "No read",
+      "Business event",
+      "Order cancellation status REQUESTED."
+    ],
+    [
+      "09:11",
+      "Website",
+      "W1001",
+      "No new business event",
+      "Read WEB_R2",
+      "Observation",
+      "Payment remains PAID."
+    ],
+    [
+      "09:12",
+      "eBay",
+      "12-10001-10001",
+      "Ship entire blue line; white line not shipped",
+      "No read",
+      "Business event",
+      "One fulfillment allocates both blue units."
+    ],
+    [
+      "09:13",
+      "eBay",
+      "12-10001-10001",
+      "No new business event",
+      "Read EB_R2 + fulfillment",
+      "Observation",
+      "Use actual shipment evidence for PARTIALLY_SHIPPED."
+    ],
+    [
+      "09:14",
+      "Website",
+      "W1001",
+      "Approve cancellation; no completed refund",
+      "No read",
+      "Business event",
+      "Cancellation CANCELED; payment still PAID."
+    ],
+    [
+      "09:15",
+      "Website",
+      "W1001",
+      "No new business event",
+      "Read WEB_R3",
+      "Observation",
+      "One current order, three website history versions."
+    ]
+  ],
+  "02_Catalog": [
+    [
+      "Source",
+      "Account",
+      "Order ID",
+      "Line ID",
+      "Source SKU",
+      "Listing / product family ID",
+      "Variant / product ID",
+      "Canonical variant",
+      "Title at purchase",
+      "Qty",
+      "Unit price USD",
+      "Line gross USD"
+    ],
+    [
+      "internal_web",
+      "WEB01",
+      "W1001",
+      "WI1001",
+      "MUG-BLUE-350",
+      "P001",
+      "V001",
+      "V001",
+      "Blue ceramic mug 350 ml",
+      2,
+      20,
+      40
+    ],
+    [
+      "ebay_sim",
+      "seller_sim_01",
+      "12-10001-10001",
+      "10001001",
+      "EB-BLUE-350",
+      "510001",
+      "610001",
+      "V001",
+      "Blue ceramic mug 350 ml",
+      2,
+      20,
+      40
+    ],
+    [
+      "ebay_sim",
+      "seller_sim_01",
+      "12-10001-10001",
+      "10001002",
+      "EB-WHITE-350",
+      "510001",
+      "610002",
+      "V002",
+      "White ceramic mug 350 ml",
+      1,
+      22,
+      22
+    ],
+    [
+      "etsy_sim",
+      "7001",
+      "9001001",
+      "8001001",
+      "ET-WHITE-350",
+      "520001",
+      "620002",
+      "V002",
+      "White ceramic mug 350 ml",
+      1,
+      22,
+      22
+    ]
+  ],
+  "03_Website": [
+    [
+      "Source table",
+      "Record key",
+      "Field",
+      "WEB_R1 · 09:03",
+      "WEB_R2 · 09:11",
+      "WEB_R3 · 09:15",
+      "Explanation"
+    ],
+    [
+      "orders",
+      "W1001",
+      "order_id",
+      "W1001",
+      "W1001",
+      "W1001"
+    ],
+    [
+      "orders",
+      "W1001",
+      "order_number",
+      "WEB-20261017-001",
+      "WEB-20261017-001",
+      "WEB-20261017-001"
+    ],
+    [
+      "orders",
+      "W1001",
+      "customer_id",
+      "C001",
+      "C001",
+      "C001"
+    ],
+    [
+      "orders",
+      "W1001",
+      "created_at",
+      "2026-10-17T09:00:00Z",
+      "2026-10-17T09:00:00Z",
+      "2026-10-17T09:00:00Z"
+    ],
+    [
+      "orders",
+      "W1001",
+      "updated_at",
+      "2026-10-17T09:01:00Z",
+      "2026-10-17T09:10:00Z",
+      "2026-10-17T09:14:00Z",
+      "Source update time, not read time."
+    ],
+    [
+      "orders",
+      "W1001",
+      "currency",
+      "USD",
+      "USD",
+      "USD"
+    ],
+    [
+      "orders",
+      "W1001",
+      "payment_status",
+      "PAID",
+      "PAID",
+      "PAID"
+    ],
+    [
+      "orders",
+      "W1001",
+      "fulfillment_status",
+      "NOT_STARTED",
+      "NOT_STARTED",
+      "NOT_STARTED"
+    ],
+    [
+      "orders",
+      "W1001",
+      "cancellation_status",
+      "NOT_REQUESTED",
+      "REQUESTED",
+      "CANCELED",
+      "Only this dimension changes in these snapshots."
+    ],
+    [
+      "orders",
+      "W1001",
+      "items_gross_amount",
+      40,
+      40,
+      40
+    ],
+    [
+      "orders",
+      "W1001",
+      "discount_amount",
+      0,
+      0,
+      0
+    ],
+    [
+      "orders",
+      "W1001",
+      "shipping_amount",
+      0,
+      0,
+      0
+    ],
+    [
+      "orders",
+      "W1001",
+      "tax_amount",
+      0,
+      0,
+      0
+    ],
+    [
+      "orders",
+      "W1001",
+      "order_total_amount",
+      40,
+      40,
+      40
+    ],
+    [
+      "order_items",
+      "WI1001",
+      "order_item_id",
+      "WI1001",
+      "WI1001",
+      "WI1001"
+    ],
+    [
+      "order_items",
+      "WI1001",
+      "order_id",
+      "W1001",
+      "W1001",
+      "W1001"
+    ],
+    [
+      "order_items",
+      "WI1001",
+      "variant_id",
+      "V001",
+      "V001",
+      "V001"
+    ],
+    [
+      "order_items",
+      "WI1001",
+      "sku_at_purchase",
+      "MUG-BLUE-350",
+      "MUG-BLUE-350",
+      "MUG-BLUE-350"
+    ],
+    [
+      "order_items",
+      "WI1001",
+      "title_at_purchase",
+      "Blue ceramic mug 350 ml",
+      "Blue ceramic mug 350 ml",
+      "Blue ceramic mug 350 ml"
+    ],
+    [
+      "order_items",
+      "WI1001",
+      "quantity",
+      2,
+      2,
+      2
+    ],
+    [
+      "order_items",
+      "WI1001",
+      "unit_price",
+      20,
+      20,
+      20
+    ],
+    [
+      "order_items",
+      "WI1001",
+      "line_discount_amount",
+      0,
+      0,
+      0
+    ],
+    [
+      "order_items",
+      "WI1001",
+      "line_tax_amount",
+      0,
+      0,
+      0
+    ],
+    [
+      "order_items",
+      "WI1001",
+      "created_at",
+      "2026-10-17T09:00:00Z",
+      "2026-10-17T09:00:00Z",
+      "2026-10-17T09:00:00Z"
+    ],
+    [
+      "order_items",
+      "WI1001",
+      "updated_at",
+      "2026-10-17T09:00:00Z",
+      "2026-10-17T09:00:00Z",
+      "2026-10-17T09:00:00Z"
+    ],
+    [
+      "payment_transactions",
+      "PAY001",
+      "payment_transaction_id",
+      "PAY001",
+      "PAY001",
+      "PAY001"
+    ],
+    [
+      "payment_transactions",
+      "PAY001",
+      "order_id",
+      "W1001",
+      "W1001",
+      "W1001"
+    ],
+    [
+      "payment_transactions",
+      "PAY001",
+      "transaction_type",
+      "PAYMENT",
+      "PAYMENT",
+      "PAYMENT"
+    ],
+    [
+      "payment_transactions",
+      "PAY001",
+      "status",
+      "SUCCEEDED",
+      "SUCCEEDED",
+      "SUCCEEDED"
+    ],
+    [
+      "payment_transactions",
+      "PAY001",
+      "amount",
+      40,
+      40,
+      40
+    ],
+    [
+      "payment_transactions",
+      "PAY001",
+      "currency",
+      "USD",
+      "USD",
+      "USD"
+    ],
+    [
+      "payment_transactions",
+      "PAY001",
+      "provider_reference",
+      "sim-pay-001",
+      "sim-pay-001",
+      "sim-pay-001"
+    ],
+    [
+      "payment_transactions",
+      "PAY001",
+      "occurred_at",
+      "2026-10-17T09:01:00Z",
+      "2026-10-17T09:01:00Z",
+      "2026-10-17T09:01:00Z"
+    ],
+    [
+      "payment_transactions",
+      "PAY001",
+      "updated_at",
+      "2026-10-17T09:01:00Z",
+      "2026-10-17T09:01:00Z",
+      "2026-10-17T09:01:00Z"
+    ],
+    [
+      "cancellation_requests",
+      "CAN001",
+      "cancellation_id",
+      "NO_RECORD",
+      "CAN001",
+      "CAN001"
+    ],
+    [
+      "cancellation_requests",
+      "CAN001",
+      "order_id",
+      "NO_RECORD",
+      "W1001",
+      "W1001"
+    ],
+    [
+      "cancellation_requests",
+      "CAN001",
+      "reason_code",
+      "NO_RECORD",
+      "CUSTOMER_REQUEST",
+      "CUSTOMER_REQUEST"
+    ],
+    [
+      "cancellation_requests",
+      "CAN001",
+      "status",
+      "NO_RECORD",
+      "PENDING",
+      "APPROVED"
+    ],
+    [
+      "cancellation_requests",
+      "CAN001",
+      "requested_at",
+      "NO_RECORD",
+      "2026-10-17T09:10:00Z",
+      "2026-10-17T09:10:00Z"
+    ],
+    [
+      "cancellation_requests",
+      "CAN001",
+      "resolved_at",
+      "NO_RECORD",
+      "NULL",
+      "2026-10-17T09:14:00Z"
+    ],
+    [
+      "cancellation_requests",
+      "CAN001",
+      "updated_at",
+      "NO_RECORD",
+      "2026-10-17T09:10:00Z",
+      "2026-10-17T09:14:00Z"
+    ],
+    [
+      "shipments",
+      "W1001",
+      "matching row count",
+      0,
+      0,
+      0
+    ],
+    [
+      "shipment_items",
+      "W1001",
+      "matching row count",
+      0,
+      0,
+      0
+    ],
+    [
+      "payment_transactions",
+      "W1001 / REFUND",
+      "successful refund row count",
+      0,
+      0,
+      0,
+      "No refund row is created in S01."
+    ],
+    [
+      "customers",
+      "C001",
+      "customer_id",
+      "C001",
+      "C001",
+      "C001"
+    ],
+    [
+      "customers",
+      "C001",
+      "display_name",
+      "Synthetic Customer 001",
+      "Synthetic Customer 001",
+      "Synthetic Customer 001"
+    ],
+    [
+      "customers",
+      "C001",
+      "email",
+      "customer001@example.test",
+      "customer001@example.test",
+      "customer001@example.test"
+    ],
+    [
+      "customers",
+      "C001",
+      "created_at",
+      "2026-10-17T09:00:00Z",
+      "2026-10-17T09:00:00Z",
+      "2026-10-17T09:00:00Z"
+    ],
+    [
+      "customers",
+      "C001",
+      "updated_at",
+      "2026-10-17T09:00:00Z",
+      "2026-10-17T09:00:00Z",
+      "2026-10-17T09:00:00Z"
+    ],
+    [
+      "products",
+      "P001",
+      "product_id",
+      "P001",
+      "P001",
+      "P001"
+    ],
+    [
+      "products",
+      "P001",
+      "product_name",
+      "Ceramic mug 350 ml",
+      "Ceramic mug 350 ml",
+      "Ceramic mug 350 ml"
+    ],
+    [
+      "products",
+      "P001",
+      "category",
+      "Ceramics",
+      "Ceramics",
+      "Ceramics"
+    ],
+    [
+      "products",
+      "P001",
+      "is_active",
+      true,
+      true,
+      true
+    ],
+    [
+      "products",
+      "P001",
+      "created_at",
+      "2026-10-17T08:00:00Z",
+      "2026-10-17T08:00:00Z",
+      "2026-10-17T08:00:00Z"
+    ],
+    [
+      "products",
+      "P001",
+      "updated_at",
+      "2026-10-17T08:00:00Z",
+      "2026-10-17T08:00:00Z",
+      "2026-10-17T08:00:00Z"
+    ],
+    [
+      "product_variants",
+      "V001",
+      "variant_id",
+      "V001",
+      "V001",
+      "V001"
+    ],
+    [
+      "product_variants",
+      "V001",
+      "product_id",
+      "P001",
+      "P001",
+      "P001"
+    ],
+    [
+      "product_variants",
+      "V001",
+      "sku",
+      "MUG-BLUE-350",
+      "MUG-BLUE-350",
+      "MUG-BLUE-350"
+    ],
+    [
+      "product_variants",
+      "V001",
+      "attributes",
+      "{\"color\":\"blue\",\"capacity_ml\":350}",
+      "{\"color\":\"blue\",\"capacity_ml\":350}",
+      "{\"color\":\"blue\",\"capacity_ml\":350}"
+    ],
+    [
+      "product_variants",
+      "V001",
+      "current_price",
+      20,
+      20,
+      20
+    ],
+    [
+      "product_variants",
+      "V001",
+      "currency",
+      "USD",
+      "USD",
+      "USD"
+    ],
+    [
+      "product_variants",
+      "V001",
+      "is_active",
+      true,
+      true,
+      true
+    ],
+    [
+      "product_variants",
+      "V001",
+      "updated_at",
+      "2026-10-17T08:00:00Z",
+      "2026-10-17T08:00:00Z",
+      "2026-10-17T08:00:00Z"
+    ],
+    [
+      "product_variants",
+      "V002",
+      "variant_id",
+      "V002",
+      "V002",
+      "V002"
+    ],
+    [
+      "product_variants",
+      "V002",
+      "product_id",
+      "P001",
+      "P001",
+      "P001"
+    ],
+    [
+      "product_variants",
+      "V002",
+      "sku",
+      "MUG-WHITE-350",
+      "MUG-WHITE-350",
+      "MUG-WHITE-350"
+    ],
+    [
+      "product_variants",
+      "V002",
+      "attributes",
+      "{\"color\":\"white\",\"capacity_ml\":350}",
+      "{\"color\":\"white\",\"capacity_ml\":350}",
+      "{\"color\":\"white\",\"capacity_ml\":350}"
+    ],
+    [
+      "product_variants",
+      "V002",
+      "current_price",
+      22,
+      22,
+      22
+    ],
+    [
+      "product_variants",
+      "V002",
+      "currency",
+      "USD",
+      "USD",
+      "USD"
+    ],
+    [
+      "product_variants",
+      "V002",
+      "is_active",
+      true,
+      true,
+      true
+    ],
+    [
+      "product_variants",
+      "V002",
+      "updated_at",
+      "2026-10-17T08:00:00Z",
+      "2026-10-17T08:00:00Z",
+      "2026-10-17T08:00:00Z"
+    ]
+  ],
+  "04_eBay": [
+    [
+      "Object identity",
+      "Field path",
+      "EB_R1 · 09:03",
+      "EB_R2 · 09:13",
+      "Explanation"
+    ],
+    [
+      "order",
+      "orderId",
+      "12-10001-10001",
+      "12-10001-10001"
+    ],
+    [
+      "order",
+      "sellerId",
+      "seller_sim_01",
+      "seller_sim_01"
+    ],
+    [
+      "order",
+      "creationDate",
+      "2026-10-17T09:02:00Z",
+      "2026-10-17T09:02:00Z"
+    ],
+    [
+      "order",
+      "lastModifiedDate",
+      "2026-10-17T09:02:00Z",
+      "2026-10-17T09:12:00Z"
+    ],
+    [
+      "order",
+      "orderPaymentStatus",
+      "PAID",
+      "PAID"
+    ],
+    [
+      "order",
+      "orderFulfillmentStatus",
+      "NOT_STARTED",
+      "IN_PROGRESS",
+      "IN_PROGRESS alone does not prove shipment."
+    ],
+    [
+      "order",
+      "cancelStatus.cancelState",
+      "NONE_REQUESTED",
+      "NONE_REQUESTED"
+    ],
+    [
+      "list order",
+      "cancelStatus.cancelRequests",
+      "EMPTY_ARRAY",
+      "EMPTY_ARRAY",
+      "List endpoint always returns this array empty; do not treat it as universal evidence."
+    ],
+    [
+      "order",
+      "pricingSummary.priceSubtotal.value",
+      "62.00",
+      "62.00"
+    ],
+    [
+      "order",
+      "pricingSummary.priceSubtotal.currency",
+      "USD",
+      "USD"
+    ],
+    [
+      "order",
+      "pricingSummary.deliveryCost.value",
+      "0.00",
+      "0.00"
+    ],
+    [
+      "order",
+      "pricingSummary.deliveryCost.currency",
+      "USD",
+      "USD"
+    ],
+    [
+      "order",
+      "pricingSummary.tax.value",
+      "MISSING",
+      "MISSING",
+      "Correction: tax container is conditional; omitted in tax-free S01 per official eBay field description."
+    ],
+    [
+      "order",
+      "pricingSummary.tax.currency",
+      "MISSING",
+      "MISSING",
+      "Whole pricingSummary.tax object absent; currency is not separately defaulted to USD."
+    ],
+    [
+      "order",
+      "pricingSummary.total.value",
+      "62.00",
+      "62.00"
+    ],
+    [
+      "order",
+      "pricingSummary.total.currency",
+      "USD",
+      "USD"
+    ],
+    [
+      "line 10001001",
+      "lineItems[].lineItemId",
+      "10001001",
+      "10001001"
+    ],
+    [
+      "line 10001001",
+      "lineItems[].legacyItemId",
+      "510001",
+      "510001"
+    ],
+    [
+      "line 10001001",
+      "lineItems[].legacyVariationId",
+      "610001",
+      "610001"
+    ],
+    [
+      "line 10001001",
+      "lineItems[].sku",
+      "EB-BLUE-350",
+      "EB-BLUE-350"
+    ],
+    [
+      "line 10001001",
+      "lineItems[].title",
+      "Blue ceramic mug 350 ml",
+      "Blue ceramic mug 350 ml"
+    ],
+    [
+      "line 10001001",
+      "lineItems[].quantity",
+      2,
+      2
+    ],
+    [
+      "line 10001001",
+      "lineItems[].lineItemCost.value",
+      "40.00",
+      "40.00"
+    ],
+    [
+      "line 10001001",
+      "lineItems[].lineItemCost.currency",
+      "USD",
+      "USD"
+    ],
+    [
+      "line 10001001",
+      "lineItems[].lineItemFulfillmentStatus",
+      "NOT_STARTED",
+      "FULFILLED"
+    ],
+    [
+      "line 10001002",
+      "lineItems[].lineItemId",
+      "10001002",
+      "10001002"
+    ],
+    [
+      "line 10001002",
+      "lineItems[].legacyItemId",
+      "510001",
+      "510001"
+    ],
+    [
+      "line 10001002",
+      "lineItems[].legacyVariationId",
+      "610002",
+      "610002"
+    ],
+    [
+      "line 10001002",
+      "lineItems[].sku",
+      "EB-WHITE-350",
+      "EB-WHITE-350"
+    ],
+    [
+      "line 10001002",
+      "lineItems[].title",
+      "White ceramic mug 350 ml",
+      "White ceramic mug 350 ml"
+    ],
+    [
+      "line 10001002",
+      "lineItems[].quantity",
+      1,
+      1
+    ],
+    [
+      "line 10001002",
+      "lineItems[].lineItemCost.value",
+      "22.00",
+      "22.00"
+    ],
+    [
+      "line 10001002",
+      "lineItems[].lineItemCost.currency",
+      "USD",
+      "USD"
+    ],
+    [
+      "line 10001002",
+      "lineItems[].lineItemFulfillmentStatus",
+      "NOT_STARTED",
+      "NOT_STARTED"
+    ],
+    [
+      "shipping list",
+      "fulfillments[]",
+      "EMPTY_ARRAY",
+      "1 fulfillment",
+      "Separate resource, not a synthetic order field."
+    ],
+    [
+      "fulfillment FUL001",
+      "fulfillmentId",
+      "NO_RECORD",
+      "FUL001",
+      "Proposed synthetic fulfillment detail."
+    ],
+    [
+      "fulfillment FUL001",
+      "shippedDate",
+      "NO_RECORD",
+      "2026-10-17T09:12:00Z",
+      "Proposed synthetic fulfillment detail."
+    ],
+    [
+      "fulfillment FUL001",
+      "shippingCarrierCode",
+      "NO_RECORD",
+      "USPS",
+      "Proposed synthetic fulfillment detail."
+    ],
+    [
+      "fulfillment FUL001",
+      "shipmentTrackingNumber",
+      "NO_RECORD",
+      "SIMTRACK001",
+      "Proposed synthetic fulfillment detail."
+    ],
+    [
+      "fulfillment FUL001",
+      "lineItems[].lineItemId",
+      "NO_RECORD",
+      "10001001",
+      "Proposed synthetic fulfillment detail."
+    ],
+    [
+      "fulfillment FUL001",
+      "lineItems[].quantity",
+      "NO_RECORD",
+      2,
+      "Proposed synthetic fulfillment detail."
+    ]
+  ],
+  "05_Etsy": [
+    [
+      "Object identity",
+      "Field path",
+      "ET_R1 · 09:06",
+      "ET_R2 · 09:07",
+      "Source type",
+      "Explanation"
+    ],
+    [
+      "receipt",
+      "receipt_id",
+      9001001,
+      9001001,
+      "integer"
+    ],
+    [
+      "request context",
+      "shop_id",
+      7001,
+      7001,
+      "integer",
+      "Not invented as a receipt body field."
+    ],
+    [
+      "receipt",
+      "seller_user_id",
+      7001001,
+      7001001,
+      "integer"
+    ],
+    [
+      "receipt",
+      "buyer_user_id",
+      7002001,
+      7002001,
+      "integer"
+    ],
+    [
+      "receipt",
+      "created_timestamp",
+      1792227840,
+      1792227840,
+      "epoch seconds",
+      "09:04 UTC; not a creation snapshot."
+    ],
+    [
+      "receipt",
+      "updated_timestamp",
+      1792227900,
+      1792227900,
+      "epoch seconds",
+      "09:05 UTC; first acquired at 09:06."
+    ],
+    [
+      "receipt",
+      "is_paid",
+      true,
+      true,
+      "boolean"
+    ],
+    [
+      "receipt",
+      "is_shipped",
+      true,
+      true,
+      "boolean"
+    ],
+    [
+      "receipt",
+      "status",
+      "completed",
+      "completed",
+      "string",
+      "Proposed S01 raw enum. Not proof of delivered or a complete cancellation history."
+    ],
+    [
+      "receipt",
+      "total_price.amount",
+      2200,
+      2200,
+      "integer"
+    ],
+    [
+      "receipt",
+      "total_price.divisor",
+      100,
+      100,
+      "integer"
+    ],
+    [
+      "receipt",
+      "total_price.currency_code",
+      "USD",
+      "USD",
+      "string"
+    ],
+    [
+      "receipt",
+      "subtotal.amount",
+      2200,
+      2200,
+      "integer"
+    ],
+    [
+      "receipt",
+      "subtotal.divisor",
+      100,
+      100,
+      "integer"
+    ],
+    [
+      "receipt",
+      "subtotal.currency_code",
+      "USD",
+      "USD",
+      "string"
+    ],
+    [
+      "receipt",
+      "grandtotal.amount",
+      2200,
+      2200,
+      "integer"
+    ],
+    [
+      "receipt",
+      "grandtotal.divisor",
+      100,
+      100,
+      "integer"
+    ],
+    [
+      "receipt",
+      "grandtotal.currency_code",
+      "USD",
+      "USD",
+      "string"
+    ],
+    [
+      "receipt",
+      "discount_amt.amount",
+      0,
+      0,
+      "integer"
+    ],
+    [
+      "receipt",
+      "discount_amt.divisor",
+      100,
+      100,
+      "integer"
+    ],
+    [
+      "receipt",
+      "discount_amt.currency_code",
+      "USD",
+      "USD",
+      "string"
+    ],
+    [
+      "receipt",
+      "total_shipping_cost.amount",
+      0,
+      0,
+      "integer"
+    ],
+    [
+      "receipt",
+      "total_shipping_cost.divisor",
+      100,
+      100,
+      "integer"
+    ],
+    [
+      "receipt",
+      "total_shipping_cost.currency_code",
+      "USD",
+      "USD",
+      "string"
+    ],
+    [
+      "receipt",
+      "total_tax_cost.amount",
+      0,
+      0,
+      "integer"
+    ],
+    [
+      "receipt",
+      "total_tax_cost.divisor",
+      100,
+      100,
+      "integer"
+    ],
+    [
+      "receipt",
+      "total_tax_cost.currency_code",
+      "USD",
+      "USD",
+      "string"
+    ],
+    [
+      "receipt",
+      "total_vat_cost.amount",
+      0,
+      0,
+      "integer"
+    ],
+    [
+      "receipt",
+      "total_vat_cost.divisor",
+      100,
+      100,
+      "integer"
+    ],
+    [
+      "receipt",
+      "total_vat_cost.currency_code",
+      "USD",
+      "USD",
+      "string"
+    ],
+    [
+      "receipt",
+      "gift_wrap_price.amount",
+      0,
+      0,
+      "integer"
+    ],
+    [
+      "receipt",
+      "gift_wrap_price.divisor",
+      100,
+      100,
+      "integer"
+    ],
+    [
+      "receipt",
+      "gift_wrap_price.currency_code",
+      "USD",
+      "USD",
+      "string"
+    ],
+    [
+      "receipt",
+      "payment_method",
+      "cc",
+      "cc",
+      "string"
+    ],
+    [
+      "receipt",
+      "refunds",
+      "EMPTY_ARRAY",
+      "EMPTY_ARRAY",
+      "array"
+    ],
+    [
+      "transaction 8001001",
+      "transactions[].transaction_id",
+      8001001,
+      8001001,
+      "integer"
+    ],
+    [
+      "transaction 8001001",
+      "transactions[].receipt_id",
+      9001001,
+      9001001,
+      "integer"
+    ],
+    [
+      "transaction 8001001",
+      "transactions[].listing_id",
+      520001,
+      520001,
+      "integer or null"
+    ],
+    [
+      "transaction 8001001",
+      "transactions[].product_id",
+      620002,
+      620002,
+      "integer or null"
+    ],
+    [
+      "transaction 8001001",
+      "transactions[].sku",
+      "ET-WHITE-350",
+      "ET-WHITE-350",
+      "string or null"
+    ],
+    [
+      "transaction 8001001",
+      "transactions[].title",
+      "White ceramic mug 350 ml",
+      "White ceramic mug 350 ml",
+      "string or null"
+    ],
+    [
+      "transaction 8001001",
+      "transactions[].quantity",
+      1,
+      1,
+      "integer"
+    ],
+    [
+      "transaction 8001001",
+      "transactions[].price.amount",
+      2200,
+      2200,
+      "integer"
+    ],
+    [
+      "transaction 8001001",
+      "transactions[].price.divisor",
+      100,
+      100,
+      "integer"
+    ],
+    [
+      "transaction 8001001",
+      "transactions[].price.currency_code",
+      "USD",
+      "USD",
+      "string"
+    ],
+    [
+      "transaction 8001001",
+      "transactions[].paid_timestamp",
+      1792227840,
+      1792227840,
+      "epoch seconds"
+    ],
+    [
+      "transaction 8001001",
+      "transactions[].shipped_timestamp",
+      1792227900,
+      1792227900,
+      "epoch seconds"
+    ],
+    [
+      "receipt",
+      "shipments",
+      "1 shipment",
+      "1 shipment",
+      "array",
+      "Selected projection; shipment field-level expansion remains a review follow-up."
+    ],
+    [
+      "acquisition metadata",
+      "observed_at",
+      "2026-10-17T09:06:00Z",
+      "2026-10-17T09:07:00Z",
+      "pipeline timestamp",
+      "ET_R2 observed_at is 09:07 (separate metadata); source payload stays unchanged."
+    ]
+  ],
+  "06_Webhook": [
+    [
+      "Attempt ID",
+      "Received UTC",
+      "webhook-id",
+      "event_type",
+      "shop_id",
+      "resource_url",
+      "Event UTC (scenario ledger)",
+      "Pipeline: inbox action",
+      "Pipeline: receipt fetch",
+      "Pipeline: history action"
+    ],
+    [
+      "D1",
+      "09:06",
+      "msg_paid_001",
+      "order.paid",
+      7001,
+      "http://etsy-sim/v3/application/shops/7001/receipts/9001001",
+      "09:04",
+      "INSERT unique inbox message",
+      "ET_R1",
+      "INSERT ET_H1"
+    ],
+    [
+      "D2",
+      "09:07",
+      "msg_shipped_001",
+      "order.shipped",
+      7001,
+      "http://etsy-sim/v3/application/shops/7001/receipts/9001001",
+      "09:05",
+      "INSERT unique inbox message",
+      "ET_R2",
+      "NO INSERT: same version"
+    ],
+    [
+      "D3",
+      "09:08",
+      "msg_paid_001",
+      "order.paid",
+      7001,
+      "http://etsy-sim/v3/application/shops/7001/receipts/9001001",
+      "09:04",
+      "DUPLICATE; audit attempt",
+      "NO FETCH",
+      "NO INSERT"
+    ]
+  ],
+  "07_CurrentOrders": [
+    [
+      "Source",
+      "Account",
+      "Order ID",
+      "Created UTC",
+      "Source updated UTC",
+      "Version first observed UTC",
+      "Payment",
+      "Fulfillment",
+      "Cancellation",
+      "Currency",
+      "Source total",
+      "History reference"
+    ],
+    [
+      "internal_web",
+      "WEB01",
+      "W1001",
+      "2026-10-17T09:00:00Z",
+      "2026-10-17T09:14:00Z",
+      "2026-10-17T09:15:00Z",
+      "PAID",
+      "NOT_STARTED",
+      "CANCELED",
+      "USD",
+      40,
+      "WEB_H3"
+    ],
+    [
+      "ebay_sim",
+      "seller_sim_01",
+      "12-10001-10001",
+      "2026-10-17T09:02:00Z",
+      "2026-10-17T09:12:00Z",
+      "2026-10-17T09:13:00Z",
+      "PAID",
+      "PARTIALLY_SHIPPED",
+      "NOT_REQUESTED",
+      "USD",
+      62,
+      "EB_H2"
+    ],
+    [
+      "etsy_sim",
+      "7001",
+      "9001001",
+      "2026-10-17T09:04:00Z",
+      "2026-10-17T09:05:00Z",
+      "2026-10-17T09:06:00Z",
+      "PAID",
+      "SHIPPED",
+      "UNKNOWN",
+      "USD",
+      22,
+      "ET_H1"
+    ]
+  ],
+  "08_CurrentLines": [
+    [
+      "Source",
+      "Account",
+      "Order ID",
+      "Line ID",
+      "Canonical variant",
+      "Source SKU",
+      "Quantity",
+      "Unit gross USD",
+      "Line gross USD",
+      "Line evidence / meaning"
+    ],
+    [
+      "internal_web",
+      "WEB01",
+      "W1001",
+      "WI1001",
+      "V001",
+      "MUG-BLUE-350",
+      2,
+      20,
+      40,
+      "Parent order canceled; line purchase facts retained."
+    ],
+    [
+      "ebay_sim",
+      "seller_sim_01",
+      "12-10001-10001",
+      "10001001",
+      "V001",
+      "EB-BLUE-350",
+      2,
+      20,
+      40,
+      "Both units assigned to shipped FUL001."
+    ],
+    [
+      "ebay_sim",
+      "seller_sim_01",
+      "12-10001-10001",
+      "10001002",
+      "V002",
+      "EB-WHITE-350",
+      1,
+      22,
+      22,
+      "NOT_STARTED; no shipment evidence."
+    ],
+    [
+      "etsy_sim",
+      "7001",
+      "9001001",
+      "8001001",
+      "V002",
+      "ET-WHITE-350",
+      1,
+      22,
+      22,
+      "Source transaction has shipped_timestamp."
+    ]
+  ],
+  "09_History": [
+    [
+      "History ID",
+      "Source",
+      "Order ID",
+      "Source updated UTC",
+      "First observed UTC",
+      "Payment",
+      "Fulfillment",
+      "Cancellation",
+      "Evidence"
+    ],
+    [
+      "WEB_H1",
+      "internal_web",
+      "W1001",
+      "2026-10-17T09:01:00Z",
+      "2026-10-17T09:03:00Z",
+      "PAID",
+      "NOT_STARTED",
+      "NOT_REQUESTED",
+      "WEB_R1"
+    ],
+    [
+      "EB_H1",
+      "ebay_sim",
+      "12-10001-10001",
+      "2026-10-17T09:02:00Z",
+      "2026-10-17T09:03:00Z",
+      "PAID",
+      "NOT_STARTED",
+      "NOT_REQUESTED",
+      "EB_R1"
+    ],
+    [
+      "ET_H1",
+      "etsy_sim",
+      "9001001",
+      "2026-10-17T09:05:00Z",
+      "2026-10-17T09:06:00Z",
+      "PAID",
+      "SHIPPED",
+      "UNKNOWN",
+      "ET_R1"
+    ],
+    [
+      "WEB_H2",
+      "internal_web",
+      "W1001",
+      "2026-10-17T09:10:00Z",
+      "2026-10-17T09:11:00Z",
+      "PAID",
+      "NOT_STARTED",
+      "REQUESTED",
+      "WEB_R2"
+    ],
+    [
+      "EB_H2",
+      "ebay_sim",
+      "12-10001-10001",
+      "2026-10-17T09:12:00Z",
+      "2026-10-17T09:13:00Z",
+      "PAID",
+      "PARTIALLY_SHIPPED",
+      "NOT_REQUESTED",
+      "EB_R2 + fulfillment"
+    ],
+    [
+      "WEB_H3",
+      "internal_web",
+      "W1001",
+      "2026-10-17T09:14:00Z",
+      "2026-10-17T09:15:00Z",
+      "PAID",
+      "NOT_STARTED",
+      "CANCELED",
+      "WEB_R3"
+    ]
+  ]
+}

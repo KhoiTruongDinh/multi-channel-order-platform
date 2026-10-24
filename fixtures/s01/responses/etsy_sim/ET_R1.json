@@ -1,0 +1,85 @@
+{
+  "receipt_id": 9001001,
+  "seller_user_id": 7001001,
+  "buyer_user_id": 7002001,
+  "created_timestamp": 1792227840,
+  "updated_timestamp": 1792227900,
+  "status": "completed",
+  "is_paid": true,
+  "is_shipped": true,
+  "payment_method": "cc",
+  "transactions": [
+    {
+      "transaction_id": 8001001,
+      "receipt_id": 9001001,
+      "listing_id": 520001,
+      "product_id": 620002,
+      "sku": "ET-WHITE-350",
+      "title": "White ceramic mug 350 ml",
+      "quantity": 1,
+      "price": {
+        "amount": 2200,
+        "divisor": 100,
+        "currency_code": "USD"
+      },
+      "shipping_cost": {
+        "amount": 0,
+        "divisor": 100,
+        "currency_code": "USD"
+      },
+      "paid_timestamp": 1792227840,
+      "shipped_timestamp": 1792227900,
+      "is_digital": false,
+      "variations": []
+    }
+  ],
+  "shipments": [
+    {
+      "receipt_shipping_id": 630001,
+      "shipment_notification_timestamp": 1792227900,
+      "carrier_name": "USPS",
+      "tracking_code": "SIMETSY001"
+    }
+  ],
+  "refunds": [],
+  "total_price": {
+    "amount": 2200,
+    "divisor": 100,
+    "currency_code": "USD"
+  },
+  "subtotal": {
+    "amount": 2200,
+    "divisor": 100,
+    "currency_code": "USD"
+  },
+  "grandtotal": {
+    "amount": 2200,
+    "divisor": 100,
+    "currency_code": "USD"
+  },
+  "discount_amt": {
+    "amount": 0,
+    "divisor": 100,
+    "currency_code": "USD"
+  },
+  "total_shipping_cost": {
+    "amount": 0,
+    "divisor": 100,
+    "currency_code": "USD"
+  },
+  "total_tax_cost": {
+    "amount": 0,
+    "divisor": 100,
+    "currency_code": "USD"
+  },
+  "total_vat_cost": {
+    "amount": 0,
+    "divisor": 100,
+    "currency_code": "USD"
+  },
+  "gift_wrap_price": {
+    "amount": 0,
+    "divisor": 100,
+    "currency_code": "USD"
+  }
+}

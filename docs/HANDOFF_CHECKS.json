@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-24",
+  "scope": "documentation handoff and offline fixtures only",
+  "offline_fixture_checks": {
+    "command": "python verify.py",
+    "cwd": "fixtures/s01",
+    "passed": 10
+  },
+  "utility_tests": {
+    "command": "python -m unittest -v test_tools.py",
+    "cwd": "fixtures/s01",
+    "passed": 10
+  },
+  "local_markdown_links_checked": 23,
+  "exported_source_contract_rows": {
+    "13_WebsiteSchema": 71,
+    "14_WebsiteRules": 22,
+    "15_eBaySchema": 55,
+    "16_eBayRules": 21,
+    "17_EtsySchema": 75,
+    "18_EtsyRules": 25
+  },
+  "unchanged_source_diagrams": 3,
+  "runtime_pipeline_tested": false,
+  "remote_repository_created_or_pushed": false
+}

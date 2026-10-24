@@ -1,0 +1,148 @@
+{
+  "scenario_id": "S01",
+  "fixture_version": "1.0.0",
+  "scenario_date": "2026-10-17",
+  "timezone": "UTC",
+  "mapping_version": "s01-v1",
+  "transformation_version": "s01-v1",
+  "signature_tolerance_seconds": 300,
+  "overlap_seconds": 120,
+  "max_attempts_per_cycle": 5,
+  "timeline": [
+    {
+      "UTC time": "09:00",
+      "Source": "Website",
+      "Order": "W1001",
+      "Source action": "Create unpaid order",
+      "Pipeline action": "No read",
+      "Kind": "Business event",
+      "Why it matters": "No historical snapshot is generated merely from the event."
+    },
+    {
+      "UTC time": "09:01",
+      "Source": "Website",
+      "Order": "W1001",
+      "Source action": "Payment succeeds",
+      "Pipeline action": "No read",
+      "Kind": "Business event",
+      "Why it matters": "Orders.updated_at advances atomically."
+    },
+    {
+      "UTC time": "09:02",
+      "Source": "eBay",
+      "Order": "12-10001-10001",
+      "Source action": "Paid order; fulfillment NOT_STARTED",
+      "Pipeline action": "No read",
+      "Kind": "Business event",
+      "Why it matters": "Two source lines, three units."
+    },
+    {
+      "UTC time": "09:03",
+      "Source": "Website + eBay",
+      "Order": "W1001 / 12-10001-10001",
+      "Source action": "No new business event",
+      "Pipeline action": "Read WEB_R1 and EB_R1",
+      "Kind": "Observation",
+      "Why it matters": "First observed snapshot for each order."
+    },
+    {
+      "UTC time": "09:04",
+      "Source": "Etsy",
+      "Order": "9001001",
+      "Source action": "Payment; emit order.paid",
+      "Pipeline action": "Delivery delayed",
+      "Kind": "Business event",
+      "Why it matters": "Creation/payment time exists, but no receipt snapshot read yet."
+    },
+    {
+      "UTC time": "09:05",
+      "Source": "Etsy",
+      "Order": "9001001",
+      "Source action": "Mark shipped; emit order.shipped",
+      "Pipeline action": "No read",
+      "Kind": "Business event",
+      "Why it matters": "Receipt last update is now 09:05."
+    },
+    {
+      "UTC time": "09:06",
+      "Source": "Etsy",
+      "Order": "9001001",
+      "Source action": "Deliver paid notification",
+      "Pipeline action": "Read ET_R1 receipt",
+      "Kind": "Observation",
+      "Why it matters": "Receipt is already paid and shipped."
+    },
+    {
+      "UTC time": "09:07",
+      "Source": "Etsy",
+      "Order": "9001001",
+      "Source action": "Deliver shipped notification",
+      "Pipeline action": "Read ET_R2 same receipt",
+      "Kind": "Observation",
+      "Why it matters": "Different message; same snapshot → no new history."
+    },
+    {
+      "UTC time": "09:08",
+      "Source": "Etsy",
+      "Order": "9001001",
+      "Source action": "Redeliver paid notification",
+      "Pipeline action": "Deduplicate inbox",
+      "Kind": "Delivery",
+      "Why it matters": "No extra receipt fetch in this proposed worker policy."
+    },
+    {
+      "UTC time": "09:10",
+      "Source": "Website",
+      "Order": "W1001",
+      "Source action": "Cancellation request PENDING",
+      "Pipeline action": "No read",
+      "Kind": "Business event",
+      "Why it matters": "Order cancellation status REQUESTED."
+    },
+    {
+      "UTC time": "09:11",
+      "Source": "Website",
+      "Order": "W1001",
+      "Source action": "No new business event",
+      "Pipeline action": "Read WEB_R2",
+      "Kind": "Observation",
+      "Why it matters": "Payment remains PAID."
+    },
+    {
+      "UTC time": "09:12",
+      "Source": "eBay",
+      "Order": "12-10001-10001",
+      "Source action": "Ship entire blue line; white line not shipped",
+      "Pipeline action": "No read",
+      "Kind": "Business event",
+      "Why it matters": "One fulfillment allocates both blue units."
+    },
+    {
+      "UTC time": "09:13",
+      "Source": "eBay",
+      "Order": "12-10001-10001",
+      "Source action": "No new business event",
+      "Pipeline action": "Read EB_R2 + fulfillment",
+      "Kind": "Observation",
+      "Why it matters": "Use actual shipment evidence for PARTIALLY_SHIPPED."
+    },
+    {
+      "UTC time": "09:14",
+      "Source": "Website",
+      "Order": "W1001",
+      "Source action": "Approve cancellation; no completed refund",
+      "Pipeline action": "No read",
+      "Kind": "Business event",
+      "Why it matters": "Cancellation CANCELED; payment still PAID."
+    },
+    {
+      "UTC time": "09:15",
+      "Source": "Website",
+      "Order": "W1001",
+      "Source action": "No new business event",
+      "Pipeline action": "Read WEB_R3",
+      "Kind": "Observation",
+      "Why it matters": "One current order, three website history versions."
+    }
+  ]
+}

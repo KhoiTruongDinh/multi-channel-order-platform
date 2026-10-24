@@ -1,0 +1,68 @@
+[
+  {
+    "history_id": "WEB_H1",
+    "source_system": "internal_web",
+    "source_order_id": "W1001",
+    "source_updated_at": "2026-10-17T09:01:00Z",
+    "source_snapshot_observed_at": "2026-10-17T09:03:00Z",
+    "payment_state": "PAID",
+    "fulfillment_state": "NOT_STARTED",
+    "cancellation_state": "NOT_REQUESTED",
+    "fixture_evidence_note": "WEB_R1"
+  },
+  {
+    "history_id": "EB_H1",
+    "source_system": "ebay_sim",
+    "source_order_id": "12-10001-10001",
+    "source_updated_at": "2026-10-17T09:02:00Z",
+    "source_snapshot_observed_at": "2026-10-17T09:03:00Z",
+    "payment_state": "PAID",
+    "fulfillment_state": "NOT_STARTED",
+    "cancellation_state": "NOT_REQUESTED",
+    "fixture_evidence_note": "EB_R1"
+  },
+  {
+    "history_id": "ET_H1",
+    "source_system": "etsy_sim",
+    "source_order_id": "9001001",
+    "source_updated_at": "2026-10-17T09:05:00Z",
+    "source_snapshot_observed_at": "2026-10-17T09:06:00Z",
+    "payment_state": "PAID",
+    "fulfillment_state": "SHIPPED",
+    "cancellation_state": "UNKNOWN",
+    "fixture_evidence_note": "ET_R1"
+  },
+  {
+    "history_id": "WEB_H2",
+    "source_system": "internal_web",
+    "source_order_id": "W1001",
+    "source_updated_at": "2026-10-17T09:10:00Z",
+    "source_snapshot_observed_at": "2026-10-17T09:11:00Z",
+    "payment_state": "PAID",
+    "fulfillment_state": "NOT_STARTED",
+    "cancellation_state": "REQUESTED",
+    "fixture_evidence_note": "WEB_R2"
+  },
+  {
+    "history_id": "EB_H2",
+    "source_system": "ebay_sim",
+    "source_order_id": "12-10001-10001",
+    "source_updated_at": "2026-10-17T09:12:00Z",
+    "source_snapshot_observed_at": "2026-10-17T09:13:00Z",
+    "payment_state": "PAID",
+    "fulfillment_state": "PARTIALLY_SHIPPED",
+    "cancellation_state": "NOT_REQUESTED",
+    "fixture_evidence_note": "EB_R2 + fulfillment"
+  },
+  {
+    "history_id": "WEB_H3",
+    "source_system": "internal_web",
+    "source_order_id": "W1001",
+    "source_updated_at": "2026-10-17T09:14:00Z",
+    "source_snapshot_observed_at": "2026-10-17T09:15:00Z",
+    "payment_state": "PAID",
+    "fulfillment_state": "NOT_STARTED",
+    "cancellation_state": "CANCELED",
+    "fixture_evidence_note": "WEB_R3"
+  }
+]

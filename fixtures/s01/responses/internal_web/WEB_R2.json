@@ -1,0 +1,108 @@
+{
+  "orders": [
+    {
+      "order_id": "W1001",
+      "order_number": "WEB-20261017-001",
+      "customer_id": "C001",
+      "created_at": "2026-10-17T09:00:00Z",
+      "updated_at": "2026-10-17T09:10:00Z",
+      "currency": "USD",
+      "payment_status": "PAID",
+      "fulfillment_status": "NOT_STARTED",
+      "cancellation_status": "REQUESTED",
+      "items_gross_amount": "40.00",
+      "discount_amount": "0.00",
+      "shipping_amount": "0.00",
+      "tax_amount": "0.00",
+      "order_total_amount": "40.00"
+    }
+  ],
+  "order_items": [
+    {
+      "order_item_id": "WI1001",
+      "order_id": "W1001",
+      "variant_id": "V001",
+      "sku_at_purchase": "MUG-BLUE-350",
+      "title_at_purchase": "Blue ceramic mug 350 ml",
+      "quantity": 2,
+      "unit_price": "20.00",
+      "line_discount_amount": "0.00",
+      "line_tax_amount": "0.00",
+      "created_at": "2026-10-17T09:00:00Z",
+      "updated_at": "2026-10-17T09:00:00Z"
+    }
+  ],
+  "payment_transactions": [
+    {
+      "payment_transaction_id": "PAY001",
+      "order_id": "W1001",
+      "transaction_type": "PAYMENT",
+      "status": "SUCCEEDED",
+      "amount": "40.00",
+      "currency": "USD",
+      "provider_reference": "sim-pay-001",
+      "occurred_at": "2026-10-17T09:01:00Z",
+      "updated_at": "2026-10-17T09:01:00Z"
+    }
+  ],
+  "cancellation_requests": [
+    {
+      "cancellation_id": "CAN001",
+      "order_id": "W1001",
+      "reason_code": "CUSTOMER_REQUEST",
+      "status": "PENDING",
+      "requested_at": "2026-10-17T09:10:00Z",
+      "resolved_at": null,
+      "updated_at": "2026-10-17T09:10:00Z"
+    }
+  ],
+  "shipments": [],
+  "shipment_items": [],
+  "customers": [
+    {
+      "customer_id": "C001",
+      "display_name": "Synthetic Customer 001",
+      "email": "customer001@example.test",
+      "created_at": "2026-10-17T09:00:00Z",
+      "updated_at": "2026-10-17T09:00:00Z"
+    }
+  ],
+  "products": [
+    {
+      "product_id": "P001",
+      "product_name": "Ceramic mug 350 ml",
+      "category": "Ceramics",
+      "is_active": true,
+      "created_at": "2026-10-17T08:00:00Z",
+      "updated_at": "2026-10-17T08:00:00Z"
+    }
+  ],
+  "product_variants": [
+    {
+      "variant_id": "V001",
+      "product_id": "P001",
+      "sku": "MUG-BLUE-350",
+      "attributes": {
+        "color": "blue",
+        "capacity_ml": 350
+      },
+      "current_price": "20.00",
+      "currency": "USD",
+      "is_active": true,
+      "updated_at": "2026-10-17T08:00:00Z"
+    },
+    {
+      "variant_id": "V002",
+      "product_id": "P001",
+      "sku": "MUG-WHITE-350",
+      "attributes": {
+        "color": "white",
+        "capacity_ml": 350
+      },
+      "current_price": "22.00",
+      "currency": "USD",
+      "is_active": true,
+      "updated_at": "2026-10-17T08:00:00Z"
+    }
+  ]
+}

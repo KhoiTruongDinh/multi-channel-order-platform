@@ -1,0 +1,115 @@
+[
+  {
+    "acquisition_id": "EB_R1",
+    "source_system": "ebay_sim",
+    "observed_at": "2026-10-17T09:03:00Z",
+    "request_file": "requests/EB_R1.json",
+    "response_file": "responses/ebay_sim/EB_R1.json",
+    "business_kind": "ebay_order_page",
+    "response_headers": {
+      "content-type": "application/json"
+    },
+    "context": {
+      "source_account_id": "seller_sim_01"
+    }
+  },
+  {
+    "acquisition_id": "WEB_R1",
+    "source_system": "internal_web",
+    "observed_at": "2026-10-17T09:03:00Z",
+    "request_file": "requests/WEB_R1.json",
+    "response_file": "responses/internal_web/WEB_R1.json",
+    "business_kind": "website_tables",
+    "response_headers": {
+      "content-type": "application/json"
+    },
+    "context": {
+      "source_account_id": "WEB01"
+    }
+  },
+  {
+    "acquisition_id": "ET_R1",
+    "source_system": "etsy_sim",
+    "observed_at": "2026-10-17T09:06:00Z",
+    "request_file": "requests/ET_R1.json",
+    "response_file": "responses/etsy_sim/ET_R1.json",
+    "business_kind": "etsy_receipt",
+    "response_headers": {
+      "content-type": "application/json"
+    },
+    "context": {
+      "source_account_id": "7001"
+    }
+  },
+  {
+    "acquisition_id": "ET_R2",
+    "source_system": "etsy_sim",
+    "observed_at": "2026-10-17T09:07:00Z",
+    "request_file": "requests/ET_R2.json",
+    "response_file": "responses/etsy_sim/ET_R2.json",
+    "business_kind": "etsy_receipt",
+    "response_headers": {
+      "content-type": "application/json"
+    },
+    "context": {
+      "source_account_id": "7001"
+    }
+  },
+  {
+    "acquisition_id": "WEB_R2",
+    "source_system": "internal_web",
+    "observed_at": "2026-10-17T09:11:00Z",
+    "request_file": "requests/WEB_R2.json",
+    "response_file": "responses/internal_web/WEB_R2.json",
+    "business_kind": "website_tables",
+    "response_headers": {
+      "content-type": "application/json"
+    },
+    "context": {
+      "source_account_id": "WEB01"
+    }
+  },
+  {
+    "acquisition_id": "EB_F1",
+    "source_system": "ebay_sim",
+    "observed_at": "2026-10-17T09:13:00Z",
+    "request_file": "requests/EB_F1.json",
+    "response_file": "responses/ebay_sim/EB_F1.json",
+    "business_kind": "ebay_fulfillment_page",
+    "response_headers": {
+      "content-type": "application/json"
+    },
+    "context": {
+      "source_account_id": "seller_sim_01",
+      "order_id": "12-10001-10001"
+    }
+  },
+  {
+    "acquisition_id": "EB_R2",
+    "source_system": "ebay_sim",
+    "observed_at": "2026-10-17T09:13:00Z",
+    "request_file": "requests/EB_R2.json",
+    "response_file": "responses/ebay_sim/EB_R2.json",
+    "business_kind": "ebay_order_page",
+    "response_headers": {
+      "content-type": "application/json"
+    },
+    "context": {
+      "source_account_id": "seller_sim_01"
+    }
+  },
+  {
+    "acquisition_id": "WEB_R3",
+    "source_system": "internal_web",
+    "observed_at": "2026-10-17T09:15:00Z",
+    "request_file": "requests/WEB_R3.json",
+    "response_file": "responses/internal_web/WEB_R3.json",
+    "business_kind": "website_tables",
+    "response_headers": {
+      "content-type": "application/json"
+    },
+    "context": {
+      "source_account_id": "WEB01"
+    }
+  }
+]

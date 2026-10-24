@@ -1,0 +1,73 @@
+{
+  "scenario_id": "S01",
+  "result": "PASS",
+  "verification_scope": "offline fixtures only",
+  "runtime_pipeline_tested": false,
+  "checks": [
+    {
+      "check": "All packaged file checksums",
+      "result": "PASS",
+      "scope": "offline fixture validation"
+    },
+    {
+      "check": "Standalone scoped mapping seed",
+      "result": "PASS",
+      "scope": "offline fixture validation"
+    },
+    {
+      "check": "Source types, quantities, monetary conversion, FK and shipment evidence",
+      "result": "PASS",
+      "scope": "offline fixture validation"
+    },
+    {
+      "check": "Six history versions from actual observed payloads, not source truth ledger",
+      "result": "PASS",
+      "scope": "offline fixture validation"
+    },
+    {
+      "check": "Three current orders match latest source-derived states and totals",
+      "result": "PASS",
+      "scope": "offline fixture validation"
+    },
+    {
+      "check": "Four mapped source lines, six units, USD124 independently recomputed",
+      "result": "PASS",
+      "scope": "offline fixture validation"
+    },
+    {
+      "check": "Three real test signatures and freshness checks; two logical webhook messages",
+      "result": "PASS",
+      "scope": "offline fixture validation"
+    },
+    {
+      "check": "Repeated receipt payload equality",
+      "result": "PASS",
+      "scope": "offline fixture validation"
+    },
+    {
+      "check": "Multi-resource snapshot evidence links",
+      "result": "PASS",
+      "scope": "offline fixture validation"
+    },
+    {
+      "check": "Archived line snapshots, no baseline exceptions/delivered/refund claims",
+      "result": "PASS",
+      "scope": "offline fixture validation"
+    }
+  ],
+  "summary": {
+    "orders": 3,
+    "order_lines": 4,
+    "ordered_units": 6,
+    "gross_merchandise_usd": "124.00",
+    "source_order_totals_usd": "124.00",
+    "order_history_versions": 6,
+    "observed_line_history_rows": 8,
+    "logical_webhook_messages": 2,
+    "webhook_delivery_attempts": 3,
+    "confirmed_canceled_orders": 1,
+    "confirmed_refund_transactions": 0,
+    "delivered_orders": 0,
+    "exceptions": 0
+  }
+}

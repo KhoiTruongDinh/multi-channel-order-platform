@@ -1,0 +1,23 @@
+[
+  {
+    "attempt_id": "D1",
+    "body_file": "webhooks/D1.body.json",
+    "headers_file": "webhooks/D1.headers.json",
+    "received_at": "2026-10-17T09:06:00Z",
+    "receipt_fetch": "ET_R1"
+  },
+  {
+    "attempt_id": "D2",
+    "body_file": "webhooks/D2.body.json",
+    "headers_file": "webhooks/D2.headers.json",
+    "received_at": "2026-10-17T09:07:00Z",
+    "receipt_fetch": "ET_R2"
+  },
+  {
+    "attempt_id": "D3",
+    "body_file": "webhooks/D3.body.json",
+    "headers_file": "webhooks/D3.headers.json",
+    "received_at": "2026-10-17T09:08:00Z",
+    "receipt_fetch": null
+  }
+]

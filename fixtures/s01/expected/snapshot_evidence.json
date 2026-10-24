@@ -1,0 +1,30 @@
+[
+  {
+    "history_id": "WEB_H1",
+    "acquisition_id": "WEB_R1"
+  },
+  {
+    "history_id": "WEB_H2",
+    "acquisition_id": "WEB_R2"
+  },
+  {
+    "history_id": "WEB_H3",
+    "acquisition_id": "WEB_R3"
+  },
+  {
+    "history_id": "EB_H1",
+    "acquisition_id": "EB_R1"
+  },
+  {
+    "history_id": "EB_H2",
+    "acquisition_id": "EB_R2"
+  },
+  {
+    "history_id": "EB_H2",
+    "acquisition_id": "EB_F1"
+  },
+  {
+    "history_id": "ET_H1",
+    "acquisition_id": "ET_R1"
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "source_system": "etsy_sim",
+    "subscription_id": "s01-order-events",
+    "webhook_id": "msg_paid_001",
+    "event_type": "order.paid",
+    "first_received_at": "2026-10-17T09:06:00Z",
+    "attempt_count": 2
+  },
+  {
+    "source_system": "etsy_sim",
+    "subscription_id": "s01-order-events",
+    "webhook_id": "msg_shipped_001",
+    "event_type": "order.shipped",
+    "first_received_at": "2026-10-17T09:07:00Z",
+    "attempt_count": 1
+  }
+]

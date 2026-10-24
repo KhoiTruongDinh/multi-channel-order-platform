@@ -1,0 +1,8 @@
+{
+  "interface": "consistent_relational_read",
+  "store_id": "WEB01",
+  "order_ids": [
+    "W1001"
+  ],
+  "read_only": true
+}

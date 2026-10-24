@@ -1,0 +1,17 @@
+{
+  "total": 1,
+  "fulfillments": [
+    {
+      "fulfillmentId": "FUL001",
+      "shippedDate": "2026-10-17T09:12:00Z",
+      "shippingCarrierCode": "USPS",
+      "shipmentTrackingNumber": "SIMTRACK001",
+      "lineItems": [
+        {
+          "lineItemId": "10001001",
+          "quantity": 2
+        }
+      ]
+    }
+  ]
+}

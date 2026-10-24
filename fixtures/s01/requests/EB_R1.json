@@ -1,0 +1,12 @@
+{
+  "method": "GET",
+  "path": "/sell/fulfillment/v1/order",
+  "query": {
+    "filter": "lastmodifieddate:[2026-10-17T09:00:00Z..2026-10-17T09:03:00Z]",
+    "limit": "1",
+    "offset": "0"
+  },
+  "headers": {
+    "Authorization": "Bearer LOCAL_TEST_TOKEN"
+  }
+}

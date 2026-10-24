@@ -1,0 +1,54 @@
+[
+  {
+    "source_system": "internal_web",
+    "source_account_id": "WEB01",
+    "source_order_id": "W1001",
+    "source_line_id": "WI1001",
+    "canonical_variant_id": "V001",
+    "source_sku": "MUG-BLUE-350",
+    "quantity": 2,
+    "unit_gross_amount": "20.00",
+    "line_gross_amount": "40.00",
+    "evidence_note": "Parent order canceled; line purchase facts retained.",
+    "currency": "USD"
+  },
+  {
+    "source_system": "ebay_sim",
+    "source_account_id": "seller_sim_01",
+    "source_order_id": "12-10001-10001",
+    "source_line_id": "10001001",
+    "canonical_variant_id": "V001",
+    "source_sku": "EB-BLUE-350",
+    "quantity": 2,
+    "unit_gross_amount": "20.00",
+    "line_gross_amount": "40.00",
+    "evidence_note": "Both units assigned to shipped FUL001.",
+    "currency": "USD"
+  },
+  {
+    "source_system": "ebay_sim",
+    "source_account_id": "seller_sim_01",
+    "source_order_id": "12-10001-10001",
+    "source_line_id": "10001002",
+    "canonical_variant_id": "V002",
+    "source_sku": "EB-WHITE-350",
+    "quantity": 1,
+    "unit_gross_amount": "22.00",
+    "line_gross_amount": "22.00",
+    "evidence_note": "NOT_STARTED; no shipment evidence.",
+    "currency": "USD"
+  },
+  {
+    "source_system": "etsy_sim",
+    "source_account_id": "7001",
+    "source_order_id": "9001001",
+    "source_line_id": "8001001",
+    "canonical_variant_id": "V002",
+    "source_sku": "ET-WHITE-350",
+    "quantity": 1,
+    "unit_gross_amount": "22.00",
+    "line_gross_amount": "22.00",
+    "evidence_note": "Source transaction has shipped_timestamp.",
+    "currency": "USD"
+  }
+]

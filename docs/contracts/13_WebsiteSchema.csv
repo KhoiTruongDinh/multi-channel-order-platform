@@ -1,0 +1,72 @@
+Source table,Field,Logical type,Nullable?,Key / reference,Example value,Rule / giải thích,Status
+customers,customer_id,text identifier,NO,PK,C001,"Không rỗng; giữ nguyên ID, không chuyển thành số.",APPROVED — 2026-10-19
+customers,display_name,text,NO,—,Synthetic Customer 001,Giá trị văn bản nguồn.,APPROVED — 2026-10-19
+customers,email,text,YES,—,customer001@example.test,"Email là thuộc tính liên hệ, không dùng để định danh/gộp khách đa kênh; chưa đặt UNIQUE.",APPROVED — 2026-10-19
+customers,created_at,timestamp with timezone,NO,—,2026-10-17T09:00:00Z,Thời gian có timezone; biểu diễn UTC trong fixture.,APPROVED — 2026-10-19
+customers,updated_at,timestamp with timezone,NO,—,2026-10-17T09:00:00Z,Thời gian có timezone; biểu diễn UTC trong fixture.,APPROVED — 2026-10-19
+products,product_id,text identifier,NO,PK,P001,"Không rỗng; giữ nguyên ID, không chuyển thành số.",APPROVED — 2026-10-19
+products,product_name,text,NO,—,Ceramic mug 350 ml,Giá trị văn bản nguồn.,APPROVED — 2026-10-19
+products,category,text,NO,—,Ceramics,Giá trị văn bản nguồn.,APPROVED — 2026-10-19
+products,is_active,boolean,NO,—,TRUE,Ẩn/ngừng bán không xóa sản phẩm khỏi lịch sử đơn.,APPROVED — 2026-10-19
+products,created_at,timestamp with timezone,NO,—,2026-10-17T08:00:00Z,Thời gian có timezone; biểu diễn UTC trong fixture.,APPROVED — 2026-10-19
+products,updated_at,timestamp with timezone,NO,—,2026-10-17T08:00:00Z,Thời gian có timezone; biểu diễn UTC trong fixture.,APPROVED — 2026-10-19
+product_variants,variant_id,text identifier,NO,PK,V001,"Không rỗng; giữ nguyên ID, không chuyển thành số.",APPROVED — 2026-10-19
+product_variants,product_id,text identifier,NO,FK → products.product_id,P001,Phải tham chiếu record tồn tại; không suy ra FK từ tên.,APPROVED — 2026-10-19
+product_variants,sku,text,NO,UNIQUE within website store,MUG-BLUE-350,Một store website trong S01; không yêu cầu SKU unique trên mọi marketplace.,APPROVED — 2026-10-19
+product_variants,attributes,JSON object,NO,—,"{""color"":""blue"",""capacity_ml"":350}",S01 có color và capacity_ml; không lưu JSON này thành chuỗi trong source contract.,APPROVED — 2026-10-19
+product_variants,current_price,"exact decimal (18,2)",NO,—,20.00,"Số tiền không âm; S01 dùng USD, 2 chữ số thập phân. Không dùng binary float.",APPROVED — 2026-10-19
+product_variants,currency,text,NO,—,USD,Currency code; S01 chỉ USD. Giá danh mục không được dùng tính lại đơn đã mua.,APPROVED — 2026-10-19
+product_variants,is_active,boolean,NO,—,TRUE,Không xóa biến thể đã được đơn cũ tham chiếu.,APPROVED — 2026-10-19
+product_variants,updated_at,timestamp with timezone,NO,—,2026-10-17T08:00:00Z,Thời gian có timezone; biểu diễn UTC trong fixture.,APPROVED — 2026-10-19
+orders,order_id,text identifier,NO,PK,W1001,"Không rỗng; giữ nguyên ID, không chuyển thành số.",APPROVED — 2026-10-19
+orders,order_number,text,NO,UNIQUE within website store,WEB-20261017-001,Mã hiển thị; pipeline dùng order_id làm định danh giao dịch.,APPROVED — 2026-10-19
+orders,customer_id,text identifier,NO,FK → customers.customer_id,C001,Phải tham chiếu record tồn tại; không suy ra FK từ tên.,APPROVED — 2026-10-19
+orders,created_at,timestamp with timezone,NO,—,2026-10-17T09:00:00Z,Thời gian có timezone; biểu diễn UTC trong fixture.,APPROVED — 2026-10-19
+orders,updated_at,timestamp with timezone,NO,—,2026-10-17T09:14:00Z,Thay đổi liên quan ở bảng con cũng cập nhật field này trong cùng transaction.,APPROVED — 2026-10-19
+orders,currency,text,NO,—,USD,S01 chỉ USD; currency các giao dịch thanh toán của đơn phải cùng mã.,APPROVED — 2026-10-19
+orders,payment_status,text + allowed values,NO,—,PAID,"Tập giá trị đã duyệt: UNPAID, PAID. Đây là enum website, không phải enum của marketplace.",APPROVED — 2026-10-19
+orders,fulfillment_status,text + allowed values,NO,—,NOT_STARTED,"Tập giá trị đã duyệt: NOT_STARTED, PARTIALLY_SHIPPED, SHIPPED, DELIVERED. Đây là enum website, không phải enum của marketplace.",APPROVED — 2026-10-19
+orders,cancellation_status,text + allowed values,NO,—,CANCELED,"Tập giá trị đã duyệt: NOT_REQUESTED, REQUESTED, CANCELED. Đây là enum website, không phải enum của marketplace.",APPROVED — 2026-10-19
+orders,items_gross_amount,"exact decimal (18,2)",NO,—,40.00,"Số tiền không âm; S01 dùng USD, 2 chữ số thập phân. Không dùng binary float.",APPROVED — 2026-10-19
+orders,discount_amount,"exact decimal (18,2)",NO,—,0.00,"Số tiền không âm; S01 dùng USD, 2 chữ số thập phân. Không dùng binary float.",APPROVED — 2026-10-19
+orders,shipping_amount,"exact decimal (18,2)",NO,—,0.00,"Số tiền không âm; S01 dùng USD, 2 chữ số thập phân. Không dùng binary float.",APPROVED — 2026-10-19
+orders,tax_amount,"exact decimal (18,2)",NO,—,0.00,"Số tiền không âm; S01 dùng USD, 2 chữ số thập phân. Không dùng binary float.",APPROVED — 2026-10-19
+orders,order_total_amount,"exact decimal (18,2)",NO,—,40.00,"Số tiền không âm; S01 dùng USD, 2 chữ số thập phân. Không dùng binary float.",APPROVED — 2026-10-19
+order_items,order_item_id,text identifier,NO,PK,WI1001,"Không rỗng; giữ nguyên ID, không chuyển thành số.",APPROVED — 2026-10-19
+order_items,order_id,text identifier,NO,FK → orders.order_id,W1001,Phải tham chiếu record tồn tại; không suy ra FK từ tên.,APPROVED — 2026-10-19
+order_items,variant_id,text identifier,NO,FK → product_variants.variant_id,V001,Phải tham chiếu record tồn tại; không suy ra FK từ tên.,APPROVED — 2026-10-19
+order_items,sku_at_purchase,text,NO,—,MUG-BLUE-350,Snapshot SKU tại lúc mua; không cập nhật theo SKU hiện tại.,APPROVED — 2026-10-19
+order_items,title_at_purchase,text,NO,—,Blue ceramic mug 350 ml,Snapshot tên tại lúc mua.,APPROVED — 2026-10-19
+order_items,quantity,positive integer,NO,—,2,Số lượng đã đặt; giữ nguyên khi hủy đơn. Không dùng nó làm số lượng giao thành công.,APPROVED — 2026-10-19
+order_items,unit_price,"exact decimal (18,2)",NO,—,20.00,"Số tiền không âm; S01 dùng USD, 2 chữ số thập phân. Không dùng binary float.",APPROVED — 2026-10-19
+order_items,line_discount_amount,"exact decimal (18,2)",NO,—,0.00,"Số tiền không âm; S01 dùng USD, 2 chữ số thập phân. Không dùng binary float.",APPROVED — 2026-10-19
+order_items,line_tax_amount,"exact decimal (18,2)",NO,—,0.00,"Số tiền không âm; S01 dùng USD, 2 chữ số thập phân. Không dùng binary float.",APPROVED — 2026-10-19
+order_items,created_at,timestamp with timezone,NO,—,2026-10-17T09:00:00Z,Thời gian có timezone; biểu diễn UTC trong fixture.,APPROVED — 2026-10-19
+order_items,updated_at,timestamp with timezone,NO,—,2026-10-17T09:00:00Z,Thời gian có timezone; biểu diễn UTC trong fixture.,APPROVED — 2026-10-19
+payment_transactions,payment_transaction_id,text identifier,NO,PK,PAY001,"Không rỗng; giữ nguyên ID, không chuyển thành số.",APPROVED — 2026-10-19
+payment_transactions,order_id,text identifier,NO,FK → orders.order_id,W1001,Phải tham chiếu record tồn tại; không suy ra FK từ tên.,APPROVED — 2026-10-19
+payment_transactions,transaction_type,text + allowed values,NO,—,PAYMENT,"Tập giá trị đã duyệt: PAYMENT, REFUND. Đây là enum website, không phải enum của marketplace.",APPROVED — 2026-10-19
+payment_transactions,status,text + allowed values,NO,—,SUCCEEDED,"Tập giá trị đã duyệt: PENDING, SUCCEEDED, FAILED. Đây là enum website, không phải enum của marketplace.",APPROVED — 2026-10-19
+payment_transactions,amount,"exact decimal (18,2)",NO,—,40.00,"Đã duyệt: > 0; loại PAYMENT/REFUND quyết định chiều tiền, không dùng số âm.",APPROVED — 2026-10-19
+payment_transactions,currency,text,NO,—,USD,Giá trị văn bản nguồn.,APPROVED — 2026-10-19
+payment_transactions,provider_reference,text,YES,—,sim-pay-001,Có thể chưa có khi PENDING; S01 SUCCEEDED có giá trị. Chưa chốt uniqueness theo provider.,APPROVED — 2026-10-19
+payment_transactions,occurred_at,timestamp with timezone,NO,—,2026-10-17T09:01:00Z,Thời gian có timezone; biểu diễn UTC trong fixture.,APPROVED — 2026-10-19
+payment_transactions,updated_at,timestamp with timezone,NO,—,2026-10-17T09:01:00Z,Thời gian có timezone; biểu diễn UTC trong fixture.,APPROVED — 2026-10-19
+shipments,shipment_id,text identifier,NO,PK,NO_RECORD in S01,"Không rỗng; giữ nguyên ID, không chuyển thành số.",APPROVED — 2026-10-19
+shipments,order_id,text identifier,NO,FK → orders.order_id,NO_RECORD in S01,Phải tham chiếu record tồn tại; không suy ra FK từ tên.,APPROVED — 2026-10-19
+shipments,carrier,text,YES,—,NO_RECORD in S01,Có thể thiếu tracking; không tạo dữ liệu giả để lấp chỗ trống.,APPROVED — 2026-10-19
+shipments,tracking_number,text,YES,—,NO_RECORD in S01,Không coi tracking là PK.,APPROVED — 2026-10-19
+shipments,status,text + allowed values,NO,—,NO_RECORD in S01,"Tập giá trị đã duyệt: SHIPPED, DELIVERED. Đây là enum website, không phải enum của marketplace.",APPROVED — 2026-10-19
+shipments,shipped_at,timestamp with timezone,NO,—,NO_RECORD in S01,Mô hình bảng đề xuất chỉ tạo shipment khi có bằng chứng đã gửi; packing chưa hỗ trợ.,APPROVED — 2026-10-19
+shipments,delivered_at,timestamp with timezone,YES,—,NO_RECORD in S01,Chỉ có khi đã xác nhận nhận hàng; không dùng shipped_at thay thế.,APPROVED — 2026-10-19
+shipments,updated_at,timestamp with timezone,NO,—,NO_RECORD in S01,Thời gian có timezone; biểu diễn UTC trong fixture.,APPROVED — 2026-10-19
+shipment_items,shipment_id,text identifier,NO,FK → shipments.shipment_id; composite PK part,NO_RECORD in S01,Phải tham chiếu record tồn tại; không suy ra FK từ tên.,APPROVED — 2026-10-19
+shipment_items,order_item_id,text identifier,NO,FK → order_items.order_item_id; composite PK part,NO_RECORD in S01,Phải tham chiếu record tồn tại; không suy ra FK từ tên.,APPROVED — 2026-10-19
+shipment_items,quantity,positive integer,NO,—,NO_RECORD in S01,Dòng hàng phải thuộc cùng đơn của shipment; tổng phân bổ không vượt số lượng đã đặt.,APPROVED — 2026-10-19
+cancellation_requests,cancellation_id,text identifier,NO,PK,CAN001,"Không rỗng; giữ nguyên ID, không chuyển thành số.",APPROVED — 2026-10-19
+cancellation_requests,order_id,text identifier,NO,FK → orders.order_id,W1001,Phải tham chiếu record tồn tại; không suy ra FK từ tên.,APPROVED — 2026-10-19
+cancellation_requests,reason_code,text + allowed values,NO,—,CUSTOMER_REQUEST,"Tập giá trị đã duyệt: CUSTOMER_REQUEST. Đây là enum website, không phải enum của marketplace.",APPROVED — 2026-10-19
+cancellation_requests,status,text + allowed values,NO,—,APPROVED,"Tập giá trị đã duyệt: PENDING, APPROVED, REJECTED. Đây là enum website, không phải enum của marketplace.",APPROVED — 2026-10-19
+cancellation_requests,requested_at,timestamp with timezone,NO,—,2026-10-17T09:10:00Z,Thời gian có timezone; biểu diễn UTC trong fixture.,APPROVED — 2026-10-19
+cancellation_requests,resolved_at,timestamp with timezone,YES,—,2026-10-17T09:14:00Z,"PENDING → NULL; APPROVED/REJECTED → có giá trị, không sớm hơn requested_at.",APPROVED — 2026-10-19
+cancellation_requests,updated_at,timestamp with timezone,NO,—,2026-10-17T09:14:00Z,Thời gian có timezone; biểu diễn UTC trong fixture.,APPROVED — 2026-10-19

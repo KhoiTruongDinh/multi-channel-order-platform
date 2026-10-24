@@ -1,0 +1,57 @@
+{
+  "orderId": "12-10001-10001",
+  "sellerId": "seller_sim_01",
+  "creationDate": "2026-10-17T09:02:00Z",
+  "lastModifiedDate": "2026-10-17T09:12:00Z",
+  "orderPaymentStatus": "PAID",
+  "orderFulfillmentStatus": "IN_PROGRESS",
+  "cancelStatus": {
+    "cancelState": "NONE_REQUESTED",
+    "cancelRequests": []
+  },
+  "pricingSummary": {
+    "priceSubtotal": {
+      "value": "62.00",
+      "currency": "USD"
+    },
+    "deliveryCost": {
+      "value": "0.00",
+      "currency": "USD"
+    },
+    "total": {
+      "value": "62.00",
+      "currency": "USD"
+    }
+  },
+  "lineItems": [
+    {
+      "lineItemId": "10001001",
+      "legacyItemId": "510001",
+      "legacyVariationId": "610001",
+      "sku": "EB-BLUE-350",
+      "title": "Blue ceramic mug 350 ml",
+      "quantity": 2,
+      "lineItemCost": {
+        "value": "40.00",
+        "currency": "USD"
+      },
+      "lineItemFulfillmentStatus": "FULFILLED"
+    },
+    {
+      "lineItemId": "10001002",
+      "legacyItemId": "510001",
+      "legacyVariationId": "610002",
+      "sku": "EB-WHITE-350",
+      "title": "White ceramic mug 350 ml",
+      "quantity": 1,
+      "lineItemCost": {
+        "value": "22.00",
+        "currency": "USD"
+      },
+      "lineItemFulfillmentStatus": "NOT_STARTED"
+    }
+  ],
+  "fulfillmentHrefs": [
+    "http://ebay-sim/sell/fulfillment/v1/order/12-10001-10001/shipping_fulfillment/FUL001"
+  ]
+}

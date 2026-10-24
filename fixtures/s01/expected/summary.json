@@ -1,0 +1,15 @@
+{
+  "orders": 3,
+  "order_lines": 4,
+  "ordered_units": 6,
+  "gross_merchandise_usd": "124.00",
+  "source_order_totals_usd": "124.00",
+  "order_history_versions": 6,
+  "observed_line_history_rows": 8,
+  "logical_webhook_messages": 2,
+  "webhook_delivery_attempts": 3,
+  "confirmed_canceled_orders": 1,
+  "confirmed_refund_transactions": 0,
+  "delivered_orders": 0,
+  "exceptions": 0
+}

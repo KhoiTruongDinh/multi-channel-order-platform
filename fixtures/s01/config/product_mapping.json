@@ -1,0 +1,41 @@
+{
+  "mapping_version": "s01-v1",
+  "mappings": [
+    {
+      "source_system": "internal_web",
+      "source_account_id": "WEB01",
+      "source_listing_id": null,
+      "source_variant_id": "V001",
+      "source_sku": "MUG-BLUE-350",
+      "canonical_variant_id": "V001",
+      "mapping_status": "CONFIRMED"
+    },
+    {
+      "source_system": "ebay_sim",
+      "source_account_id": "seller_sim_01",
+      "source_listing_id": "510001",
+      "source_variant_id": "610001",
+      "source_sku": "EB-BLUE-350",
+      "canonical_variant_id": "V001",
+      "mapping_status": "CONFIRMED"
+    },
+    {
+      "source_system": "ebay_sim",
+      "source_account_id": "seller_sim_01",
+      "source_listing_id": "510001",
+      "source_variant_id": "610002",
+      "source_sku": "EB-WHITE-350",
+      "canonical_variant_id": "V002",
+      "mapping_status": "CONFIRMED"
+    },
+    {
+      "source_system": "etsy_sim",
+      "source_account_id": "7001",
+      "source_listing_id": "520001",
+      "source_variant_id": "620002",
+      "source_sku": "ET-WHITE-350",
+      "canonical_variant_id": "V002",
+      "mapping_status": "CONFIRMED"
+    }
+  ]
+}

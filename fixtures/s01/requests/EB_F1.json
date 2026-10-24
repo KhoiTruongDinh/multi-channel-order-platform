@@ -1,0 +1,8 @@
+{
+  "method": "GET",
+  "path": "/sell/fulfillment/v1/order/12-10001-10001/shipping_fulfillment",
+  "query": {},
+  "headers": {
+    "Authorization": "Bearer LOCAL_TEST_TOKEN"
+  }
+}
