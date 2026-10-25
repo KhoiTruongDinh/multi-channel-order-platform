@@ -1,0 +1,34 @@
+name: multi-channel-order-platform
+
+services:
+  postgres:
+    image: postgres:16.15-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD in .env}
+      POSTGRES_DB: postgres
+      WEBSITE_READER_PASSWORD: ${WEBSITE_READER_PASSWORD:?set WEBSITE_READER_PASSWORD in .env}
+      WEBSITE_WRITER_PASSWORD: ${WEBSITE_WRITER_PASSWORD:?set WEBSITE_WRITER_PASSWORD in .env}
+      MARKETPLACE_WRITER_PASSWORD: ${MARKETPLACE_WRITER_PASSWORD:?set MARKETPLACE_WRITER_PASSWORD in .env}
+      PLATFORM_INGEST_PASSWORD: ${PLATFORM_INGEST_PASSWORD:?set PLATFORM_INGEST_PASSWORD in .env}
+      PLATFORM_TRANSFORM_PASSWORD: ${PLATFORM_TRANSFORM_PASSWORD:?set PLATFORM_TRANSFORM_PASSWORD in .env}
+      PLATFORM_PUBLISHER_PASSWORD: ${PLATFORM_PUBLISHER_PASSWORD:?set PLATFORM_PUBLISHER_PASSWORD in .env}
+      PLATFORM_REPORT_PASSWORD: ${PLATFORM_REPORT_PASSWORD:?set PLATFORM_REPORT_PASSWORD in .env}
+      AIRFLOW_APP_PASSWORD: ${AIRFLOW_APP_PASSWORD:?set AIRFLOW_APP_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/bootstrap:/docker-entrypoint-initdb.d:ro
+      - ../migrations:/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    shm_size: 256mb
+
+volumes:
+  postgres_data:

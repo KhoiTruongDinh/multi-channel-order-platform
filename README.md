@@ -2,7 +2,9 @@
 
 Local DE portfolio project: internal website database + eBay-style polling API + Etsy-style webhook/receipt API → immutable raw → dbt → PostgreSQL published data → operations/data-health dashboard. Airflow orchestrates the bounded pipeline.
 
-**Current state:** versioned design handoff and executable fixed S01 fixtures. No database pipeline, HTTP simulator, dbt project, DAG or dashboard is implemented yet. Selected source/business contracts are approved; physical architecture, reporting details, Streamlit recommendation and delivery plan are DRAFT.
+**Current state:** M01 adds the local PostgreSQL bootstrap, role boundaries,
+target schema contract, and stable empty publication surfaces. Source services,
+runtime ingestion, dbt models, DAGs, and dashboard are not implemented yet.
 
 ## Start here
 
@@ -11,6 +13,8 @@ Local DE portfolio project: internal website database + eBay-style polling API +
 - [Milestones](docs/04_PLAN.md)
 - [VS Code / Codex guide](docs/CODEX_VSCODE.md)
 - [AI repository instructions](AGENTS.md)
+- [Target field dictionary](docs/05_TARGET_SCHEMA.md)
+- [Local PostgreSQL bootstrap](infra/README.md)
 
 ## Run the existing offline fixture checks
 

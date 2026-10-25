@@ -22,8 +22,8 @@ Build a reproducible local multi-channel order DE portfolio project. Work one na
 - Complete target column definitions/constraints before writing dependent migrations/models. Do not treat source-schema exports as a finished warehouse schema.
 - Run the milestone's meaningful acceptance checks. Record exact commands and actual outcomes, including checks not run. Never label generated code as verified runtime behavior.
 - Update `docs/STATUS.md` with progress, decisions, failures, evidence and the next task. Synchronize changed contract/architecture/plan files; dated Google exports do not update automatically.
-- Inspect the diff and run `git diff --check` when a Git worktree exists. Stage only task-owned files. The owner's requested workflow permits a local completion commit after checks pass when Git identity/branch are configured; report its SHA from Git and stop before the next milestone for review. Do not commit unrelated user edits or claim completion with failing required checks.
-- Do not push remotely unless the user explicitly requests it. Do not overwrite user work or reset a database without confirming its disposable test scope.
+- Inspect the diff and run `git diff --check` when a Git worktree exists. Leave task changes unstaged for owner review. Do not stage, commit, amend, squash, rebase, or push unless the owner explicitly requests that Git action in the current task. The owner normally reviews, stages, commits, and pushes. Do not claim completion with failing required checks.
+- When the owner explicitly requests a Git action, include only task-owned files and report the resulting status/SHA. Do not overwrite user work or reset a database without confirming its disposable test scope.
 - Do not commit credentials, local DB volumes, runtime raw/logs, caches or dbt build artifacts. Synthetic fixed fixture evidence is intentionally versioned.
 
 ## Currently executable checks

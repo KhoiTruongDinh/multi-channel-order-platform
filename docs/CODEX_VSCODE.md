@@ -39,18 +39,18 @@ Implement storage/bootstrap, run the milestone acceptance checks, and
 record exact results and any checks you could not run in docs/STATUS.md.
 Explain important choices and results to me in Vietnamese.
 
-Inspect the diff and stage only task-owned changes. When required checks
-pass and Git identity is configured, create the local milestone commit.
-Report its SHA and the review points. Stop before M02. Do not push remotely.
+Inspect the diff, run git diff --check, and leave all changes unstaged for
+my review. Report the review points, exact checks, suggested commit message,
+and remaining risks. Stop before M02. Do not stage, commit, or push.
 ```
 
 The approval sentence above is a template for the owner to use if they agree. The existence of this file does not approve the pending design.
 
 ## 4. Milestone loop
 
-Select one milestone → implement → run checks → inspect diff and demo → update status/contracts → create a local completion commit → owner review. Use a branch such as `milestone/m01-foundation` if desired. One milestone may need several smaller commits; preserve a clear completion checkpoint.
+Select one milestone → implement → run checks → inspect diff and demo → update status/contracts → leave changes unstaged → owner review → owner stages/commits/pushes. Use a branch such as `milestone/m01-foundation` if desired. Codex suggests the milestone commit message but performs Git write actions only when explicitly requested in the current task.
 
-At review, ask Codex to explain what changed, why it meets acceptance, actual test evidence, known limitations and the next task. A failing required check means the milestone is not complete. Code generation alone is not acceptance. Use `git log -1 --oneline` and `git status --short` to inspect the checkpoint.
+At review, ask Codex to explain what changed, why it meets acceptance, actual test evidence, known limitations and the next task. A failing required check means the milestone is not complete. Code generation alone is not acceptance. Use `git diff`, `git diff --check`, and `git status --short` before you stage and commit the reviewed checkpoint.
 
 ## 5. Resume in a new chat
 
@@ -59,8 +59,8 @@ Continue this repository. Read AGENTS.md, docs/STATUS.md and the relevant
 milestone in docs/04_PLAN.md. Inspect the current branch, commit and files.
 Summarize the actual checkpoint, then implement only M<NUMBER> using its
 acceptance criteria. Preserve approved behavior. Run the required checks,
-update STATUS, create the local completion commit if checks pass, and stop
-before the next milestone. Do not push remotely.
+update STATUS, leave changes unstaged for my review, and stop before the next
+milestone. Do not stage, commit, or push.
 ```
 
 `AGENTS.md` is recognized repository guidance. Other filenames here are our conventions; root instructions tell the agent to read them. Context files do not replace checking the live code/environment. See the [official AGENTS.md guide](https://learn.chatgpt.com/docs/agent-configuration/agents-md) and [iterative workflow example](https://developers.openai.com/cookbook/examples/codex/iterating-development-workflows-with-codex).
