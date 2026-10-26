@@ -1,15 +1,48 @@
 # Actual project status
 
-Updated: 2026-10-25 (Asia/Bangkok).
+Updated: 2026-10-26 (Asia/Bangkok).
 
-- Stage: M02 website acquisition implemented and runtime-checked; awaiting owner review before M03.
-- Starting M02 Git state: `main` at `6c74517`, synchronized with `origin/main`. The pre-existing untracked root file `HANDOFF_SHA256SUMS.txt` was not changed. All M02 changes remain unstaged; no commit or remote push was performed.
+- Stage: M03 website dbt/release implemented and runtime-checked; awaiting owner review before M04.
+- The owner approved M02 and explicitly requested its local commit on 2026-10-26. M02 commit: `7e1816301fe7b354951095a8b4a6f00c13979d91` (`feat: ingest website S01 with durable checkpoints`). `main` is one commit ahead of `origin/main`; no push was performed. M03 changes remain unstaged. The pre-existing untracked `HANDOFF_SHA256SUMS.txt` is unchanged.
 - Approved and preserved: S01/source contracts, independent mapping version, observed-only history, source/account identity, amount grain/currency, and independent payment/fulfillment/cancellation state.
 - M01 technical direction accepted by the owner: PostgreSQL 16.15 Bookworm, one instance/four databases, named-volume persistence, idempotent migrations, least-privilege service roles, candidate `build` schema, and stable report views.
 - Git workflow updated by the owner on 2026-10-25: Codex leaves completed work unstaged for review; the owner normally stages, commits, and pushes. Codex performs Git write actions only when explicitly requested in the current task.
 - Implemented: target field dictionary; Compose PostgreSQL bootstrap; database/role boundaries; raw/ops/config/core/mart/report schemas; migration ledger and rerun command; four-row approved S01 mapping seed; empty stable publication tables/views; repeatable M01 database acceptance SQL.
 - Implemented through M02: the website source schema, fixed S01 source-state playback, consistent read-only website extraction, append-only raw acquisition evidence, run/checkpoint audit, interruption injection, replay evidence, and repeatable runtime acceptance runner.
-- Not implemented: marketplace source services, dbt project/models/tests, Airflow installation/DAGs, publication command, dashboard, and full end-to-end recovery tests. Empty core/mart tables remain contracts/publication targets, not generated business results.
+- Implemented through M03: website dbt sources/staging, source-content fingerprint parity, scoped product mapping, distinct observed order/line history and raw evidence links, current tables, four marts, frozen raw manifests, per-batch dbt artifacts, guarded batch lifecycle and atomic stable publication. Published website data now exists in core/mart/report.
+- Not implemented: marketplace source services/models, Airflow installation/DAGs, dashboard, generalized exception remediation, and full end-to-end recovery tests.
+
+## M03 decisions and review points
+
+- The M01 target dictionary was reviewed before models; no new target columns or dependent DDL were needed. Candidates use the stable table column order and FK-safe publication order. Business SQL lives exclusively in dbt; Python owns manifest/run metadata, test-artifact verification, and publication copies.
+- Runtime: dbt Core 1.11.16 with dbt-postgres 1.11.0, Python 3.12.12 image pinned by digest; all resolved Python dependencies are pinned in `requirements/m03.txt`. Two dbt threads are used. This is a tested local compatibility choice, not a performance benchmark.
+- `freeze` records eligible committed raw IDs explicitly. Only successful website acquisitions enter the manifest; failed acquisition evidence stays in raw. Successful replays retain their evidence rows but do not add source versions. A lifecycle guard rejects another active FROZEN/BUILDING/TESTED batch before candidate rebuilds; an interrupted batch requires explicit inspection/abort.
+- Website content fingerprints use SHA-256 over the six order/child arrays, excluding catalog/customer/acquisition/mapping metadata. Object keys are sorted and array order is preserved, matching the approved website fixture utility. Snapshot IDs include source/account/order/update/fingerprint, independently of mapping/transformation/batch versions. Latest current state uses source update time; equal-time content conflicts fail a required test before publication.
+- Scoped exact variant mapping and unique SKU fallback preserve source line facts. Ambiguous/conflicting identifiers are not guessed. `s01-v1` is treated as immutable during the run; broader missing-mapping remediation is not claimed by this milestone.
+- dbt builds candidates only in `build` as `platform_transform`. A batch becomes TESTED only when its matching `run_results.json` and `manifest.json` invocation contains successful results for every project model/test. Hooks are excluded from that required node set. Artifacts remain under ignored `runtime/dbt/<batch UUID>/`.
+- `platform_publisher` requires TESTED status and matching candidate batch identity. It copies website rows and updates release metadata in one transaction; failed attempts retain run audit separately. Published tables are read by `platform_report` in a read-only REPEATABLE READ transaction. Normal transform/publish images contain no fixtures; only the parity test mounts fixture files read-only.
+- `mart.source_health.coverage_state` stays UNKNOWN: a recent successful checkpoint alone is not proof of uninterrupted coverage. The model retains available checkpoint, acquisition, backlog, exception-count, and publication fields.
+
+## Exact M03 checks and outcomes
+
+- Starting branch/commit/file inspection: `main` at `6c74517`, only M02 changes plus pre-existing `HANDOFF_SHA256SUMS.txt`. Git identity was configured. `git diff --check` and staged diff inspection passed before the requested M02 local commit. Initial Git index write was sandbox-denied; the authorized retry succeeded. Post-commit state contained only the pre-existing untracked file before M03 edits.
+- `python -m py_compile transformation/batch.py transformation/publish.py tests/test_m03_fingerprint.py` — PASS. PowerShell parser over `infra/scripts/run_m03_s01.ps1` — PASS. Compose configuration validation — PASS. Boundary search found no fixture/expected/source-state/truth-ledger reads in production M03 code.
+- From `fixtures/s01/`, `python verify.py` — PASS, 10 offline checks; `python -m unittest -v test_tools.py` — PASS, 10 tests. These remain offline checks, separate from the runtime results below.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m03_s01.ps1` — PASS, exit 0 on the final pinned build. Published batch: `8db63541-de4c-4f0b-9af9-71679123201f`; failed acceptance batch: `1ba8328e-9fc4-4088-8a27-a9eada995a3c`.
+- The final successful dbt invocation built 11 models and passed all 17 data tests plus its hook: `PASS=29 WARN=0 ERROR=0 SKIP=0`. Both batches froze 16 eligible raw IDs. Publication produced 3 distinct order versions, 3 archived line rows, 16 snapshot evidence links, 1 current order, and 1 current line. Retained acquisition replays did not inflate source-version counts.
+- Runner fingerprint test (`tests/test_m03_fingerprint.py` in a test-only container with read-only fixture mount) — PASS: SQL canonical bytes/SHA-256 equal Python fixture behavior on 8 cases (including the three scheduled website business objects, missing/null, ordered arrays, nested objects, and Unicode), and all 16 retained observations.
+- Failure acceptance — PASS: exactly `test.multi_channel_orders.injected_failure` failed; every other node passed (`PASS=28 ERROR=1 SKIP=0`, including hook). Batch transitioned to FAILED. An actual publisher attempt rejected it with `only a TESTED batch can be published`. The following `tests/m03_acceptance.sql` returned `M03 website dbt/release PASS` and confirmed the successful publication stayed active.
+- `tests/m03_report.sql` was piped through Compose to authenticated TCP psql as `platform_report` — PASS. Stable report results: W1001 PAID / NOT_STARTED / CANCELED; WI1001 maps to V001, quantity 2, USD40 merchandise; order activity 1 / USD40; product activity V001 / 2 / USD40. Publication stayed on batch `8db63541-de4c-4f0b-9af9-71679123201f` after the failed build/publish attempt.
+- Final direct DB query confirmed 3 history rows, 3 line-history rows, 16 evidence links, 1 current order/line, and separate FAILED TRANSFORM/PUBLISH run audits for the rejected batch. `git diff --check`, trailing-whitespace inspection of new task files, and `git diff --cached --quiet` — PASS; M03 changes remain unstaged and no credentials/runtime artifacts are included.
+- `Get-Content tests/m01_acceptance.sql -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T postgres psql --set ON_ERROR_STOP=1 --username postgres --dbname data_platform` — PASS, `M01 database contract PASS`, after M03 materialization.
+- Intermediate failures retained in audit: the first build used unsupported `MIN(uuid)` in three marts; replaced with the frozen batch UUID. A later all-passing build was conservatively rejected by artifact validation because a hook was counted alongside model/test nodes; corrected the node set and explicitly marked that stopped batch FAILED. No failed candidate was published. Earlier accepted run was batch `c01e0fde-ece5-4097-8484-6249364739e9`; final acceptance also exercised repeatable publication from the same raw manifest.
+
+## M03 checks not run / limits
+
+- No volume reset, source playback, or acquisition rerun was required for M03: it used the existing retained M02 raw data. PostgreSQL volume, raw audits and source data were preserved.
+- Runtime checks cover approved website S01, not marketplace fingerprints, general JSON numeric encodings, arbitrary commerce states, invalid-source quarantine/remediation, concurrent manual dbt commands, or multi-writer stress. The shared build schema relies on the documented serial lifecycle; mapping versions must not be edited in place during a run.
+- No full exception-queue remediation or missing-mapping fault campaign was run; the S01 mapping is complete and candidate mapping failures remain explicit. Broader recovery campaigns belong to M08.
+- No Airflow runtime, DAG, dashboard, or performance benchmark was run. Stop before M04; it will orchestrate these reusable acquisition/batch/dbt/publication commands.
 
 ## M02 decisions
 
@@ -84,7 +117,7 @@ Updated: 2026-10-25 (Asia/Bangkok).
 
 ## Next task
 
-Owner review of the unstaged M02 changes. Then select M03 website dbt/release explicitly; do not start M03 automatically.
+Owner review of the unstaged M03 changes. Suggested owner commit: `feat: transform and publish website orders with dbt`. After review, select M04 explicitly; do not start it automatically.
 
 ## Session update template
 

@@ -15,4 +15,6 @@ Snapshot date: 2026-10-24 (Asia/Bangkok). Read the current repository status bef
 
 The Google Doc and workbook remain review surfaces. These local files make the reviewed context usable offline in the editor. There is no automatic Google ↔ Git sync. Proposed technical/reporting sections remain DRAFT until accepted. Executable migrations/dbt contracts/tests must agree with the approved business/source semantics.
 
-The full target-column dictionary is not included yet: M01 completes it before dependent migrations/models. Source-schema CSVs are not the warehouse schema.
+The completed M01 [target-column dictionary](05_TARGET_SCHEMA.md) defines the
+warehouse/operational schema used by M03 dbt candidates and stable publication.
+Source-schema CSVs remain source-facing contracts.

@@ -59,5 +59,31 @@ services:
       postgres:
         condition: service_healthy
 
+  dbt-transform:
+    profiles: ["m03"]
+    build:
+      context: ..
+      dockerfile: infra/python/Dockerfile.transform
+    environment:
+      PLATFORM_DB_HOST: postgres
+      PLATFORM_TRANSFORM_PASSWORD: ${PLATFORM_TRANSFORM_PASSWORD:?set PLATFORM_TRANSFORM_PASSWORD in .env}
+    volumes:
+      - ../runtime/dbt:/app/transformations/target
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  platform-publisher:
+    profiles: ["m03"]
+    build:
+      context: ..
+      dockerfile: infra/python/Dockerfile.transform
+    environment:
+      PLATFORM_DB_HOST: postgres
+      PLATFORM_PUBLISHER_PASSWORD: ${PLATFORM_PUBLISHER_PASSWORD:?set PLATFORM_PUBLISHER_PASSWORD in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_data:

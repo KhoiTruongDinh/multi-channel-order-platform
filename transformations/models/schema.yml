@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: candidate_order_snapshot_history
+    columns:
+      - name: snapshot_id
+        data_tests: [not_null, unique]
+      - name: source_order_id
+        data_tests: [not_null]
+      - name: content_fingerprint
+        data_tests: [not_null]
+  - name: candidate_order_line_snapshot_history
+    columns:
+      - name: snapshot_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('candidate_order_snapshot_history')
+                field: snapshot_id
+      - name: source_line_id
+        data_tests: [not_null]
+      - name: mapping_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [CONFIRMED, UNMAPPED, AMBIGUOUS]
+  - name: candidate_orders_current
+    columns:
+      - name: snapshot_id
+        data_tests: [not_null, unique]
+  - name: candidate_order_lines_current
+    columns:
+      - name: snapshot_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('candidate_orders_current')
+                field: snapshot_id

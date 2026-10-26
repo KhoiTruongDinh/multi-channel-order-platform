@@ -120,6 +120,18 @@ Next schema deliverable: extend the existing workbook with target-table columns,
 
 ### C3.5. dbt build and publication boundary
 
+M03 implementation (2026-10-26): one active website batch uses the existing
+`build` schema. The lifecycle rejects another active manifest until the current
+batch is published or explicitly failed. Candidate names mirror the M01 target
+dictionary and the publisher replaces website rows in FK-safe order inside one
+transaction. dbt artifacts are stored per batch; only complete passing model/test
+results from the matching invocation may mark a batch TESTED. This serial local
+implementation does not support manually concurrent dbt commands or multiple
+independent build schemas yet. Mapping versions are immutable configuration
+revisions. Website canonical fingerprints are tested against the fixture utility;
+marketplace canonicalization remains future adapter scope. Source health retains
+UNKNOWN coverage because checkpoint recency alone is not a continuity proof.
+
 For the small S01 workload, start with deterministic rebuilds from retained raw evidence; do not introduce incremental merge complexity before correctness. dbt builds candidate stg/core/mart relations in isolated build schemas. Serialize transformation/publication runs initially. Logical core/mart names above describe the published relations; generated build schemas remain internal.
 
 dbt model execution is not a single transaction across the entire graph. Proposed simple release step: after required tests pass, a publisher copies the complete candidate core/mart result into the stable published tables in one PostgreSQL transaction and updates publication_state plus the processing outcome. The publisher contains no competing business mapping logic. Failure rolls back the release and leaves the previous published tables intact. Read multi-query reports in a consistent read transaction when one release is required.

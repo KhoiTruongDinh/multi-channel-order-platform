@@ -1,0 +1,18 @@
+version: 2
+sources:
+  - name: acquisition
+    schema: raw
+    tables:
+      - name: raw_records
+  - name: operations
+    schema: ops
+    tables:
+      - name: batch_inputs
+      - name: extraction_checkpoints
+      - name: pipeline_runs
+      - name: processing_work
+      - name: data_exceptions
+  - name: configuration
+    schema: config
+    tables:
+      - name: product_mapping

@@ -48,7 +48,7 @@ Example task: Read AGENTS.md and docs/STATUS.md. Implement M01 from docs/04_PLAN
 
 Approved: S01, source contract v0.1, website schema/rules, eBay/Etsy selected schemas/rules, F01–F05 solution direction and the practical DE scope. Required: dbt and Airflow. New reporting/tool details, physical schema/release strategy and this milestone plan remain DRAFT for review.
 
-Existing progress: the 59-file fixed fixture pack passed 10 offline checks and 10 utility unit tests; the user reports a successful local run. F01 fixed payloads and F03 independent mapping seed are implemented at S01 scope. F02 operational schema, F04 runtime acceptance and F05 DB materialization remain partial/pending. No source DB/HTTP services, pipeline, DAG or dashboard have run yet.
+Existing progress (2026-10-26): M01 storage and M02 website acquisition are locally committed. M03 website dbt/release has passed runtime acceptance and remains unstaged for owner review. The fixed fixture pack still passes 10 offline checks and 10 utility unit tests. Marketplace HTTP sources, Airflow DAGs, dashboard, and combined recovery acceptance remain future work. Exact commands, batch IDs, actual outcomes, and limits are recorded in STATUS.md.
 
 Accepted limits: no fabricated unobserved snapshots; no general Etsy shipment-to-transaction allocation; no confirmed refunds/delivery/revenue recognition without evidence; no live vendor certification or scale claim. Keep optional AI investigation outside the first delivery.
 

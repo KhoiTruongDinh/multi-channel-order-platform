@@ -1,0 +1,13 @@
+multi_channel_orders:
+  target: local
+  outputs:
+    local:
+      type: postgres
+      host: "{{ env_var('PLATFORM_DB_HOST', 'postgres') }}"
+      port: 5432
+      user: platform_transform
+      password: "{{ env_var('PLATFORM_TRANSFORM_PASSWORD') }}"
+      dbname: data_platform
+      schema: build
+      threads: 2
+      connect_timeout: 10

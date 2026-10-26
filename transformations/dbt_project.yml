@@ -1,0 +1,21 @@
+name: multi_channel_orders
+version: 1.0.0
+config-version: 2
+profile: multi_channel_orders
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+clean-targets: ["target", "dbt_packages"]
+
+on-run-start:
+  - "{{ create_canonical_jsonb_function() }}"
+
+models:
+  multi_channel_orders:
+    staging:
+      +materialized: view
+    intermediate:
+      +materialized: view
+    candidates:
+      +materialized: table

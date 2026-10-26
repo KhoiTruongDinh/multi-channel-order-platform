@@ -1,4 +1,4 @@
-# Local PostgreSQL and M02 website acquisition
+# Local PostgreSQL, website acquisition, and dbt release
 
 PostgreSQL is pinned to the official `postgres:16.15-bookworm` image. Copy
 `.env.example` to `.env` and replace every placeholder before starting. `.env`
@@ -48,4 +48,60 @@ durable raw write, then saves the three scheduled observations and one replay.
 The final SQL assertions verify the observed cancellation states, checkpoint,
 replay audit, and database role boundaries. It leaves source state `0914`
 loaded and the PostgreSQL service running. It does not run M03 transformations,
-so core and mart tables remain empty.
+so core and mart tables remain empty until M03 is run.
+
+## M03 website dbt and release
+
+Prerequisite: M01 migrations and the complete M02 observation sequence have run.
+Use the existing volume; the runner consumes retained platform raw, never the
+source-state fixtures or golden warehouse outputs.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m03_s01.ps1
+```
+
+The runner builds the pinned dbt Core/PostgreSQL adapter image, freezes the
+eligible raw IDs into `ops.batch_inputs`, and builds/tests candidates as
+`platform_transform` in `build`. The raw manifest includes successful website
+acquisitions, including replay audits; failed acquisitions remain retained but
+are excluded. First-observed source versions are deduplicated independently
+of mapping/transformation versions.
+
+After every required model and test passes, the batch command validates the
+batch ID and invocation ID in `manifest.json`/`run_results.json`, and marks the
+batch `TESTED`. The separate `platform_publisher` command copies its candidates
+into stable website core/mart tables and updates `ops.publication_state` in one
+transaction. The account/source keys and report views are unchanged.
+
+Acceptance then builds a second batch with `inject_test_failure: true`, verifies
+that exactly the injected dbt test fails, rejects publication of that failed
+batch, and checks the previous publication through the report role. Expected
+output ends with `M03 ... PASS`; the injected test error and rejected publish
+traceback are intentional. Published data must show one current order/line,
+three observed versions, two original units and USD40, with cancellation
+preserving the paid state and original purchase amounts.
+
+Artifacts are retained per batch under ignored `runtime/dbt/<batch UUID>/`.
+The SQL/Python fingerprint parity check mounts fixtures only into its test
+container; normal dbt/publisher services contain no fixture directory.
+
+Run one transform/publication sequence at a time. `freeze` rejects a second
+batch while one is `FROZEN`, `BUILDING`, or `TESTED`. For a genuinely interrupted
+batch, inspect its run/artifacts and explicitly mark it failed before starting
+another sequence:
+
+```powershell
+docker compose --env-file .env --file infra/compose.yaml --profile m03 run --rm `
+  dbt-transform python -m transformation.batch failed --batch-id <batch-uuid> `
+  --expected-status BUILDING --artifact target/<batch-uuid>/run_results.json
+```
+
+Use the actual persisted state as `--expected-status`; this is an explicit abort,
+not an automatic database reset. dbt commands issued manually outside this
+lifecycle are not supported for publication. Mapping version `s01-v1` is treated
+as immutable during a run; mapping corrections must use a new version.
+
+To inspect the published result in DBeaver, connect to `data_platform` and query
+`report.orders_current`, `report.order_lines_current`, `report.order_activity_daily`,
+`report.product_activity_daily`, and `report.publication_state`. The repeatable
+read report SQL used by acceptance is `tests/m03_report.sql`.

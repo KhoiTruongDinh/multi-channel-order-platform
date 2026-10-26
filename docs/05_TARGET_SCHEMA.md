@@ -4,6 +4,15 @@ Status: M01 accepted technical direction, 2026-10-25. This is the target
 warehouse/operational contract; the source exports in `docs/contracts/` remain
 the approved source-facing contract and are not replaced by this document.
 
+M03 implementation, 2026-10-26: candidate relations use the same column order,
+types and grains as the published tables; no target-column migration was needed.
+Snapshot UUIDs are deterministic hashes of source/account/order, original source
+update representation and source content fingerprint, excluding mapping and batch
+versions. The SHA-256 fingerprint canonicalizes the six website order/child arrays
+with sorted object keys and preserved array order, matching `website_order` in the
+fixture utility. Evidence retains each raw ID and its original byte checksum.
+`mart.source_health.coverage_state` remains UNKNOWN until continuity can be proven.
+
 ## Conventions
 
 - `!` means `NOT NULL`; `?` means nullable. `PK`, `FK` and `UQ` name key roles.
