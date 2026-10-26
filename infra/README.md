@@ -1,4 +1,4 @@
-# M01 local PostgreSQL
+# Local PostgreSQL and M02 website acquisition
 
 PostgreSQL is pinned to the official `postgres:16.15-bookworm` image. Copy
 `.env.example` to `.env` and replace every placeholder before starting. `.env`
@@ -26,3 +26,26 @@ test data.
 separate databases in one lightweight instance. Marketplace ingestion is never
 given database credentials; later milestones must use HTTP. The website reader
 does not receive write access. Report clients receive only `platform_report`.
+
+## M02 website scenario
+
+Apply the source schema to an existing volume, then run the complete S01
+acquisition acceptance sequence:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/migrate.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m02_s01.ps1
+```
+
+The runner builds two separate tool images. `website-simulator` contains the
+allow-listed website source-state fixtures and connects as `website_writer`.
+`website-collector` contains no fixture directory and connects to the source as
+read-only `website_reader`, then appends audit rows as `platform_ingest`.
+
+Each run uses a new execution ID and appends evidence; rerunning does not erase
+earlier raw records. The sequence intentionally creates one failed run after a
+durable raw write, then saves the three scheduled observations and one replay.
+The final SQL assertions verify the observed cancellation states, checkpoint,
+replay audit, and database role boundaries. It leaves source state `0914`
+loaded and the PostgreSQL service running. It does not run M03 transformations,
+so core and mart tables remain empty.

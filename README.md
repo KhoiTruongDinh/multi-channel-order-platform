@@ -2,9 +2,10 @@
 
 Local DE portfolio project: internal website database + eBay-style polling API + Etsy-style webhook/receipt API → immutable raw → dbt → PostgreSQL published data → operations/data-health dashboard. Airflow orchestrates the bounded pipeline.
 
-**Current state:** M01 adds the local PostgreSQL bootstrap, role boundaries,
-target schema contract, and stable empty publication surfaces. Source services,
-runtime ingestion, dbt models, DAGs, and dashboard are not implemented yet.
+**Current state:** M02 adds the website source schema, fixed S01 playback,
+consistent read-only acquisition, immutable raw/run evidence, and durable
+checkpoints. Website dbt models/publication, marketplace sources, DAGs, and the
+dashboard are not implemented yet.
 
 ## Start here
 
@@ -14,7 +15,7 @@ runtime ingestion, dbt models, DAGs, and dashboard are not implemented yet.
 - [VS Code / Codex guide](docs/CODEX_VSCODE.md)
 - [AI repository instructions](AGENTS.md)
 - [Target field dictionary](docs/05_TARGET_SCHEMA.md)
-- [Local PostgreSQL bootstrap](infra/README.md)
+- [Local PostgreSQL and website acquisition](infra/README.md)
 
 ## Run the existing offline fixture checks
 

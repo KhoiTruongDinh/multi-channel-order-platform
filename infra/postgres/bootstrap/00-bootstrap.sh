@@ -18,6 +18,7 @@ for database in website_source marketplace_sim data_platform airflow_meta; do
   "${psql[@]}" --dbname "$database" --file /migrations/bootstrap/002_database_baseline.sql
 done
 
+"${psql[@]}" --dbname website_source --file /migrations/website_source/001_schema.sql
 "${psql[@]}" --dbname data_platform --file /migrations/platform/001_foundation.sql
 "${psql[@]}" --dbname data_platform --file /migrations/platform/002_access.sql
 "${psql[@]}" --dbname data_platform --file /migrations/platform/003_s01_mapping.sql

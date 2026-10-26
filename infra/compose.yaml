@@ -30,5 +30,34 @@ services:
       start_period: 10s
     shm_size: 256mb
 
+  website-simulator:
+    profiles: ["m02"]
+    build:
+      context: ..
+      dockerfile: infra/python/Dockerfile.simulator
+    environment:
+      WEBSITE_DB_HOST: postgres
+      WEBSITE_DB_PORT: 5432
+      WEBSITE_WRITER_PASSWORD: ${WEBSITE_WRITER_PASSWORD:?set WEBSITE_WRITER_PASSWORD in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  website-collector:
+    profiles: ["m02"]
+    build:
+      context: ..
+      dockerfile: infra/python/Dockerfile.ingestion
+    environment:
+      WEBSITE_DB_HOST: postgres
+      WEBSITE_DB_PORT: 5432
+      WEBSITE_READER_PASSWORD: ${WEBSITE_READER_PASSWORD:?set WEBSITE_READER_PASSWORD in .env}
+      PLATFORM_DB_HOST: postgres
+      PLATFORM_DB_PORT: 5432
+      PLATFORM_INGEST_PASSWORD: ${PLATFORM_INGEST_PASSWORD:?set PLATFORM_INGEST_PASSWORD in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_data:

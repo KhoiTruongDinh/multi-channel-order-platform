@@ -18,6 +18,10 @@ foreach ($database in @("website_source", "marketplace_sim", "data_platform", "a
         "psql --set ON_ERROR_STOP=1 --username `"`$POSTGRES_USER`" --dbname '$database' --file /migrations/bootstrap/002_database_baseline.sql"
     if ($LASTEXITCODE -ne 0) { throw "Baseline failed for: $database" }
 }
+$websiteMigration = "/migrations/website_source/001_schema.sql"
+docker compose --env-file $composeEnv --file $compose exec -T postgres sh -c `
+    "psql --set ON_ERROR_STOP=1 --username `"`$POSTGRES_USER`" --dbname website_source --file '$websiteMigration'"
+if ($LASTEXITCODE -ne 0) { throw "Migration failed: $websiteMigration" }
 foreach ($file in @(
     "/migrations/platform/001_foundation.sql",
     "/migrations/platform/002_access.sql",
