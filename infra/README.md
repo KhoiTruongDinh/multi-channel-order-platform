@@ -105,3 +105,22 @@ To inspect the published result in DBeaver, connect to `data_platform` and query
 `report.orders_current`, `report.order_lines_current`, `report.order_activity_daily`,
 `report.product_activity_daily`, and `report.publication_state`. The repeatable
 read report SQL used by acceptance is `tests/m03_report.sql`.
+
+## M04 Airflow website workflow
+
+After M01-M03, run the real scheduler/retry/restart acceptance sequence:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m04_s01.ps1
+```
+
+It preserves the existing source/volume/raw data, creates auditable CLI/DAG runs,
+and intentionally exercises a failed DAG plus a task clear after the five-attempt
+budget is exhausted. Expected output ends with `M04 PASS ...`; intermediate
+fault/test failures are deliberate. It leaves Airflow available at
+`http://localhost:8080`, with runtime logs and generated UI credentials ignored
+under `runtime/airflow/`. The UI username is `admin`; its password is local in
+`runtime/airflow/state/passwords.json`.
+
+See [the workflow guide](../orchestration/README.md) for normal manual triggers,
+explicit source-clock windows, audit semantics, credentials, and CLI parity.

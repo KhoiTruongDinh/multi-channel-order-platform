@@ -85,5 +85,51 @@ services:
       postgres:
         condition: service_healthy
 
+  airflow:
+    profiles: ["m04"]
+    build:
+      context: ..
+      dockerfile: infra/python/Dockerfile.airflow
+    init: true
+    restart: unless-stopped
+    command: standalone
+    environment:
+      AIRFLOW_APP_PASSWORD: ${AIRFLOW_APP_PASSWORD:?set AIRFLOW_APP_PASSWORD in .env}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_CMD: python /opt/project/orchestration/metadata_url.py
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__PARALLELISM: 2
+      AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: 1
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: admin:admin
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_PASSWORDS_FILE: /opt/airflow/state/passwords.json
+      AIRFLOW__API__WORKERS: 1
+      AIRFLOW__DAG_PROCESSOR__PARSING_PROCESSES: 1
+      AIRFLOW__DAG_PROCESSOR__MIN_FILE_PROCESS_INTERVAL: 30
+      AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+      DBT_LOG_PATH: /opt/airflow/logs/dbt
+      WEBSITE_DB_HOST: postgres
+      WEBSITE_DB_PORT: 5432
+      WEBSITE_READER_PASSWORD: ${WEBSITE_READER_PASSWORD:?set WEBSITE_READER_PASSWORD in .env}
+      PLATFORM_DB_HOST: postgres
+      PLATFORM_INGEST_PASSWORD: ${PLATFORM_INGEST_PASSWORD:?set PLATFORM_INGEST_PASSWORD in .env}
+      PLATFORM_TRANSFORM_PASSWORD: ${PLATFORM_TRANSFORM_PASSWORD:?set PLATFORM_TRANSFORM_PASSWORD in .env}
+      PLATFORM_PUBLISHER_PASSWORD: ${PLATFORM_PUBLISHER_PASSWORD:?set PLATFORM_PUBLISHER_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${AIRFLOW_PORT:-8080}:8080"
+    volumes:
+      - ../runtime/airflow/logs:/opt/airflow/logs
+      - ../runtime/airflow/state:/opt/airflow/state
+      - ../runtime/dbt:/opt/project/transformations/target
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --local && python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/api/v2/monitor/health', timeout=5)\""]
+      interval: 15s
+      timeout: 15s
+      retries: 20
+      start_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_data:

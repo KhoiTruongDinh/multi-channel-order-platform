@@ -13,6 +13,15 @@ with sorted object keys and preserved array order, matching `website_order` in t
 fixture utility. Evidence retains each raw ID and its original byte checksum.
 `mart.source_health.coverage_state` remains UNKNOWN until continuity can be proven.
 
+M04 reuses the existing operational columns and constraints; no target DDL was
+required. One `RECOVER` pipeline run with stream `website_workflow` represents a
+bounded workflow/recovery cycle, alongside its actual acquisition/transform/publish
+child runs. Its UUID derives from the explicit execution ID. Task attempt UUIDs
+derive from execution/stage/attempt, with unique `(run_id, task_name, attempt_number)`.
+The controller allocates at most five attempts per stage while locking the parent
+row; Airflow retries/clears never reset this count. RUNNING interruptions consume
+their existing attempt. Airflow DAG/run IDs and stable batch IDs link these audits.
+
 ## Conventions
 
 - `!` means `NOT NULL`; `?` means nullable. `PK`, `FK` and `UQ` name key roles.

@@ -140,6 +140,20 @@ Keep raw and webhook operational work independent of a failed release. An explic
 
 ### C3.6 Report access, monitoring and technical references
 
+M04 local orchestration (2026-10-26): `orchestration/dags/website_orders.py`
+invokes a shared CLI stage controller for collect, freeze, dbt build/test, and
+publish. Airflow 3.3.2 LocalExecutor runs in one development standalone service,
+with metadata isolated in `airflow_meta` and project/dbt dependencies in a separate
+virtualenv. The manual bounded DAG has one active run/task; no simulator controls
+or fixtures are mounted into it. M02 retained observations supply earlier S01
+versions; the default explicit source-clock window reads final state through SQL.
+The controller records a RECOVER-stage parent workflow plus the existing child
+ACQUIRE/TRANSFORM/PUBLISH runs. Deterministic execution/batch IDs, existing
+`ops.task_attempts` uniqueness, parent-row locking, and a five-attempt stage budget
+persist across scheduler restart and task clear. A terminal failure watcher closes
+an active batch and remains a failed leaf; an exhausted cycle needs a new explicit
+execution ID. Full commands and recovery limits are in `orchestration/README.md`.
+
 Implement the proposed report contract in A5 using read-only published mart views, consistent business reads, batch labels and separately labeled live health context. Airflow task logs, structured application logs and dbt artifacts share run/batch/entity/raw references. Store runtime logs outside Git with ops metadata links; choose the small local retention policy during implementation.
 
 Technical references: https://docs.getdbt.com/docs/build/sources ; https://docs.getdbt.com/docs/build/data-tests ; https://docs.getdbt.com/best-practices/how-we-handle-cdc/2-choosing-incremental-or-snapshots ; https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/overview.html ; https://www.postgresql.org/docs/current/datatype-binary.html . Pin compatible versions during bootstrap.

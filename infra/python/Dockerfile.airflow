@@ -1,0 +1,15 @@
+FROM apache/airflow:3.3.2-python3.12@sha256:9df9c8be4096b9cc626bd7cb1f2b8c712eef66c59c615f8c7e6200871ca10bd1
+
+# Keep dbt's dependency graph isolated from Airflow's supported environment.
+COPY requirements/m03.txt /tmp/project-requirements.txt
+RUN python -m venv /opt/airflow/project-venv \
+    && /opt/airflow/project-venv/bin/pip install --no-cache-dir -r /tmp/project-requirements.txt
+COPY ingestion /opt/project/ingestion
+COPY transformation /opt/project/transformation
+COPY transformations /opt/project/transformations
+COPY infra/dbt /opt/project/infra/dbt
+COPY orchestration /opt/project/orchestration
+COPY orchestration/dags /opt/airflow/dags
+ENV PYTHONPATH=/opt/project
+ENV PROJECT_ROOT=/opt/project
+WORKDIR /opt/project
