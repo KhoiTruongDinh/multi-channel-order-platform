@@ -53,40 +53,48 @@ def publish(args: argparse.Namespace, now: datetime) -> None:
         ).fetchone()
         if batch is None or batch[2] != "TESTED":
             raise RuntimeError("only a TESTED batch can be published")
+        owner = conn.execute(
+            "SELECT source_system FROM ops.pipeline_runs p JOIN ops.transform_batches b ON b.run_id=p.run_id WHERE b.batch_id=%s",
+            (args.batch_id,),
+        ).fetchone()
+        if owner != (args.source,):
+            raise RuntimeError("batch source does not match requested publication")
+        prefix = 'ebay_' if args.source == 'ebay_sim' else ''
+        copies = tuple((target, candidate.replace('build.', 'build.' + prefix)) for target,candidate in COPIES)
+        health = 'build.' + prefix + 'candidate_source_health'
         candidate_batches = conn.execute(
-            "SELECT DISTINCT batch_id FROM build.candidate_order_snapshot_history"
+            f"SELECT batch_id FROM build.{prefix}candidate_order_snapshot_history UNION SELECT published_batch_id FROM {health}"
         ).fetchall()
         if candidate_batches != [(args.batch_id,)]:
             raise RuntimeError("candidate contents do not belong to the requested tested batch")
-        # M03 publishes a website-only release. Preserve future source rows.
-        for target, candidate in COPIES:
+        for target, candidate in copies:
             conn.execute(f"LOCK TABLE {candidate} IN ACCESS SHARE MODE")
-        conn.execute("LOCK TABLE build.candidate_source_health IN ACCESS SHARE MODE")
+        conn.execute(f"LOCK TABLE {health} IN ACCESS SHARE MODE")
         for table in DELETE_ORDER:
             if table in ('core.order_line_snapshot_history', 'core.snapshot_evidence'):
-                conn.execute(f"DELETE FROM {table} WHERE snapshot_id IN (SELECT snapshot_id FROM core.order_snapshot_history WHERE source_system='internal_web')")
+                conn.execute(f"DELETE FROM {table} WHERE snapshot_id IN (SELECT snapshot_id FROM core.order_snapshot_history WHERE source_system=%s)", (args.source,))
             else:
-                conn.execute(f"DELETE FROM {table} WHERE source_system='internal_web'")
-        for target, candidate in COPIES:
+                conn.execute(f"DELETE FROM {table} WHERE source_system=%s", (args.source,))
+        for target, candidate in copies:
             conn.execute(f"INSERT INTO {target} SELECT * FROM {candidate}")
         conn.execute(
-            """INSERT INTO mart.source_health
+            f"""INSERT INTO mart.source_health
             SELECT source_system, source_account_id, stream_name, completed_window_end,
                    last_successful_acquisition_at, %s, pending_work_count,
                    failed_work_count, open_blocking_exception_count, coverage_state,
                    published_batch_id
-              FROM build.candidate_source_health""",
+              FROM {health}""",
             (now,),
         )
         conn.execute(
             """INSERT INTO ops.publication_state
             (publication_name, batch_id, published_at, transformation_version, mapping_version)
-            VALUES ('website_orders', %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (publication_name) DO UPDATE
             SET batch_id=EXCLUDED.batch_id, published_at=EXCLUDED.published_at,
                 transformation_version=EXCLUDED.transformation_version,
                 mapping_version=EXCLUDED.mapping_version""",
-            (args.batch_id, now, batch[1], batch[0]),
+            ('website_orders' if args.source == 'internal_web' else 'ebay_orders',args.batch_id, now, batch[1], batch[0]),
         )
         conn.execute(
             "UPDATE ops.transform_batches SET status='PUBLISHED', published_at=%s WHERE batch_id=%s",
@@ -103,6 +111,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch-id', required=True, type=uuid.UUID)
     parser.add_argument('--run-id', required=True, type=uuid.UUID)
+    parser.add_argument('--source', choices=('internal_web','ebay_sim'), default='internal_web')
     args = parser.parse_args()
     now = datetime.now(timezone.utc)
     with connect() as conn:
@@ -110,9 +119,10 @@ def main() -> None:
             """INSERT INTO ops.pipeline_runs
             (run_id, stage, source_system, source_account_id, stream_name, batch_id,
              started_at, status, log_reference)
-            VALUES (%s, 'PUBLISH', 'internal_web', 'WEB01', 'orders', %s,
+            VALUES (%s, 'PUBLISH', %s, %s, 'orders', %s,
                     %s, 'RUNNING', %s)""",
-            (args.run_id, args.batch_id, now, f'm03:publish:{args.batch_id}'),
+            (args.run_id,args.source,'WEB01' if args.source == 'internal_web' else 'seller_sim_01',
+             args.batch_id, now, f'm03:publish:{args.batch_id}'),
         )
     try:
         publish(args, now)

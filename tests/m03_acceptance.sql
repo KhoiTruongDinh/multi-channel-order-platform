@@ -41,9 +41,9 @@ BEGIN
     ) THEN
         RAISE EXCEPTION 'website current facts differ from S01';
     END IF;
-    IF EXISTS (SELECT 1 FROM core.order_snapshot_history WHERE batch_id <> published_batch)
-       OR EXISTS (SELECT 1 FROM core.orders_current WHERE published_batch_id <> published_batch)
-       OR EXISTS (SELECT 1 FROM mart.order_activity_daily WHERE published_batch_id <> published_batch) THEN
+    IF EXISTS (SELECT 1 FROM core.order_snapshot_history WHERE source_system='internal_web' AND batch_id <> published_batch)
+       OR EXISTS (SELECT 1 FROM core.orders_current WHERE source_system='internal_web' AND published_batch_id <> published_batch)
+       OR EXISTS (SELECT 1 FROM mart.order_activity_daily WHERE source_system='internal_web' AND published_batch_id <> published_batch) THEN
         RAISE EXCEPTION 'failed build changed the stable publication';
     END IF;
     IF NOT EXISTS (SELECT 1 FROM mart.order_activity_daily WHERE order_count=1 AND source_order_total_amount=40.000000)

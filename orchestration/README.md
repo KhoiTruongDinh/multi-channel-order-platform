@@ -1,5 +1,11 @@
 # M04 bounded website workflow
 
+Current capability: this guide describes the implemented manual S01 workflow.
+M05B also implements opt-in periodic website/eBay polling. See
+[the polling guide](POLLING.md) for startup, environment settings, durable windows,
+shared-build serialization and the real scheduler acceptance runner. This manual
+DAG retains its approved S01 behavior; schedules do not create new source data.
+
 `dags/website_orders.py` is a thin Airflow 3 DAG:
 
 ```
@@ -86,7 +92,8 @@ docker compose --env-file .env --file infra/compose.yaml exec -T airflow `
 powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m04_s01.ps1
 ```
 
-The runner executes the reusable CLI baseline, then a real scheduled DAG run
+The runner executes the reusable CLI baseline, then a CLI-triggered DAG run
+executed by the real scheduler (not a recurring timetable run)
 with one intentional collection failure after raw persistence and one intentional
 freeze failure. It checks the checkpoint during collection retry, restarts
 Airflow while freeze is waiting for retry, and verifies the original manifest

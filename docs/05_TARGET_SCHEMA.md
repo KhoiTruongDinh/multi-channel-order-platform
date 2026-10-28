@@ -24,6 +24,57 @@ their existing attempt. Airflow DAG/run IDs and stable batch IDs link these audi
 
 ## Conventions
 
+M05B finalized operational extension (2026-10-28):
+`ops.polling_cycles` has `run_id UUID ! PK/FK ops.pipeline_runs`,
+`validation_mode TEXT !` constrained to runtime, `clock_mode TEXT !` constrained
+to current, `mapping_version TEXT !`, `transformation_version TEXT !`,
+`overlap_seconds INTEGER !` >=0, and `settings JSONB !` constrained to an object.
+Source/account, DAG/run identity and immutable requested window are inherited
+from the parent run. Application roles may insert/read cycles but never change
+their configuration; a trigger rejects UPDATE/DELETE. Same execution reuses the
+parent window, even after its checkpoint advances. Settings bind test fault flags
+so retry cannot change validation/fault semantics. Actual fetch time is current.
+
+`ops.transform_batches.validation_mode TEXT ! DEFAULT 's01'` accepts s01/runtime.
+The freeze command persists it; TESTED verifies artifact batch, source, mapping,
+transformation and validation mode before promotion. Existing S01 commands retain
+their default. Runtime keeps invariant tests, skipping only golden S01 assertions.
+Polling uses `orders_polling` checkpoints and `orders` raw resources, preserving
+existing historical `orders` checkpoints and source/account/version identities.
+No business field changes. Global session coordination plus the existing active
+batch guard spans complete polling releases and cooperating CLI freezes.
+
+M05 target contract (2026-10-28, finalized before dependent models): no new DDL.
+eBay uses source `ebay_sim`, account `seller_sim_01`; order/line identities remain
+scoped. Raw resource kinds are `ebay_orders`, `ebay_order`,
+`ebay_fulfillments`, and `ebay_fulfillment`. Each HTTP response (including errors)
+retains exact bytes, status, sanitized headers, requested window and observation
+time. Metadata links order ID and order-detail raw ID; no authorization is stored.
+Durable `EBAY_ORDER_DETAILS` work is created from each saved page before paging;
+its run-scoped dedupe key links the page raw ID. A window succeeds only after all
+pages and required detail/fulfillment work succeed. Retry starts a new acquisition
+run, retaining failed raw/work; processing uses successful frozen runs only.
+
+The order content fingerprint is SHA-256 of the approved canonical order JSON:
+sort object keys and known identity arrays (`lineItems`, `fulfillments`,
+`transactions`), preserve all other array order and absent/null distinctions.
+Fulfillment evidence has its own resource fingerprint and observation timestamp;
+it never changes order source-version identity. Same-time conflicting order
+content or incompatible fulfillment evidence blocks publication. First observed
+time comes from actual retained order acquisition, not a synthesized source state.
+
+eBay line gross is `lineItemCost.value` (already the entire line); derived unit
+gross is line gross / quantity. Optional discount and tax remain null. Source
+payment/fulfillment/cancellation enums remain separate. Common partial shipping
+requires dated, in-order, non-overallocated line allocations and remaining units;
+`IN_PROGRESS` alone remains `UNKNOWN`. No delivered/refund claim is derived.
+Line `fulfillment_evidence` is an object containing the supporting fulfillment
+objects; all acquisitions also link through `core.snapshot_evidence`.
+
+M05 uses source-specific eBay candidates and `ebay_orders` publication, sharing
+the existing global active-batch guard. Website candidates/publication and their
+default commands remain unchanged. eBay releases delete/copy only eBay rows.
+
 - `!` means `NOT NULL`; `?` means nullable. `PK`, `FK` and `UQ` name key roles.
 - Common source identity is always scoped by `source_system ! TEXT` and
   `source_account_id ! TEXT`. A source order, line, SKU, or listing alone is
@@ -39,9 +90,9 @@ their existing attempt. Airflow DAG/run IDs and stable batch IDs link these audi
 - Source states are retained as text. Common payment, fulfillment, and
   cancellation states are independent columns; no combined lifecycle state is
   permitted.
-- Stable `core`/`mart` tables are publication targets. dbt will build candidate
-  relations in `build`; the publisher will replace stable contents only after
-  tests pass in a later milestone.
+- Stable `core`/`mart` tables are publication targets. Implemented dbt models
+  build candidates in `build`; the publisher copies the selected source only
+  after verified tests pass. There is currently no global cross-source release ID.
 
 ## Raw and operational fields
 
@@ -123,6 +174,13 @@ The read-only role sees only stable views in `report`: `publication_state`,
 `orders_current`, `order_lines_current`, `order_activity_daily`,
 `product_activity_daily`, `order_status_current`, and `source_health`. It has no
 raw, operational-table, configuration, build-schema, or source-database access.
+
+M05B's finalized extension above binds clock/validation mode and fixed polling
+windows to durable execution/batch provenance (migration 004). M07 still needs
+secret-free live failure/work/test views for the report role; these views are not
+implemented. Finalize their precise definitions, constraints and permissions here
+before dependent DDL. Do not grant report users
+direct access to ops/raw or reuse the stable source_health timestamp as live status.
 
 ## Ownership and evidence links
 

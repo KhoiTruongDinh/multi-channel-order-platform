@@ -36,8 +36,9 @@ BEGIN
         RAISE EXCEPTION 'missing relations: %', missing_relations;
     END IF;
 
-    IF (SELECT count(*) FROM public.schema_migrations) <> 3 THEN
-        RAISE EXCEPTION 'expected three platform migration records';
+    IF (SELECT count(*) FROM public.schema_migrations WHERE migration_name IN
+        ('platform/001_foundation.sql','platform/002_access.sql','platform/003_s01_mapping.sql')) <> 3 THEN
+        RAISE EXCEPTION 'missing original platform migration records';
     END IF;
     IF (SELECT count(*) FROM config.product_mapping WHERE mapping_version = 's01-v1') <> 4 THEN
         RAISE EXCEPTION 'expected four independent S01 mapping rows';

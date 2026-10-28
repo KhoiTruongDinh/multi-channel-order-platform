@@ -1,3 +1,4 @@
+{{ config(enabled=(var('validation_mode', 's01') == 's01')) }}
 SELECT 1 AS failure
  WHERE (SELECT COUNT(*) FROM {{ ref('candidate_orders_current') }}) <> 1
     OR (SELECT COUNT(*) FROM {{ ref('candidate_order_lines_current') }}) <> 1

@@ -23,4 +23,4 @@ SELECT c.source_system,
   JOIN {{ source('operations', 'pipeline_runs') }} p ON p.run_id = c.successful_run_id
  WHERE c.source_system = 'internal_web'
    AND c.source_account_id = 'WEB01'
-   AND c.stream_name = 'orders'
+   AND c.stream_name IN ('orders','orders_polling')

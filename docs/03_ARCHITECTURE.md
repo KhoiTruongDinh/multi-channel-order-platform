@@ -12,7 +12,10 @@ dbt and Airflow are required by the user (24 October 2026). Python, PostgreSQL a
 
 These are sequence diagrams: read from top to bottom. Solid arrows show actions/requests; dashed arrows show responses. The source is on the left, our data platform on the right. Lanes are logical responsibilities, not separate servers or final technology choices.
 
-Status: planned interaction flow using the approved source contracts. On 24 October 2026 the user reported running the S01 fixture code successfully locally. This confirms a user-run offline fixture milestone; local source services, database ingestion and end-to-end pipeline execution are still the next work.
+Status (2026-10-28): these diagrams describe the approved interaction boundaries.
+Website SQL acquisition/dbt/manual Airflow and M05A eBay HTTP acquisition/release
+and M05B periodic polling have runtime evidence in STATUS. M06 Etsy remains
+pending. The diagrams alone are not evidence of scheduling or live vendor use.
 
 ### C2.1. Internal website — direct database read
 
@@ -52,7 +55,11 @@ Implement the website path through raw, observed history/current, quality checks
 
 ## C3. DE Implementation Contract v0.2 — DRAFT
 
-Revised on 24 October 2026 after the user required dbt and Airflow. Business/source decisions remain approved; the storage, publication and repository design below are proposed for review. This replaces the earlier Python-only materialization proposal. No runtime implementation is claimed.
+Initially revised on 24 October 2026 after the user required dbt and Airflow;
+implementation/planning review updated on 28 October. Business/source decisions
+remain approved. M01-M04 and M05A implement the portions identified below; future
+runtime details remain proposals until implemented/verified. This replaces the
+earlier Python-only materialization proposal; see STATUS for actual evidence.
 
 ### C3.1. Scope and ownership
 
@@ -68,7 +75,10 @@ Use one public repository, proposed name multi-channel-order-platform. Suggested
 
 Shared repository does not mean shared access. Marketplace ingestion uses HTTP and cannot query marketplace_sim. Website access is read-only. Only simulator/test code may read source-state controls and golden expected outputs. Keep business transformations in dbt; share only interface schemas and generic utilities where useful.
 
-Git should contain synthetic fixtures, migrations, dbt SQL/tests, DAGs, setup commands, diagrams and a demo/status page. Exclude credentials, .env, DB volumes, runtime raw/logs and dbt artifacts. Label eBay/Etsy as local simulations. No remote repository has been created/pushed.
+Git contains synthetic fixtures, migrations, dbt SQL/tests, DAGs, setup commands,
+diagrams and operating/status docs. Exclude credentials, .env, DB volumes, runtime
+raw/logs and dbt artifacts. Label eBay/Etsy as local simulations. Inspect current
+Git refs/config for remote state; old handoff statements are not current Git facts.
 
 ### C3.3. Pipeline steps and durable outputs
 
@@ -116,7 +126,11 @@ core.orders_current — PK (source_system, source_account_id, source_order_id), 
 
 mart.order_activity_daily — creation day × source/account × currency, order count and source-reported order amount. mart.product_activity_daily adds canonical product/mapping state, ordered units and merchandise amount. mart.order_status_current groups current state dimensions; mart.source_health shows acquisition/publication, coverage, backlog and exceptions. Preserve amount grain/currency; cancellation does not erase original activity.
 
-Next schema deliverable: extend the existing workbook with target-table columns, type/nullability, PK/FK/unique keys, source/derivation and write owner, then encode the same contract in migrations and dbt YAML/SQL. The current sheet source schemas are not the warehouse schema. Review this compact target map before expanding columns.
+The implemented target dictionary is `05_TARGET_SCHEMA.md`, with executable M01
+migrations and dbt models/tests. Source-schema exports are not the warehouse
+schema. M05B operational provenance/serialization was finalized there before
+migration 004. Before M07 live health views, finalize affected fields/owners. Workbook
+synchronization is pending; do not describe the dated workbook as already updated.
 
 ### C3.5. dbt build and publication boundary
 
@@ -128,8 +142,8 @@ transaction. dbt artifacts are stored per batch; only complete passing model/tes
 results from the matching invocation may mark a batch TESTED. This serial local
 implementation does not support manually concurrent dbt commands or multiple
 independent build schemas yet. Mapping versions are immutable configuration
-revisions. Website canonical fingerprints are tested against the fixture utility;
-marketplace canonicalization remains future adapter scope. Source health retains
+revisions. Website and M05A eBay fingerprints are tested against the fixture utility;
+Etsy canonicalization remains M06 scope. Source health retains
 UNKNOWN coverage because checkpoint recency alone is not a continuity proof.
 
 For the small S01 workload, start with deterministic rebuilds from retained raw evidence; do not introduce incremental merge complexity before correctness. dbt builds candidate stg/core/mart relations in isolated build schemas. Serialize transformation/publication runs initially. Logical core/mart names above describe the published relations; generated build schemas remain internal.
@@ -139,6 +153,39 @@ dbt model execution is not a single transaction across the entire graph. Propose
 Keep raw and webhook operational work independent of a failed release. An explicitly failed/quarantined item remains visible; accepted unknown optional fields can publish with their documented limitation. Retry a batch against its recorded manifest and versions. Airflow task retries must not silently reset the approved five-attempt processing-cycle budget; persist cycle attempts and require an explicit new replay cycle.
 
 ### C3.6 Report access, monitoring and technical references
+
+The scheduled-operation requirements are centralized in
+[06_AUTOMATION.md](06_AUTOMATION.md). M05B adds opt-in periodic website/eBay
+polling with durable windows and global freeze-to-publish serialization; M06 adds
+scheduled Etsy inbox/recovery work outside the always-on receiver. S01 replay and
+current-clock polling use explicitly separated modes/checkpoint scopes. Fixed
+S01 count/time tests must remain distinct from invariant runtime quality tests.
+M05B uses a session advisory coordinator plus durable active-batch guard; runtime
+mode disables only fixed S01 assertions and binds mode/versions to batch artifacts.
+See `orchestration/POLLING.md` for implemented environment switches and commands.
+
+M07 must read the source-to-publication mapping and business tables in one
+consistent transaction, and add restricted live health views for failures newer
+than the stable release. A common report read does not make independent source
+publications one global batch. Scheduling, source generation and UI refresh are
+separate responsibilities; M08 adds the opt-in changing-source demo.
+
+M05A eBay implementation (2026-10-28): a small standard-library HTTP simulator
+serves only the approved GET list/detail/shipping subset from source-state
+fixtures. Its development control listener is separate from the data API. The
+HTTP-only collector has no source DB credentials/fixtures, rejects redirects and
+untrusted pagination/resource URLs, persists every response and identified work,
+and completes a window only after all required reads succeed. Default overlap is
+120 seconds and each HTTP request has at most five attempts per cycle.
+Order source-version fingerprints remain independent of fulfillment resources,
+mapping and release versions; dbt retains evidence times and rejects conflicting
+same-time content or inconsistent/overallocated shipments. Dated FUL001 allocation
+supports partial shipping; IN_PROGRESS alone does not. Source-specific eBay
+candidates/publication preserve website stable rows. The existing global batch
+guard serializes all candidate rebuilds. The M04 DAG stays website-only; M05
+provides reusable eBay CLI commands. Its acceptance is the completed A portion;
+M05B scheduling passed separate runtime acceptance. Full CLI commands/limits:
+`simulator/README.md`.
 
 M04 local orchestration (2026-10-26): `orchestration/dags/website_orders.py`
 invokes a shared CLI stage controller for collect, freeze, dbt build/test, and

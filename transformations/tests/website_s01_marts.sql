@@ -1,3 +1,4 @@
+{{ config(enabled=(var('validation_mode', 's01') == 's01')) }}
 SELECT 1 AS failure
  WHERE NOT EXISTS (
         SELECT 1 FROM {{ ref('candidate_order_activity_daily') }}

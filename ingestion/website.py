@@ -122,6 +122,7 @@ def main() -> None:
     parser.add_argument("--window-end", required=True, type=parse_time)
     parser.add_argument("--observed-at", required=True, type=parse_time)
     parser.add_argument("--execution-id", default="manual")
+    parser.add_argument('--checkpoint-stream', choices=('orders','orders_polling'), default='orders')
     parser.add_argument("--run-kind", choices=("scheduled", "replay", "failure-test"), default="scheduled")
     parser.add_argument("--fail-after-raw", action="store_true", help="M02 acceptance fault injection")
     args = parser.parse_args()
@@ -165,7 +166,7 @@ def main() -> None:
                 SET completed_window_end=EXCLUDED.completed_window_end,
                     successful_run_id=EXCLUDED.successful_run_id, updated_at=EXCLUDED.updated_at
                 WHERE EXCLUDED.completed_window_end >= ops.extraction_checkpoints.completed_window_end""",
-                (SOURCE_SYSTEM, SOURCE_ACCOUNT, STREAM, args.window_end, run_id, args.observed_at),
+                (SOURCE_SYSTEM, SOURCE_ACCOUNT, args.checkpoint_stream, args.window_end, run_id, args.observed_at),
             )
             platform.execute(
                 "UPDATE ops.pipeline_runs SET status='SUCCEEDED', finished_at=%s WHERE run_id=%s",

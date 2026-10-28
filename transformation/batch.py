@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import uuid
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -24,9 +25,10 @@ def connect() -> psycopg.Connection[object]:
 
 
 def freeze(args: argparse.Namespace) -> None:
-    now = datetime.now(timezone.utc)
-    with connect() as conn:
+    with (nullcontext(args.connection) if getattr(args,'connection',None) is not None else connect()) as conn:
+        conn.execute("SELECT pg_advisory_xact_lock(hashtext('platform-release'))")
         conn.execute("SELECT pg_advisory_xact_lock(hashtext('website-transform'))")
+        now = datetime.now(timezone.utc)
         active = conn.execute(
             "SELECT batch_id FROM ops.transform_batches WHERE status IN ('FROZEN','BUILDING','TESTED') LIMIT 1"
         ).fetchone()
@@ -36,30 +38,35 @@ def freeze(args: argparse.Namespace) -> None:
             """INSERT INTO ops.pipeline_runs
             (run_id, stage, source_system, source_account_id, stream_name, batch_id,
              started_at, status, log_reference)
-            VALUES (%s, 'TRANSFORM', 'internal_web', 'WEB01', 'orders', %s,
+            VALUES (%s, 'TRANSFORM', %s, %s, 'orders', %s,
                     %s, 'RUNNING', %s)""",
-            (args.run_id, args.batch_id, now, f"m03:transform:{args.batch_id}"),
+            (args.run_id, args.source, 'WEB01' if args.source == 'internal_web' else 'seller_sim_01',
+             args.batch_id, now, f"m03:transform:{args.batch_id}"),
         )
         conn.execute(
             """INSERT INTO ops.transform_batches
             (batch_id, run_id, mapping_version, transformation_version,
-             manifest_frozen_at, status)
-            VALUES (%s, %s, %s, %s, %s, 'FROZEN')""",
-            (args.batch_id, args.run_id, args.mapping_version, args.transformation_version, now),
+             manifest_frozen_at, status, validation_mode)
+            VALUES (%s, %s, %s, %s, %s, 'FROZEN', %s)""",
+            (args.batch_id, args.run_id, args.mapping_version, args.transformation_version, now,args.validation_mode),
         )
         result = conn.execute(
             """INSERT INTO ops.batch_inputs (batch_id, raw_record_id)
             SELECT %s, r.raw_record_id
               FROM raw.raw_records r
               JOIN ops.pipeline_runs p USING (run_id)
-             WHERE r.source_system = 'internal_web'
-               AND r.source_account_id = 'WEB01'
-               AND r.resource_type = 'website_order_window'
-               AND p.status = 'SUCCEEDED'""",
-            (args.batch_id,),
+             WHERE p.status = 'SUCCEEDED' AND (
+                   (r.source_system = 'internal_web' AND r.source_account_id = 'WEB01'
+                    AND r.resource_type = 'website_order_window')
+                   OR (%s = 'ebay_sim' AND r.source_system = 'ebay_sim'
+                       AND r.source_account_id = 'seller_sim_01'
+                       AND r.resource_type IN ('ebay_orders','ebay_order','ebay_fulfillments','ebay_fulfillment')
+                       AND r.response_status = 200))""",
+            (args.batch_id, args.source),
         )
         if result.rowcount == 0:
             raise RuntimeError("no successful website raw records are eligible")
+        conn.commit()
     print(f"batch={args.batch_id} inputs={result.rowcount} frozen")
 
 
@@ -80,6 +87,13 @@ def transition(args: argparse.Namespace) -> None:
             variables = yaml.safe_load(variables)
         if str(variables.get("batch_id")) != str(args.batch_id):
             raise RuntimeError("test artifact belongs to another batch")
+        with connect() as conn:
+            expected_config = conn.execute('''SELECT b.mapping_version,b.transformation_version,b.validation_mode,p.source_system
+                FROM ops.transform_batches b JOIN ops.pipeline_runs p ON p.run_id=b.run_id WHERE b.batch_id=%s''', (args.batch_id,)).fetchone()
+        actual_config = (variables.get('mapping_version'),variables.get('transformation_version'),
+                         variables.get('validation_mode','s01'),variables.get('release_source','internal_web'))
+        if actual_config != expected_config:
+            raise RuntimeError('artifact source/versions/validation mode differ from frozen batch')
         if results["metadata"]["invocation_id"] != manifest["metadata"]["invocation_id"]:
             raise RuntimeError("manifest and test results belong to different dbt invocations")
         expected = {key for key, node in manifest["nodes"].items() if node["resource_type"] in ("model", "test")}
@@ -123,6 +137,8 @@ def main() -> None:
     freeze_parser.add_argument("--run-id", required=True, type=uuid_arg)
     freeze_parser.add_argument("--mapping-version", required=True)
     freeze_parser.add_argument("--transformation-version", required=True)
+    freeze_parser.add_argument("--source", choices=('internal_web','ebay_sim'), default='internal_web')
+    freeze_parser.add_argument('--validation-mode', choices=('s01','runtime'), default='s01')
 
     for name, expected in (("building", "FROZEN"), ("tested", "BUILDING"), ("failed", "BUILDING")):
         command = sub.add_parser(name)

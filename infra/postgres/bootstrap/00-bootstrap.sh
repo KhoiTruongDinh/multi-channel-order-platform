@@ -22,3 +22,4 @@ done
 "${psql[@]}" --dbname data_platform --file /migrations/platform/001_foundation.sql
 "${psql[@]}" --dbname data_platform --file /migrations/platform/002_access.sql
 "${psql[@]}" --dbname data_platform --file /migrations/platform/003_s01_mapping.sql
+"${psql[@]}" --dbname data_platform --file /migrations/platform/004_polling.sql

@@ -45,10 +45,11 @@ def ensure_run(conn, args):
         """INSERT INTO ops.pipeline_runs
         (run_id,stage,source_system,source_account_id,stream_name,requested_window_start,
          requested_window_end,airflow_dag_id,airflow_run_id,started_at,status,log_reference)
-        VALUES (%s,'RECOVER','internal_web','WEB01','website_workflow',%s,%s,%s,%s,%s,'RUNNING',%s)
+        VALUES (%s,'RECOVER',%s,%s,%s,%s,%s,%s,%s,%s,'RUNNING',%s)
         ON CONFLICT (run_id) DO NOTHING""",
-        (args.workflow_id, args.window_start, args.window_end, args.dag_id,
-         args.execution_id if args.dag_id else None, datetime.now(timezone.utc), f'm04:{args.execution_id}'),
+        (args.workflow_id,args.source,'WEB01' if args.source=='internal_web' else 'seller_sim_01',
+         'website_workflow' if args.source=='internal_web' else 'ebay_workflow', args.window_start, args.window_end, args.dag_id,
+         getattr(args,'airflow_run_id',args.execution_id) if args.dag_id else None, datetime.now(timezone.utc), f'm04:{args.execution_id}'),
     )
     row = conn.execute(
         'SELECT requested_window_start,requested_window_end,airflow_dag_id FROM ops.pipeline_runs WHERE run_id=%s',
@@ -94,16 +95,21 @@ def annotate_children(conn, args):
     conn.execute(
         """UPDATE ops.pipeline_runs SET airflow_dag_id=%s,airflow_run_id=%s
         WHERE log_reference=%s OR (batch_id=%s AND stream_name='orders')""",
-        (args.dag_id, args.execution_id if args.dag_id else None,
-         f'm02:m04-{args.execution_id}:scheduled', args.batch_id),
+        (args.dag_id, getattr(args,'airflow_run_id',args.execution_id) if args.dag_id else None,
+         child_locator(args), args.batch_id),
     )
     conn.commit()
+
+
+def child_locator(args):
+    return (f'm02:m04-{args.execution_id}:scheduled' if args.source=='internal_web'
+            else f'm05:m04-{args.execution_id}')
 
 
 def perform(conn, args, stage, number):
     state = batch_state(conn, args.batch_id)
     if stage == 'collect':
-        locator = f'm02:m04-{args.execution_id}:scheduled'
+        locator = child_locator(args)
         succeeded = conn.execute(
             "SELECT 1 FROM ops.pipeline_runs WHERE log_reference=%s AND status='SUCCEEDED' LIMIT 1", (locator,),
         ).fetchone()
@@ -115,17 +121,24 @@ def perform(conn, args, stage, number):
             WHERE log_reference=%s AND status='RUNNING'""", (datetime.now(timezone.utc), locator),
         )
         conn.commit()
-        arguments = ['ingestion.website', '--window-start', args.window_start.isoformat(),
+        arguments = ['ingestion.website' if args.source=='internal_web' else 'ingestion.ebay', '--window-start', args.window_start.isoformat(),
                      '--window-end', args.window_end.isoformat(), '--observed-at', args.observed_at.isoformat(),
-                     '--execution-id', f'm04-{args.execution_id}']
+                     '--execution-id', f'm04-{args.execution_id}', '--checkpoint-stream', args.checkpoint_stream]
         if args.fault_after_raw_once and number == 1:
-            arguments.append('--fail-after-raw')
+            arguments.append('--fail-after-raw' if args.source=='internal_web' else '--fail-after-page')
         command(*arguments)
     elif stage == 'freeze':
         if state is None:
-            command('transformation.batch', 'freeze', '--batch-id', args.batch_id,
-                    '--run-id', identity(args.execution_id, 'transform'),
-                    '--mapping-version', 's01-v1', '--transformation-version', 'm03-v1')
+            if getattr(args,'freeze_connection',None) is not None:
+                from transformation.batch import freeze
+                freeze(argparse.Namespace(batch_id=args.batch_id,run_id=identity(args.execution_id,'transform'),
+                    source=args.source,mapping_version=args.mapping_version,transformation_version=args.transformation_version,
+                    validation_mode=args.validation_mode,connection=args.freeze_connection))
+            else:
+                command('transformation.batch', 'freeze', '--batch-id', args.batch_id,
+                        '--run-id', identity(args.execution_id, 'transform'), '--source', args.source,
+                        '--mapping-version', args.mapping_version, '--transformation-version', args.transformation_version,
+                        '--validation-mode',args.validation_mode)
         elif state == 'FAILED':
             raise RuntimeError('failed batch requires an explicit new replay execution')
         conn.execute('UPDATE ops.pipeline_runs SET batch_id=%s WHERE run_id=%s', (args.batch_id, args.workflow_id))
@@ -139,8 +152,9 @@ def perform(conn, args, stage, number):
             command('transformation.batch', 'building', '--batch-id', args.batch_id)
         elif state != 'BUILDING':
             raise RuntimeError(f'cannot build batch in state {state}')
-        variables = {'batch_id': str(args.batch_id), 'mapping_version': 's01-v1',
-                     'transformation_version': 'm03-v1', 'inject_test_failure': args.inject_test_failure}
+        variables = {'batch_id': str(args.batch_id), 'mapping_version': args.mapping_version,
+                     'transformation_version': args.transformation_version,'release_source':args.source,
+                     'validation_mode':args.validation_mode,'inject_test_failure': args.inject_test_failure}
         subprocess.run([
             str(Path(sys.executable).with_name('dbt')), 'build',
             '--profiles-dir', str(ROOT / 'infra/dbt'), '--project-dir', str(ROOT / 'transformations'),
@@ -151,7 +165,7 @@ def perform(conn, args, stage, number):
     elif stage == 'publish':
         if state != 'PUBLISHED':
             command('transformation.publish', '--batch-id', args.batch_id,
-                    '--run-id', identity(args.execution_id, f'publish:{number}'))
+                    '--run-id', identity(args.execution_id, f'publish:{number}'), '--source',args.source)
 
 
 def abort(conn, args):
@@ -214,6 +228,11 @@ def main():
     parser.add_argument('--stage', choices=(*STAGES, 'abort', 'all'), required=True)
     parser.add_argument('--execution-id', required=True)
     parser.add_argument('--dag-id')
+    parser.add_argument('--source', choices=('internal_web','ebay_sim'),default='internal_web')
+    parser.add_argument('--validation-mode',choices=('s01','runtime'),default='s01')
+    parser.add_argument('--checkpoint-stream',choices=('orders','orders_polling'),default='orders')
+    parser.add_argument('--mapping-version',default='s01-v1')
+    parser.add_argument('--transformation-version',default='m03-v1')
     parser.add_argument('--window-start', type=parse_time, required=True)
     parser.add_argument('--window-end', type=parse_time, required=True)
     parser.add_argument('--observed-at', type=parse_time, required=True)

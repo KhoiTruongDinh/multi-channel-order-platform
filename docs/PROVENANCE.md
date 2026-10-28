@@ -22,3 +22,26 @@ The Google Doc is organized as A Business, B Source contracts/S01, C Architectur
 
 There is no automatic two-way synchronization. Do not blindly overwrite newer local implementation decisions with an older Google export or treat a historical status cell as current runtime evidence. If the sources disagree, identify the conflict instead of guessing.
 
+## Local planning revision: 2026-10-28
+
+The owner requested a plan/documentation review to close the missing scheduled
+eBay workflow. Local Markdown now distinguishes completed M05A CLI/source work
+from pending M05B automatic website/eBay polling, assigns scheduled Etsy processing
+to M06, live failure/report publication labels to M07, and changing-source/cold
+setup evidence to M08. `06_AUTOMATION.md` defines the planned clock/window/retry/
+serialization and acceptance requirements. This is not implementation evidence.
+
+Approved S01/business/source meanings and the original CSV/fixture exports are
+unchanged. Google Doc/Sheet were not modified or re-exported in this review;
+synchronizing the local planning/reporting delta to those review surfaces remains
+pending. Preserve the original export revision above until an actual refresh.
+
+## Local implementation delta: M05B, 2026-10-28
+
+The owner subsequently authorized code changes. The target dictionary now records
+the finalized immutable polling-cycle fields and batch validation mode, implemented
+by migration 004. Local plan/architecture/guides are synchronized with the actual
+website/eBay scheduled, restart and budget evidence in STATUS. S01 exports and
+fixture bytes remain unchanged. Google review surfaces were not modified;
+synchronizing these operational/schema additions remains pending.
+

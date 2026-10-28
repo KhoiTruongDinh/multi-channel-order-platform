@@ -28,7 +28,12 @@ Serve the website data through a relational database and marketplace data throug
 
 Keep an independent scenario ledger for expected results. Test code may use it to verify the platform, but the production pipeline must not read the expected-answer ledger. Separate deliberate fault injections from normal events and preserve their provenance.
 
-The environment is simulated and inspired by selected public eBay/Etsy contracts; it is not a certified replica. Approved detailed field definitions and rules are in workbook tabs 13–18. Fixed S01 fixtures are delivered; runnable source services and seeded generation remain pending.
+The environment is simulated and inspired by selected public eBay/Etsy contracts;
+it is not a certified replica. Approved detailed fields/rules are in workbook
+tabs 13–18. Fixed website playback and the eBay HTTP subset are implemented;
+Etsy runtime and an opt-in current-clock source generator remain M06/M08 work.
+Scheduling does not advance frozen fixture state. The operational clock/mode
+plan in [06_AUTOMATION.md](06_AUTOMATION.md) does not change S01 or these contracts.
 
 ## B3. Engineering behavior and acceptance scenarios
 
@@ -289,6 +294,14 @@ S01 fixture inventory: catalog/mapping seed; initial website records plus paymen
 
 Numeric Etsy fixture timestamps: created/paid 09:04 = 1792227840; receipt updated/shipped 09:05 = 1792227900. Keep provider time fields in their documented representations; callback signature timestamps follow the chosen delivery execution clock. Local resource_url values use the simulator origin, never imply a live Etsy call.
 
-Current checkpoint: fixed request/response and signed webhook fixtures are delivered and passed offline checks; the user reports a successful local run. Detailed source definitions are approved in workbook tabs 13–18. Runtime schemas, local source services and the DE pipeline remain pending. Continue with Section C3; the policies above remain authoritative.
+Implementation checkpoint (2026-10-28): website acquisition/dbt/Airflow and the
+M05A eBay fixed HTTP source/adapter are implemented; actual verification evidence
+is in STATUS.md. The selected approved fields/rules remain unchanged. eBay source
+controls are test-only and separate from its data listener; acquisition uses HTTP.
+Etsy receipt/webhook runtime remains M06. Dated workbook exports do not update
+automatically; no changed vendor/business semantics are implied by this checkpoint.
+M05B website/eBay polling passed real scheduled-cycle, restart and bounded-retry
+checks (STATUS). Separate checkpoint/validation modes preserve the original S01
+sequence and source fields/rules. New current-clock source changes remain M08.
 
 

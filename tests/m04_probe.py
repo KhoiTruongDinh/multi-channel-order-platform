@@ -41,7 +41,7 @@ def signature():
                       'core.orders_current', 'core.order_lines_current',
                       'mart.order_activity_daily', 'mart.product_activity_daily', 'mart.order_status_current'):
             payload[table] = [row[0] for row in conn.execute(
-                f"SELECT to_jsonb(t)-'batch_id'-'published_batch_id' FROM {table} t ORDER BY to_jsonb(t)::text"
+                f"SELECT to_jsonb(t)-'batch_id'-'published_batch_id' FROM {table} t ORDER BY (to_jsonb(t)-'batch_id'-'published_batch_id')::text"
             ).fetchall()]
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
@@ -50,8 +50,8 @@ if args.action == 'preflight':
     with psycopg.connect(**db_kwargs('WEBSITE','website_source','website_reader')) as conn:
         assert conn.execute("SELECT cancellation_status FROM orders WHERE order_id='W1001'").fetchone() == ('CANCELED',), 'Run complete M02 source scenario first'
     with platform('platform_publisher') as conn:
-        assert conn.execute('SELECT count(*) FROM core.order_snapshot_history').fetchone()[0] == 3, 'Run M03 first'
-        assert conn.execute('SELECT count(*),sum(quantity),sum(line_gross_amount) FROM core.order_lines_current').fetchone() == (1, 2, 40)
+        assert conn.execute("SELECT count(*) FROM core.order_snapshot_history WHERE source_system='internal_web'").fetchone()[0] == 3, 'Run M03 first'
+        assert conn.execute("SELECT count(*),sum(quantity),sum(line_gross_amount) FROM core.order_lines_current WHERE source_system='internal_web'").fetchone() == (1, 2, 40)
     print('preflight PASS')
 elif args.action == 'trigger':
     conf = {'fault_after_raw_once': args.faults, 'fault_after_freeze_once': args.faults,

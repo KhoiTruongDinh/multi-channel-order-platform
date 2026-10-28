@@ -78,7 +78,15 @@ The dashboard connects directly to PostgreSQL published mart/report views using 
 
 On opening or pressing Refresh, the proposed Streamlit implementation reads publication_state and report datasets in one read-only REPEATABLE READ transaction, then renders that consistent result. Begin without query-result caching for S01. If caching is introduced later, include published_batch_id in the cache key and define expiration/invalidation. Database publication does not by itself refresh an already displayed browser page.
 
-Every business page shows published_batch_id and published_at. Data-health views may also read live ops status so a failed new run is visible while business figures remain on the previous successful batch; label the health-read timestamp separately. Stable read-only health views mask secrets and expose only needed operational fields.
+Every business page shows the publication ID/time for each included source.
+Current releases are source-specific, so the consistent report label is a
+source-to-batch mapping read alongside business datasets in the same transaction;
+do not label independent website/eBay releases as one global batch. Data-health
+views must also expose newer failed runs/work/tests while business figures remain
+on the last good release; label the health-read timestamp separately. M07 adds
+restricted read-only live health views, masking secrets and exposing only needed
+operational fields. Existing published source_health alone is not live failure
+visibility. Browser refresh remains separate from acquisition/publication.
 
 Power BI alternative: connect the PostgreSQL connector to the same published marts using Import or DirectQuery. Import needs refresh after publication; DirectQuery queries the source when visuals query but still has refresh/cache considerations. An unattended Power BI Service refresh from local PostgreSQL needs a separately configured service/gateway/access path; it is not automatically provided by Airflow.
 

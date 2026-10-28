@@ -10,6 +10,7 @@ clean-targets: ["target", "dbt_packages"]
 
 on-run-start:
   - "{{ create_canonical_jsonb_function() }}"
+  - "{{ create_ebay_canonical_function() }}"
 
 models:
   multi_channel_orders:
@@ -18,4 +19,6 @@ models:
     intermediate:
       +materialized: view
     candidates:
+      +materialized: table
+    ebay:
       +materialized: table

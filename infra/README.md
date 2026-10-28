@@ -23,8 +23,9 @@ may remove it only when the operator has confirmed it contains disposable local
 test data.
 
 `website_source`, `marketplace_sim`, `data_platform`, and `airflow_meta` are
-separate databases in one lightweight instance. Marketplace ingestion is never
-given database credentials; later milestones must use HTTP. The website reader
+separate databases in one lightweight instance. Marketplace ingestion never
+receives marketplace source DB credentials; implemented eBay acquisition uses
+HTTP and future Etsy acquisition must too. The website reader
 does not receive write access. Report clients receive only `platform_report`.
 
 ## M02 website scenario
@@ -47,8 +48,9 @@ earlier raw records. The sequence intentionally creates one failed run after a
 durable raw write, then saves the three scheduled observations and one replay.
 The final SQL assertions verify the observed cancellation states, checkpoint,
 replay audit, and database role boundaries. It leaves source state `0914`
-loaded and the PostgreSQL service running. It does not run M03 transformations,
-so core and mart tables remain empty until M03 is run.
+loaded and the PostgreSQL service running. It does not run M03 transformations;
+on an initial setup stable tables remain empty until M03. On an existing setup
+the M02 runner preserves any previous stable publication.
 
 ## M03 website dbt and release
 
@@ -124,3 +126,27 @@ under `runtime/airflow/`. The UI username is `admin`; its password is local in
 
 See [the workflow guide](../orchestration/README.md) for normal manual triggers,
 explicit source-clock windows, audit semantics, credentials, and CLI parity.
+
+## M05A eBay HTTP source and release
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m05_s01.ps1
+```
+
+Requires retained M02/M03 website data. Expected final `M05 PASS ...`; intentional
+HTTP/dbt failures must preserve the previous publication. API defaults to
+localhost:8081 and test controls to localhost:8091 (`EBAY_API_PORT` and
+`EBAY_CONTROL_PORT` overrides). No volume/database reset is performed.
+See [the eBay guide](../simulator/README.md) for source controls, normal CLI use,
+role boundaries, release commands and recovery limitations.
+
+## Automatic operation: M05B (Etsy follows in M06)
+
+The M05A runner above is a test harness, not a recurring job. `website_orders`
+remains manual; `website_polling` and `ebay_polling` are opt-in periodic DAGs.
+See [the polling guide](../orchestration/POLLING.md) for environment settings,
+explicit bootstrap windows, enable/pause/replay commands and
+`infra/scripts/run_m05b_polling.ps1`. M06 will add Etsy inbox/recovery jobs around
+an always-on receiver. See [the automation contract](../docs/06_AUTOMATION.md).
+Keep existing S01 commands for deterministic replay; they must not be repurposed
+as a current-clock source generator. M08 packages that separate demo.

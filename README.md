@@ -2,20 +2,25 @@
 
 Local DE portfolio project: internal website database + eBay-style polling API + Etsy-style webhook/receipt API → immutable raw → dbt → PostgreSQL published data → operations/data-health dashboard. Airflow orchestrates the bounded pipeline.
 
-**Current state:** M04 adds a bounded Airflow website DAG over the M02 acquisition
-and M03 dbt/atomic release commands, with durable attempt budgets and recovery
-audit. Marketplace sources and the dashboard are planned in later milestones.
+**Current state:** M05A adds a local eBay HTTP simulator/collector, observed
+history and fulfillment allocation models, and source-specific tested releases.
+The M04 website DAG remains manual. M05B adds opt-in periodic website/eBay DAGs,
+durable windows and serialized tested releases; real scheduled/restart checks
+passed. Etsy and the dashboard are later work. See the separate
+[polling guide](orchestration/POLLING.md) and evidence in STATUS.
 
 ## Start here
 
 - [Documentation map](docs/README.md)
 - [Actual status](docs/STATUS.md)
 - [Milestones](docs/04_PLAN.md)
+- [Automatic operation: current gaps and acceptance](docs/06_AUTOMATION.md)
 - [VS Code / Codex guide](docs/CODEX_VSCODE.md)
 - [AI repository instructions](AGENTS.md)
 - [Target field dictionary](docs/05_TARGET_SCHEMA.md)
 - [Local PostgreSQL, website acquisition, and dbt release](infra/README.md)
 - [Airflow website workflow and recovery](orchestration/README.md)
+- [eBay HTTP source and M05 acceptance](simulator/README.md)
 
 ## Run the existing offline fixture checks
 
@@ -35,6 +40,13 @@ Three independent orders, four lines, six ordered units and USD124 original merc
 
 ## Repository organization
 
-`fixtures/` and `docs/` are included now. Planned application directories are `simulator/`, `ingestion/`, `transformations/`, `orchestration/`, `migrations/`, `reports/`, `tests/` and `infra/`; milestones create them when needed. One repository supports an end-to-end demo while preserving source access boundaries.
+Implemented directories include `fixtures/`, `docs/`, `simulator/`, `ingestion/`,
+`transformation/`, `transformations/`, `orchestration/`, `migrations/`, `tests/`
+and `infra/`. The dashboard under `reports/` is future M07 work. One repository
+supports a local demo while preserving source access boundaries.
 
-eBay/Etsy services are planned local implementations of selected public contracts, not certified replicas or completed live integrations. No measured production scale is claimed.
+The eBay simulator implements the selected fixed local subset; Etsy runtime is
+pending M06. Neither is a certified replica or completed live integration. A
+frozen fixture does not generate new orders when polled. M05B adds scheduled jobs;
+M08 adds a separate opt-in changing-source demo. No measured production scale
+is claimed.

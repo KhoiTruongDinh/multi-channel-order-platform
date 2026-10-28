@@ -85,6 +85,49 @@ services:
       postgres:
         condition: service_healthy
 
+  ebay-sim:
+    profiles: ["m05"]
+    build:
+      context: ..
+      dockerfile: infra/python/Dockerfile.ebay
+    environment:
+      EBAY_SIM_TOKEN: ${EBAY_SIM_TOKEN:-local-s01-test-token}
+    ports:
+      - "127.0.0.1:${EBAY_API_PORT:-8081}:80"
+      - "127.0.0.1:${EBAY_CONTROL_PORT:-8091}:8081"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  m05-checks:
+    profiles: ["m05"]
+    build:
+      context: ..
+      dockerfile: infra/python/Dockerfile.transform
+    environment:
+      PLATFORM_DB_HOST: postgres
+      PLATFORM_PUBLISHER_PASSWORD: ${PLATFORM_PUBLISHER_PASSWORD:?set PLATFORM_PUBLISHER_PASSWORD in .env}
+      PLATFORM_INGEST_PASSWORD: ${PLATFORM_INGEST_PASSWORD:?set PLATFORM_INGEST_PASSWORD in .env}
+    # Acceptance-only service; never used by the acquisition or release commands.
+
+  ebay-collector:
+    profiles: ["m05"]
+    build:
+      context: ..
+      dockerfile: infra/python/Dockerfile.ebay-collector
+    environment:
+      EBAY_ORIGIN: http://ebay-sim
+      EBAY_SIM_TOKEN: ${EBAY_SIM_TOKEN:-local-s01-test-token}
+      PLATFORM_DB_HOST: postgres
+      PLATFORM_INGEST_PASSWORD: ${PLATFORM_INGEST_PASSWORD:?set PLATFORM_INGEST_PASSWORD in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ebay-sim:
+        condition: service_healthy
+
   airflow:
     profiles: ["m04"]
     build:
@@ -92,7 +135,7 @@ services:
       dockerfile: infra/python/Dockerfile.airflow
     init: true
     restart: unless-stopped
-    command: standalone
+    command: ["bash", "-c", "python /opt/project/orchestration/ui_credentials.py && exec airflow standalone"]
     environment:
       AIRFLOW_APP_PASSWORD: ${AIRFLOW_APP_PASSWORD:?set AIRFLOW_APP_PASSWORD in .env}
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_CMD: python /opt/project/orchestration/metadata_url.py
@@ -101,7 +144,9 @@ services:
       AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: 1
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
-      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: admin:admin
+      AIRFLOW_UI_USERNAME: ${AIRFLOW_UI_USERNAME:-admin}
+      AIRFLOW_UI_PASSWORD: ${AIRFLOW_UI_PASSWORD:-}
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: ${AIRFLOW_UI_USERNAME:-admin}:admin
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_PASSWORDS_FILE: /opt/airflow/state/passwords.json
       AIRFLOW__API__WORKERS: 1
       AIRFLOW__DAG_PROCESSOR__PARSING_PROCESSES: 1
@@ -115,6 +160,13 @@ services:
       PLATFORM_INGEST_PASSWORD: ${PLATFORM_INGEST_PASSWORD:?set PLATFORM_INGEST_PASSWORD in .env}
       PLATFORM_TRANSFORM_PASSWORD: ${PLATFORM_TRANSFORM_PASSWORD:?set PLATFORM_TRANSFORM_PASSWORD in .env}
       PLATFORM_PUBLISHER_PASSWORD: ${PLATFORM_PUBLISHER_PASSWORD:?set PLATFORM_PUBLISHER_PASSWORD in .env}
+      EBAY_ORIGIN: http://ebay-sim
+      EBAY_SIM_TOKEN: ${EBAY_SIM_TOKEN:-local-s01-test-token}
+      WEBSITE_POLL_INTERVAL_SECONDS: ${WEBSITE_POLL_INTERVAL_SECONDS:-300}
+      EBAY_POLL_INTERVAL_SECONDS: ${EBAY_POLL_INTERVAL_SECONDS:-300}
+      WEBSITE_POLL_INITIAL_START: ${WEBSITE_POLL_INITIAL_START:-}
+      EBAY_POLL_INITIAL_START: ${EBAY_POLL_INITIAL_START:-}
+      POLL_OVERLAP_SECONDS: ${POLL_OVERLAP_SECONDS:-120}
     ports:
       - "127.0.0.1:${AIRFLOW_PORT:-8080}:8080"
     volumes:
