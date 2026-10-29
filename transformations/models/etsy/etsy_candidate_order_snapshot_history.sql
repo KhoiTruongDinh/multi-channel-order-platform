@@ -1,0 +1,21 @@
+SELECT snapshot_id,source_system,source_account_id,order_json->>'receipt_id' AS source_order_id,
+       to_timestamp((order_json->>'created_timestamp')::BIGINT) AS source_created_at,
+       to_timestamp((order_json->>'updated_timestamp')::BIGINT) AS source_updated_at,
+       first_observed_at,content_fingerprint,
+       order_json->>'is_paid' AS source_payment_status,
+       order_json->>'is_shipped' AS source_fulfillment_status,
+       order_json->>'status' AS source_cancellation_status,
+       CASE WHEN order_json->'is_paid'='true'::JSONB THEN 'PAID' ELSE 'UNKNOWN' END AS payment_state,
+       CASE WHEN order_json->'is_shipped'='true'::JSONB THEN 'SHIPPED'
+            WHEN order_json->'is_shipped'='false'::JSONB THEN 'NOT_STARTED' ELSE 'UNKNOWN' END AS fulfillment_state,
+       'UNKNOWN'::TEXT AS cancellation_state,
+       order_json#>>'{grandtotal,currency_code}' AS currency,
+       build.etsy_money(order_json->'subtotal')::NUMERIC(20,6) AS items_gross_amount,
+       build.etsy_money(order_json->'discount_amt')::NUMERIC(20,6) AS discount_amount,
+       build.etsy_money(order_json->'total_shipping_cost')::NUMERIC(20,6) AS shipping_amount,
+       build.etsy_money(order_json->'total_tax_cost')::NUMERIC(20,6) AS tax_amount,
+       build.etsy_money(order_json->'grandtotal')::NUMERIC(20,6) AS source_order_total_amount,
+       '{{ var("mapping_version") }}'::TEXT AS mapping_version,
+       '{{ var("transformation_version") }}'::TEXT AS transformation_version,
+       '{{ var("batch_id") }}'::UUID AS batch_id
+  FROM {{ ref('int_etsy_versions') }}

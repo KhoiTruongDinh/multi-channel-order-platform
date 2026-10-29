@@ -1,5 +1,9 @@
 # M05A eBay local HTTP source
 
+For the M06 local Etsy receipt/list simulator, signed sender and receiver/worker
+workflow, see [the Etsy operating guide](../orchestration/ETSY.md). These are local
+fixed subsets, not live vendor integrations.
+
 This guide covers the implemented CLI/source part. M05B also implements eBay
 Airflow orchestration and opt-in periodic polling; see [the polling guide](../orchestration/POLLING.md).
 The existing `run_m05_s01.ps1` output `M05 PASS` refers to the original M05A checks,

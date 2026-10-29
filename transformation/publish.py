@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime, timezone
 
 import psycopg
+from transformation.source_config import SOURCES
 
 
 DELETE_ORDER = (
@@ -59,7 +60,7 @@ def publish(args: argparse.Namespace, now: datetime) -> None:
         ).fetchone()
         if owner != (args.source,):
             raise RuntimeError("batch source does not match requested publication")
-        prefix = 'ebay_' if args.source == 'ebay_sim' else ''
+        account, prefix, publication, _ = SOURCES[args.source]
         copies = tuple((target, candidate.replace('build.', 'build.' + prefix)) for target,candidate in COPIES)
         health = 'build.' + prefix + 'candidate_source_health'
         candidate_batches = conn.execute(
@@ -94,14 +95,14 @@ def publish(args: argparse.Namespace, now: datetime) -> None:
             SET batch_id=EXCLUDED.batch_id, published_at=EXCLUDED.published_at,
                 transformation_version=EXCLUDED.transformation_version,
                 mapping_version=EXCLUDED.mapping_version""",
-            ('website_orders' if args.source == 'internal_web' else 'ebay_orders',args.batch_id, now, batch[1], batch[0]),
+            (publication,args.batch_id, now, batch[1], batch[0]),
         )
         conn.execute(
             "UPDATE ops.transform_batches SET status='PUBLISHED', published_at=%s WHERE batch_id=%s",
             (now, args.batch_id),
         )
         conn.execute(
-            "UPDATE ops.pipeline_runs SET status='SUCCEEDED', finished_at=%s WHERE run_id=%s",
+            "UPDATE ops.pipeline_runs SET status='SUCCEEDED', finished_at=GREATEST(%s,started_at) WHERE run_id=%s",
             (now, args.run_id),
         )
     print(f"batch={args.batch_id} published")
@@ -111,7 +112,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch-id', required=True, type=uuid.UUID)
     parser.add_argument('--run-id', required=True, type=uuid.UUID)
-    parser.add_argument('--source', choices=('internal_web','ebay_sim'), default='internal_web')
+    parser.add_argument('--source', choices=tuple(SOURCES), default='internal_web')
     args = parser.parse_args()
     now = datetime.now(timezone.utc)
     with connect() as conn:
@@ -121,7 +122,7 @@ def main() -> None:
              started_at, status, log_reference)
             VALUES (%s, 'PUBLISH', %s, %s, 'orders', %s,
                     %s, 'RUNNING', %s)""",
-            (args.run_id,args.source,'WEB01' if args.source == 'internal_web' else 'seller_sim_01',
+            (args.run_id,args.source,SOURCES[args.source][0],
              args.batch_id, now, f'm03:publish:{args.batch_id}'),
         )
     try:
@@ -130,7 +131,7 @@ def main() -> None:
         # Release rolled back; retain the failed attempt in a separate transaction.
         with connect() as conn:
             conn.execute(
-                """UPDATE ops.pipeline_runs SET status='FAILED', finished_at=%s,
+                """UPDATE ops.pipeline_runs SET status='FAILED', finished_at=GREATEST(%s,started_at),
                        error_code=%s, error_message=%s WHERE run_id=%s""",
                 (datetime.now(timezone.utc), type(error).__name__, str(error)[:1000], args.run_id),
             )

@@ -55,9 +55,11 @@ At review, ask Codex to explain what changed, why it meets acceptance, actual te
 ## 5. Resume in a new chat
 
 Current checkpoint (2026-10-28): M05A CLI/runtime and M05B periodic website/eBay
-orchestration have runtime evidence in STATUS; changes are unstaged for review.
-Do not automatically start M06. When selected by the owner, read M06 and
-`docs/06_AUTOMATION.md`, preserving the manual S01 and scheduled modes.
+orchestration have runtime evidence in STATUS and are committed locally.
+M06 implementation is unstaged for owner review, with actual acceptance in STATUS
+and commands in `orchestration/ETSY.md`. Do not automatically start M07. Preserve
+the manual S01 and all scheduled modes; review `docs/06_AUTOMATION.md` and the
+M06 checklist before extending them. Documentation alone is not runtime proof.
 Runner text `M05 PASS` validates A; `M05B PASS` validates scheduled/recovery checks.
 
 ```text

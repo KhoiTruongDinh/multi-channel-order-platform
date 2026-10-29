@@ -140,13 +140,15 @@ localhost:8081 and test controls to localhost:8091 (`EBAY_API_PORT` and
 See [the eBay guide](../simulator/README.md) for source controls, normal CLI use,
 role boundaries, release commands and recovery limitations.
 
-## Automatic operation: M05B (Etsy follows in M06)
+## Automatic operation: M05B and M06
 
 The M05A runner above is a test harness, not a recurring job. `website_orders`
 remains manual; `website_polling` and `ebay_polling` are opt-in periodic DAGs.
 See [the polling guide](../orchestration/POLLING.md) for environment settings,
 explicit bootstrap windows, enable/pause/replay commands and
-`infra/scripts/run_m05b_polling.ps1`. M06 will add Etsy inbox/recovery jobs around
-an always-on receiver. See [the automation contract](../docs/06_AUTOMATION.md).
+`infra/scripts/run_m05b_polling.ps1`. M06 adds Etsy inbox/recovery jobs around
+an always-on receiver; see [the Etsy guide](../orchestration/ETSY.md) for startup,
+credentials/ports and `run_m06_s01.ps1` / `run_m06_scheduled.ps1` acceptance.
+See [the automation contract](../docs/06_AUTOMATION.md).
 Keep existing S01 commands for deterministic replay; they must not be repurposed
 as a current-clock source generator. M08 packages that separate demo.

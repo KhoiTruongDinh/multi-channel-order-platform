@@ -52,8 +52,9 @@ with connection as conn:
         assert conn.execute("SELECT count(*) FROM core.order_line_snapshot_history l JOIN core.order_snapshot_history h USING(snapshot_id) WHERE h.source_system='ebay_sim'").fetchone()[0] == 4
         assert conn.execute("SELECT payment_state,fulfillment_state,cancellation_state,source_order_total_amount,currency FROM core.orders_current WHERE source_system='ebay_sim'").fetchall() == [('PAID','PARTIALLY_SHIPPED','NOT_REQUESTED',62,'USD')]
         assert conn.execute("SELECT count(*),sum(quantity),sum(line_gross_amount) FROM core.order_lines_current WHERE source_system='ebay_sim'").fetchone() == (2,3,62)
-        assert conn.execute("SELECT count(*) FROM core.orders_current").fetchone()[0] == 2
-        assert conn.execute("SELECT sum(quantity),sum(line_gross_amount) FROM core.order_lines_current").fetchone() == (5,102)
+        # M05 owns website/eBay totals; M06 independently checks all three channels.
+        assert conn.execute("SELECT count(*) FROM core.orders_current WHERE source_system IN ('internal_web','ebay_sim')").fetchone()[0] == 2
+        assert conn.execute("SELECT sum(quantity),sum(line_gross_amount) FROM core.order_lines_current WHERE source_system IN ('internal_web','ebay_sim')").fetchone() == (5,102)
         histories = conn.execute("SELECT source_updated_at,first_observed_at,fulfillment_state FROM core.order_snapshot_history WHERE source_system='ebay_sim' ORDER BY source_updated_at").fetchall()
         assert [r[2] for r in histories] == ['NOT_STARTED','PARTIALLY_SHIPPED']
         assert [r[1].isoformat() for r in histories] == ['2026-10-17T09:03:00+00:00','2026-10-17T09:13:00+00:00']

@@ -6,8 +6,10 @@ Local DE portfolio project: internal website database + eBay-style polling API +
 history and fulfillment allocation models, and source-specific tested releases.
 The M04 website DAG remains manual. M05B adds opt-in periodic website/eBay DAGs,
 durable windows and serialized tested releases; real scheduled/restart checks
-passed. Etsy and the dashboard are later work. See the separate
-[polling guide](orchestration/POLLING.md) and evidence in STATUS.
+passed. M06 adds the local Etsy signed-webhook receiver, durable receipt work,
+independent scheduled recovery and tested source-specific release. The dashboard
+remains M07. See the [polling guide](orchestration/POLLING.md),
+[Etsy guide](orchestration/ETSY.md) and exact evidence/limits in STATUS.
 
 ## Start here
 
@@ -45,8 +47,8 @@ Implemented directories include `fixtures/`, `docs/`, `simulator/`, `ingestion/`
 and `infra/`. The dashboard under `reports/` is future M07 work. One repository
 supports a local demo while preserving source access boundaries.
 
-The eBay simulator implements the selected fixed local subset; Etsy runtime is
-pending M06. Neither is a certified replica or completed live integration. A
+The eBay/Etsy simulators implement only the selected fixed local subsets.
+Neither is a certified replica or completed live integration. A
 frozen fixture does not generate new orders when polled. M05B adds scheduled jobs;
 M08 adds a separate opt-in changing-source demo. No measured production scale
 is claimed.

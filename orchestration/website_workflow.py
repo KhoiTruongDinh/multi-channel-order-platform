@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 import psycopg
 from ingestion.website import db_kwargs, parse_time
+from transformation.source_config import SOURCES
 
 MAX_ATTEMPTS = 5
 STAGES = ('collect', 'freeze', 'build_and_test', 'publish')
@@ -47,8 +48,8 @@ def ensure_run(conn, args):
          requested_window_end,airflow_dag_id,airflow_run_id,started_at,status,log_reference)
         VALUES (%s,'RECOVER',%s,%s,%s,%s,%s,%s,%s,%s,'RUNNING',%s)
         ON CONFLICT (run_id) DO NOTHING""",
-        (args.workflow_id,args.source,'WEB01' if args.source=='internal_web' else 'seller_sim_01',
-         'website_workflow' if args.source=='internal_web' else 'ebay_workflow', args.window_start, args.window_end, args.dag_id,
+        (args.workflow_id,args.source,SOURCES[args.source][0],
+         SOURCES[args.source][3], args.window_start, args.window_end, args.dag_id,
          getattr(args,'airflow_run_id',args.execution_id) if args.dag_id else None, datetime.now(timezone.utc), f'm04:{args.execution_id}'),
     )
     row = conn.execute(
@@ -74,7 +75,7 @@ def begin_attempt(conn, args, stage):
         raise AttemptBudgetExhausted(f'{stage}: durable five-attempt budget exhausted; use an explicit new execution for replay')
     now = datetime.now(timezone.utc)
     conn.execute(
-        """UPDATE ops.task_attempts SET status='FAILED',finished_at=%s,error_code='INTERRUPTED',
+        """UPDATE ops.task_attempts SET status='FAILED',finished_at=GREATEST(%s,started_at),error_code='INTERRUPTED',
             error_message='Prior process ended before attempt completion'
             WHERE run_id=%s AND task_name=%s AND status='RUNNING'""",
         (now, args.workflow_id, stage),
@@ -102,6 +103,8 @@ def annotate_children(conn, args):
 
 
 def child_locator(args):
+    if args.source == 'etsy_sim':
+        return f'm06:m04-{args.execution_id}'
     return (f'm02:m04-{args.execution_id}:scheduled' if args.source=='internal_web'
             else f'm05:m04-{args.execution_id}')
 
@@ -117,10 +120,22 @@ def perform(conn, args, stage, number):
             conn.commit()
             return
         conn.execute(
-            """UPDATE ops.pipeline_runs SET status='FAILED',finished_at=%s,error_code='INTERRUPTED'
+            """UPDATE ops.pipeline_runs SET status='FAILED',finished_at=GREATEST(%s,started_at),error_code='INTERRUPTED'
             WHERE log_reference=%s AND status='RUNNING'""", (datetime.now(timezone.utc), locator),
         )
         conn.commit()
+        if args.source == 'etsy_sim':
+            mode = getattr(args, 'collection_mode', 'recovery')
+            arguments = ['ingestion.etsy', mode, '--execution-id', f'm04-{args.execution_id}',
+                         '--checkpoint-stream', args.checkpoint_stream]
+            if args.validation_mode == 's01':
+                arguments += ['--observed-at', args.observed_at.isoformat()]
+            if mode == 'recovery':
+                arguments += ['--window-start', args.window_start.isoformat(), '--window-end', args.window_end.isoformat()]
+            command(*arguments)
+            if args.fault_after_raw_once and number == 1:
+                raise RuntimeError('intentional M06 interruption after durable acquisition')
+            return
         arguments = ['ingestion.website' if args.source=='internal_web' else 'ingestion.ebay', '--window-start', args.window_start.isoformat(),
                      '--window-end', args.window_end.isoformat(), '--observed-at', args.observed_at.isoformat(),
                      '--execution-id', f'm04-{args.execution_id}', '--checkpoint-stream', args.checkpoint_stream]
@@ -177,7 +192,7 @@ def abort(conn, args):
                 '--expected-status', state,
                 '--artifact', ROOT / 'transformations/target' / str(args.batch_id) / 'run_results.json')
     conn.execute(
-        """UPDATE ops.pipeline_runs SET status='FAILED',finished_at=%s,
+        """UPDATE ops.pipeline_runs SET status='FAILED',finished_at=GREATEST(%s,started_at),
            error_code='WORKFLOW_FAILED',error_message='Required task failed; inspect durable task attempts'
            WHERE run_id=%s""", (datetime.now(timezone.utc), args.workflow_id),
     )
@@ -202,16 +217,16 @@ def run_stage(args, stage):
         attempt_id, number = attempt
         try:
             perform(conn, args, stage, number)
-            conn.execute("UPDATE ops.task_attempts SET status='SUCCEEDED',finished_at=%s WHERE attempt_id=%s",
+            conn.execute("UPDATE ops.task_attempts SET status='SUCCEEDED',finished_at=GREATEST(%s,started_at) WHERE attempt_id=%s",
                          (datetime.now(timezone.utc), attempt_id))
             if stage == 'publish':
-                conn.execute("UPDATE ops.pipeline_runs SET status='SUCCEEDED',finished_at=%s WHERE run_id=%s",
+                conn.execute("UPDATE ops.pipeline_runs SET status='SUCCEEDED',finished_at=GREATEST(%s,started_at) WHERE run_id=%s",
                              (datetime.now(timezone.utc), args.workflow_id))
             conn.commit()
         except Exception as error:
             conn.rollback()
             conn.execute(
-                """UPDATE ops.task_attempts SET status=%s,finished_at=%s,error_code=%s,error_message=%s
+                """UPDATE ops.task_attempts SET status=%s,finished_at=GREATEST(%s,started_at),error_code=%s,error_message=%s
                    WHERE attempt_id=%s""",
                 ('RETRYABLE' if number < MAX_ATTEMPTS else 'FAILED', datetime.now(timezone.utc),
                  type(error).__name__, str(error)[:1000], attempt_id),
@@ -228,9 +243,9 @@ def main():
     parser.add_argument('--stage', choices=(*STAGES, 'abort', 'all'), required=True)
     parser.add_argument('--execution-id', required=True)
     parser.add_argument('--dag-id')
-    parser.add_argument('--source', choices=('internal_web','ebay_sim'),default='internal_web')
+    parser.add_argument('--source', choices=tuple(SOURCES),default='internal_web')
     parser.add_argument('--validation-mode',choices=('s01','runtime'),default='s01')
-    parser.add_argument('--checkpoint-stream',choices=('orders','orders_polling'),default='orders')
+    parser.add_argument('--checkpoint-stream',choices=('orders','orders_polling','receipts','receipts_polling'))
     parser.add_argument('--mapping-version',default='s01-v1')
     parser.add_argument('--transformation-version',default='m03-v1')
     parser.add_argument('--window-start', type=parse_time, required=True)
@@ -239,6 +254,8 @@ def main():
     for flag in ('fault-after-raw-once', 'fault-after-freeze-once', 'inject-test-failure'):
         parser.add_argument('--' + flag, action='store_true')
     args = parser.parse_args()
+    if args.checkpoint_stream is None:
+        args.checkpoint_stream = 'receipts' if args.source=='etsy_sim' else 'orders'
     if args.window_start > args.window_end or args.observed_at < args.window_end:
         parser.error('require window_start <= window_end <= observed_at')
     args.workflow_id = identity(args.execution_id, 'workflow')

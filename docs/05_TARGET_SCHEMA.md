@@ -24,6 +24,58 @@ their existing attempt. Airflow DAG/run IDs and stable batch IDs link these audi
 
 ## Conventions
 
+M06 finalized operational extension (2026-10-28, before migration 005):
+
+- `ops.processing_work.lease_token UUID ?`: ownership/fencing token; for
+  `ETSY_RECEIPT` work, LEASED requires a token and other states require null.
+  Claim/reclaim atomically increments the existing 0..5 cycle_attempts and assigns
+  a new token/deadline. Completion requires the current token and unexpired lease.
+  Expired attempts remain audited; no scheduled reset of exhausted counters.
+  An Etsy work trigger forbids counter decreases and changes to cycle identity.
+- `ops.etsy_work_context`: `work_id UUID ! PK/FK processing_work`,
+  `run_id UUID ! FK pipeline_runs` (receipt acquisition), `resource_url TEXT !`,
+  `cycle_id TEXT !` nonblank (inbox identity or explicit recovery/replay identity).
+  Context is immutable. One inbox message creates one work item; recovery work
+  dedupe is cycle + receipt. Explicit replay creates new work/context, retaining
+  previous work/attempts. No DELETE grant or mutable context to reset a cycle.
+  `replay_of_work_id UUID ? FK processing_work` explicitly links a controlled
+  replay to the failed work it supersedes. Recovery refuses to enqueue a fresh
+  cycle for a receipt with unresolved FAILED work; only a successful linked
+  replay clears that gate. A scheduled tick cannot reset an exhausted work budget.
+- `ops.etsy_http_attempts`: `attempt_id UUID ! PK`, `work_id UUID ? FK`,
+  `run_id UUID ! FK pipeline_runs`, `lease_token UUID ?`, `attempt_number INTEGER !`
+  1..5 for work requests, `raw_record_id UUID ! FK raw_records`,
+  `recorded_at TIMESTAMPTZ !`. Append-only ingest grants; each HTTP result retains
+  exact bytes/status and actual fetch time even after lease loss. Raw acquired_at
+  may use an explicit S01 observation clock, separately labeled in metadata.
+  `collection_run_id UUID ? FK pipeline_runs` links the invoking drain/recovery
+  acquisition cycle (and thus its Airflow parent), separately from the receipt
+  work run. New CLI writes populate it; earlier development/test rows may be null,
+  without invented backfill. Work-attempt log references and raw metadata mirror
+  that link. Finalized before adding the column during this uncommitted migration.
+- Existing raw/run/inbox/delivery/work columns retain their types and keys.
+  Receiver request run + raw + inbox + delivery + work/context commit atomically
+  before 2xx; rejected deliveries retain audit/raw when the DB is available.
+  Receiver DB failure returns 503, with no claim that unavailable DB persisted
+  rejection audit. Subscription/shop come from configured trusted context.
+- Existing polling-cycle configuration protects scheduled Etsy recovery windows
+  and windowless inbox-drain context (null start/end). The latter uses no fake
+  extraction window. Recovery streams `receipts` (explicit historical replay)
+  and `receipts_polling` (current clock) stay separate; inbox stream is `inbox`.
+  Scheduled acceptance uses explicitly isolated `receipts_test_<32 hex>` streams
+  so reruns can cover the fixed historical receipt without rewinding live state.
+  The selected stream is bound in immutable cycle settings and restored afterward.
+- Etsy receipt=order, transaction=line, source/account `etsy_sim`/`7001`.
+  Target core/mart types/columns remain unchanged; only receipt HTTP resources
+  from completed acquisitions enter manifests. Notifications never become order
+  snapshots. SQL owns Money division, product mapping, fingerprint/history/state.
+  Unknown mapping retains the line plus an operational warning exception.
+  One physical receipt request has an append-only `etsy_http` audit body and,
+  only after fencing succeeds, an `etsy_receipt` admission copy with identical
+  bytes/hash and a pointer to the HTTP raw ID. This is not a second fetch or an
+  invented source state. Count physical requests via `etsy_http_attempts`, not
+  by summing every raw resource type; stale-owner HTTP audit is never admitted.
+
 M05B finalized operational extension (2026-10-28):
 `ops.polling_cycles` has `run_id UUID ! PK/FK ops.pipeline_runs`,
 `validation_mode TEXT !` constrained to runtime, `clock_mode TEXT !` constrained
@@ -183,6 +235,12 @@ before dependent DDL. Do not grant report users
 direct access to ops/raw or reuse the stable source_health timestamp as live status.
 
 ## Ownership and evidence links
+
+M06 readiness: existing inbox/delivery/work tables are reusable foundations, not
+a completed Etsy worker design. Before dependent DDL, finalize lease ownership/
+fencing, bounded processing-cycle attempts, recovery identity/checkpoints and
+receipt evidence links as required by [07_M06_READINESS.md](07_M06_READINESS.md).
+This review adds no physical columns, grants or runtime state.
 
 | Writer | Allowed responsibility |
 | --- | --- |

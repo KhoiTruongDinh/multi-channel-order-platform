@@ -11,6 +11,10 @@ clean-targets: ["target", "dbt_packages"]
 on-run-start:
   - "{{ create_canonical_jsonb_function() }}"
   - "{{ create_ebay_canonical_function() }}"
+  - "{{ create_etsy_functions() }}"
+
+on-run-end:
+  - "{{ record_etsy_mapping_exceptions() }}"
 
 models:
   multi_channel_orders:
@@ -21,4 +25,6 @@ models:
     candidates:
       +materialized: table
     ebay:
+      +materialized: table
+    etsy:
       +materialized: table

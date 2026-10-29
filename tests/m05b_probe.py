@@ -13,14 +13,17 @@ from orchestration.website_workflow import identity
 
 p=argparse.ArgumentParser()
 p.add_argument('action',choices=('scheduled','idle','publication','signature','checkpoint','trigger','state','retry','manifest','check_retry','check_failed','clear','cleared','budget','artifact'))
-p.add_argument('--source',choices=('internal_web','ebay_sim'),default='ebay_sim')
+p.add_argument('--source',choices=('internal_web','ebay_sim','etsy_sim'),default='ebay_sim')
 p.add_argument('--execution-id',default='unused')
 p.add_argument('--test-failure',action='store_true')
 p.add_argument('--since',default='1970-01-01T00:00:00+00:00')
 a=p.parse_args()
 dag='website_polling' if a.source=='internal_web' else 'ebay_polling_replay'
-workflow=identity(f'poll:{a.source}:{a.execution_id}','workflow')
-batch=identity(f'poll:{a.source}:{a.execution_id}','batch')
+if a.source=='etsy_sim':
+    dag='etsy_replay'
+context=a.execution_id+(':drain' if a.source=='etsy_sim' else '')
+workflow=identity(f'poll:{a.source}:{context}','workflow')
+batch=identity(f'poll:{a.source}:{context}','batch')
 
 
 def db(user='platform_ingest'):
@@ -70,7 +73,7 @@ elif a.action=='idle':
     print('waiting' if active else 'idle')
 elif a.action=='publication':
     with db('platform_publisher') as c:
-        print(c.execute("SELECT batch_id FROM ops.publication_state WHERE publication_name='ebay_orders'").fetchone()[0])
+        print(c.execute("SELECT batch_id FROM ops.publication_state WHERE publication_name=%s",('etsy_orders' if a.source=='etsy_sim' else 'ebay_orders',)).fetchone()[0])
 elif a.action=='signature':
     result={}
     with db('platform_publisher') as c:
@@ -101,7 +104,10 @@ elif a.action in ('check_retry','check_failed','budget','artifact'):
     with db() as c:
         counts=dict(c.execute('SELECT task_name,count(*) FROM ops.task_attempts WHERE run_id=%s GROUP BY task_name',(workflow,)).fetchall())
         bounds=c.execute('SELECT requested_window_start,requested_window_end FROM ops.pipeline_runs WHERE run_id=%s',(workflow,)).fetchone()
-        assert bounds and bounds[0]<=bounds[1]
+        if a.source=='etsy_sim':
+            assert bounds==(None,None),bounds
+        else:
+            assert bounds and bounds[0]<=bounds[1]
         if a.action=='check_retry':
             assert counts=={'collect':2,'freeze':2,'build_and_test':1,'publish':1},counts
             assert c.execute('SELECT status FROM ops.transform_batches WHERE batch_id=%s',(batch,)).fetchone()==('PUBLISHED',)

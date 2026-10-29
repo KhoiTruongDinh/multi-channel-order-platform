@@ -32,6 +32,14 @@ long tasks wait behind one active run per source and globally serialized release
 Changing `.env` requires recreating the service so DAG parsing/tasks see the new
 environment; `docker compose restart` alone does not reload its environment.
 
+M06 adds the default-off maintenance switch `POLLING_DRAIN_MODE=true`: periodic
+website/eBay/Etsy DAGs use `schedule=None`, preventing new interval runs while
+unpaused existing runs can finish/retry. This does not change manual DAGs or reset
+budgets. Wait for serialized timetable refresh and all queued/running workflows to
+end before pausing; pause alone also prevents pending task retries. The M06 runner
+automates drain/recovery and restores normal scheduling configuration only after
+safe completion; see [Etsy operation](ETSY.md).
+
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/migrate.ps1
 docker compose --env-file .env --file infra/compose.yaml --profile m04 --profile m05 build airflow
@@ -89,6 +97,14 @@ whose separate tasks span process lifetimes. Another source waits without
 allocating business-stage attempts. DB session loss releases the transient lock;
 the active durable batch still prevents another source from overwriting candidates
 until its owning workflow resumes or is explicitly aborted.
+
+M06 fairness refinement: DAG invocations wait at most 15 seconds for coordination,
+then yield their executor slot via bounded Airflow retry instead of occupying all
+local workers while the owning batch awaits retry. CLI default remains 600 seconds.
+Contention allocates no business-stage attempt but can exhaust the DAG's own retry/
+timeout budget; such a failed cycle remains visible. Lifecycle end audit timestamps
+are clamped to their start during backward host-clock adjustments; raw/source clocks
+and payloads are not rewritten.
 
 The controller is reusable without Airflow, inside the same runtime:
 

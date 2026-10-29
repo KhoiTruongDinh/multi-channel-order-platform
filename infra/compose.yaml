@@ -128,6 +128,47 @@ services:
       ebay-sim:
         condition: service_healthy
 
+  etsy-sim:
+    profiles: ["m06"]
+    build:
+      context: ..
+      dockerfile: infra/python/Dockerfile.etsy
+    environment:
+      ETSY_SIM_TOKEN: ${ETSY_SIM_TOKEN:-local-s01-test-token}
+    ports:
+      - "127.0.0.1:${ETSY_API_PORT:-8082}:80"
+      - "127.0.0.1:${ETSY_CONTROL_PORT:-8092}:8081"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  etsy-receiver:
+    profiles: ["m06"]
+    build:
+      context: ..
+      dockerfile: infra/python/Dockerfile.etsy-receiver
+    restart: unless-stopped
+    environment:
+      PLATFORM_DB_HOST: postgres
+      PLATFORM_INGEST_PASSWORD: ${PLATFORM_INGEST_PASSWORD:?set PLATFORM_INGEST_PASSWORD in .env}
+      ETSY_ORIGIN: http://etsy-sim
+      ETSY_SHOP_ID: ${ETSY_SHOP_ID:-7001}
+      ETSY_SUBSCRIPTION_ID: ${ETSY_SUBSCRIPTION_ID:-local-s01}
+      ETSY_SIGNING_SECRET: ${ETSY_SIGNING_SECRET:-whsec_bG9jYWwtczAxLXRlc3Qtc2VjcmV0}
+      ETSY_FRESHNESS_SECONDS: ${ETSY_FRESHNESS_SECONDS:-300}
+    ports:
+      - "127.0.0.1:${ETSY_RECEIVER_PORT:-8083}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   airflow:
     profiles: ["m04"]
     build:
@@ -167,6 +208,16 @@ services:
       WEBSITE_POLL_INITIAL_START: ${WEBSITE_POLL_INITIAL_START:-}
       EBAY_POLL_INITIAL_START: ${EBAY_POLL_INITIAL_START:-}
       POLL_OVERLAP_SECONDS: ${POLL_OVERLAP_SECONDS:-120}
+      POLLING_DRAIN_MODE: ${POLLING_DRAIN_MODE:-false}
+      ETSY_ORIGIN: http://etsy-sim
+      ETSY_SIM_TOKEN: ${ETSY_SIM_TOKEN:-local-s01-test-token}
+      ETSY_SHOP_ID: ${ETSY_SHOP_ID:-7001}
+      ETSY_LEASE_SECONDS: ${ETSY_LEASE_SECONDS:-60}
+      ETSY_INBOX_INTERVAL_SECONDS: ${ETSY_INBOX_INTERVAL_SECONDS:-300}
+      ETSY_RECOVERY_INTERVAL_SECONDS: ${ETSY_RECOVERY_INTERVAL_SECONDS:-300}
+      ETSY_RECOVERY_INITIAL_START: ${ETSY_RECOVERY_INITIAL_START:-}
+      ETSY_RECOVERY_STREAM: ${ETSY_RECOVERY_STREAM:-receipts_polling}
+      ETSY_SUBSCRIPTION_ID: ${ETSY_SUBSCRIPTION_ID:-local-s01}
     ports:
       - "127.0.0.1:${AIRFLOW_PORT:-8080}:8080"
     volumes:

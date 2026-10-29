@@ -12,6 +12,7 @@ from pathlib import Path
 
 import psycopg
 import yaml
+from transformation.source_config import SOURCES
 
 
 def connect() -> psycopg.Connection[object]:
@@ -40,7 +41,7 @@ def freeze(args: argparse.Namespace) -> None:
              started_at, status, log_reference)
             VALUES (%s, 'TRANSFORM', %s, %s, 'orders', %s,
                     %s, 'RUNNING', %s)""",
-            (args.run_id, args.source, 'WEB01' if args.source == 'internal_web' else 'seller_sim_01',
+            (args.run_id, args.source, SOURCES[args.source][0],
              args.batch_id, now, f"m03:transform:{args.batch_id}"),
         )
         conn.execute(
@@ -61,8 +62,10 @@ def freeze(args: argparse.Namespace) -> None:
                    OR (%s = 'ebay_sim' AND r.source_system = 'ebay_sim'
                        AND r.source_account_id = 'seller_sim_01'
                        AND r.resource_type IN ('ebay_orders','ebay_order','ebay_fulfillments','ebay_fulfillment')
-                       AND r.response_status = 200))""",
-            (args.batch_id, args.source),
+                       AND r.response_status = 200)
+                   OR (%s = 'etsy_sim' AND r.source_system='etsy_sim' AND r.source_account_id='7001'
+                       AND r.resource_type='etsy_receipt' AND r.response_status=200))""",
+            (args.batch_id, 'ebay_sim' if args.source == 'etsy_sim' else args.source, args.source),
         )
         if result.rowcount == 0:
             raise RuntimeError("no successful website raw records are eligible")
@@ -116,7 +119,7 @@ def transition(args: argparse.Namespace) -> None:
         if target in ("TESTED", "FAILED"):
             conn.execute(
                 """UPDATE ops.pipeline_runs
-                      SET status = %s, finished_at = %s,
+                      SET status = %s, finished_at = GREATEST(%s,started_at),
                           error_code = CASE WHEN %s = 'FAILED' THEN 'DBT_TEST_FAILED' END,
                           error_message = CASE WHEN %s = 'FAILED' THEN 'dbt build/test failed; candidate was not published' END
                     WHERE batch_id = %s AND stage = 'TRANSFORM'""",
@@ -137,7 +140,7 @@ def main() -> None:
     freeze_parser.add_argument("--run-id", required=True, type=uuid_arg)
     freeze_parser.add_argument("--mapping-version", required=True)
     freeze_parser.add_argument("--transformation-version", required=True)
-    freeze_parser.add_argument("--source", choices=('internal_web','ebay_sim'), default='internal_web')
+    freeze_parser.add_argument("--source", choices=tuple(SOURCES), default='internal_web')
     freeze_parser.add_argument('--validation-mode', choices=('s01','runtime'), default='s01')
 
     for name, expected in (("building", "FROZEN"), ("tested", "BUILDING"), ("failed", "BUILDING")):

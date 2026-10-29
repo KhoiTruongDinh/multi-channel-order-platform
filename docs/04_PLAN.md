@@ -66,6 +66,12 @@ acquires an omitted-notification case through HTTP. Attempts stay bounded and
 failed processing preserves the good release. No invented paid-only snapshot.
 Suggested owner commit: feat: integrate and orchestrate Etsy webhook recovery.
 
+Implementation readiness and ordered gates:
+[07_M06_READINESS.md](07_M06_READINESS.md). Finalize operational lease/work-cycle
+fields before DDL, then simulator/sender, durable receiver, worker/recovery,
+source-specific dbt/release and scheduled acceptance. Existing M05 controllers
+require explicit Etsy extension; adding a DAG alone is insufficient.
+
 M07 — Dashboard and report validation: implement the selected tool (Streamlit
 proposed), read-only DB access, filters, operations/data-health pages and explicit
 refresh controls. Finalize/add secret-free read-only live health views so failed
@@ -130,13 +136,15 @@ Example task: Read AGENTS.md and docs/STATUS.md. Implement M01 from docs/04_PLAN
 
 Approved: S01, source contract v0.1, website schema/rules, eBay/Etsy selected schemas/rules, F01–F05 solution direction and the practical DE scope. Required: dbt and Airflow. New reporting/tool details, physical schema/release strategy and this milestone plan remain DRAFT for review.
 
-Existing progress (2026-10-28): M01-M04 are committed. M05A eBay HTTP acquisition,
-dbt/history/parcel allocation and source-specific publication passed runtime
-acceptance; changes remain unstaged. M05B scheduling/restart/budget acceptance
-also passed; leave both parts for owner review before M06. The fixed fixture pack
+Existing progress (2026-10-28): M01-M05 are committed locally; M05A eBay HTTP
+acquisition/dbt/allocation/publication and M05B scheduling/restart/budget checks
+passed and the owner approved the result. M06 now has local implementation and
+runtime acceptance evidence in STATUS; changes remain unstaged for review.
+The fixed fixture pack
 passes 10 offline checks and 10 utility unit tests. M05 additionally passes 7 HTTP
-tests, SQL fingerprint/evidence tests, and shared M03 command regression. Etsy,
-dashboard and the combined recovery campaign remain future work. Exact commands,
+tests, SQL fingerprint/evidence tests, and shared M03 command regression. M06 adds
+Etsy security/lease/fingerprint/SQL tests and real scheduled/fault checks. The
+dashboard and combined changing-source/cold recovery campaign remain future work. Exact commands,
 run/batch IDs, intermediate failures and limits are recorded in STATUS.md.
 
 Accepted limits: no fabricated unobserved snapshots; no general Etsy shipment-to-transaction allocation; no confirmed refunds/delivery/revenue recognition without evidence; no live vendor certification or scale claim. Keep optional AI investigation outside the first delivery.

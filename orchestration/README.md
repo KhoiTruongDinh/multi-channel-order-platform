@@ -1,5 +1,8 @@
 # M04 bounded website workflow
 
+M06 Etsy receiver, independent inbox/recovery schedules and acceptance commands:
+[ETSY.md](ETSY.md). The receiver remains outside all DAGs.
+
 Current capability: this guide describes the implemented manual S01 workflow.
 M05B also implements opt-in periodic website/eBay polling. See
 [the polling guide](POLLING.md) for startup, environment settings, durable windows,

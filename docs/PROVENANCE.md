@@ -45,3 +45,25 @@ website/eBay scheduled, restart and budget evidence in STATUS. S01 exports and
 fixture bytes remain unchanged. Google review surfaces were not modified;
 synchronizing these operational/schema additions remains pending.
 
+## M06 readiness review: 2026-10-28
+
+After M05 owner sign-off/local commit, local planning adds `07_M06_READINESS.md`
+with ordered implementation gates and acceptance details derived from the
+approved Etsy CSVs, fixtures and actual M05 extension points. No approved source
+fields, fixture bytes, business states, Google review surfaces or dated exports
+were changed. Lease/work-cycle fields must be finalized before M06 DDL; the
+checklist is not a physical-schema or runtime delivery. Google synchronization
+of these local operational proposals remains pending.
+
+## M06 implementation delta: 2026-10-28
+
+The owner authorized M06 implementation. Operational schema additions were
+finalized before migration 005. The previously proposed FastAPI choice resolved
+to pinned standard-library HTTP/Psycopg for the bounded local receiver. Added
+explicit lease/collection provenance, source-specific Etsy release, scheduled
+inbox/recovery, retained-data-safe acceptance scopes and clock-safe lifecycle
+audit. Business SQL stays in dbt, callbacks outside DAGs; approved S01/CSV/fixture
+bytes and business/source meanings are unchanged. Actual runtime evidence and
+intermediate failures are in STATUS. Google Doc/Sheet/exports were not updated;
+synchronization of these local implementation/operating decisions remains pending.
+

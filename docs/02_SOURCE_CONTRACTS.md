@@ -30,8 +30,9 @@ Keep an independent scenario ledger for expected results. Test code may use it t
 
 The environment is simulated and inspired by selected public eBay/Etsy contracts;
 it is not a certified replica. Approved detailed fields/rules are in workbook
-tabs 13–18. Fixed website playback and the eBay HTTP subset are implemented;
-Etsy runtime and an opt-in current-clock source generator remain M06/M08 work.
+tabs 13–18. Fixed website playback, the eBay HTTP subset and the M06 Etsy
+webhook/receipt/recovery subset are implemented; see STATUS for runtime evidence.
+An opt-in current-clock source generator remains M08 work.
 Scheduling does not advance frozen fixture state. The operational clock/mode
 plan in [06_AUTOMATION.md](06_AUTOMATION.md) does not change S01 or these contracts.
 
@@ -242,7 +243,7 @@ Replay the same page or webhook; deliver an older eBay snapshot after the newer 
 
 ## B9. Source contract v0.1 — approved baseline
 
-Approved source-interface and recovery baseline. Detailed source schemas/rules are in workbook tabs 13–18 and dated repository exports. Fixed-fixture implementation progress is in D4. Runtime implementation is pending. This section defines source behavior; physical design belongs in C3.
+Approved source-interface and recovery baseline. Detailed source schemas/rules are in workbook tabs 13–18 and dated repository exports. Fixed-fixture implementation progress is in D4; STATUS records the bounded M05/M06 runtime evidence and remaining limits. This section defines source behavior; physical design belongs in C3.
 
 ### B9.1. Interfaces and boundaries
 
@@ -298,7 +299,8 @@ Implementation checkpoint (2026-10-28): website acquisition/dbt/Airflow and the
 M05A eBay fixed HTTP source/adapter are implemented; actual verification evidence
 is in STATUS.md. The selected approved fields/rules remain unchanged. eBay source
 controls are test-only and separate from its data listener; acquisition uses HTTP.
-Etsy receipt/webhook runtime remains M06. Dated workbook exports do not update
+M06 now implements the local Etsy receipt/webhook subset; operating commands and
+verification limits are in `orchestration/ETSY.md` and STATUS. Dated workbook exports do not update
 automatically; no changed vendor/business semantics are implied by this checkpoint.
 M05B website/eBay polling passed real scheduled-cycle, restart and bounded-retry
 checks (STATUS). Separate checkpoint/validation modes preserve the original S01

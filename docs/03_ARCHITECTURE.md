@@ -14,8 +14,9 @@ These are sequence diagrams: read from top to bottom. Solid arrows show actions/
 
 Status (2026-10-28): these diagrams describe the approved interaction boundaries.
 Website SQL acquisition/dbt/manual Airflow and M05A eBay HTTP acquisition/release
-and M05B periodic polling have runtime evidence in STATUS. M06 Etsy remains
-pending. The diagrams alone are not evidence of scheduling or live vendor use.
+and M05B periodic polling have runtime evidence in STATUS. M06 adds the local Etsy
+receiver, leased work, scheduled recovery and source-specific release. The diagrams
+alone are not evidence of scheduling or live vendor use; see actual checks in STATUS.
 
 ### C2.1. Internal website — direct database read
 
@@ -57,7 +58,7 @@ Implement the website path through raw, observed history/current, quality checks
 
 Initially revised on 24 October 2026 after the user required dbt and Airflow;
 implementation/planning review updated on 28 October. Business/source decisions
-remain approved. M01-M04 and M05A implement the portions identified below; future
+remain approved. M01-M06 implement the portions identified below; future
 runtime details remain proposals until implemented/verified. This replaces the
 earlier Python-only materialization proposal; see STATUS for actual evidence.
 
@@ -65,11 +66,11 @@ earlier Python-only materialization proposal; see STATUS for actual evidence.
 
 End product: reproducible source acquisition → durable raw → dbt staging → observed history/current → tested marts → small operations/data-health report. Python owns source access, webhook verification, raw persistence and operational state. dbt owns SQL normalization, product/status mapping, observed-version derivation, current models, marts and data tests. Airflow owns bounded workflow scheduling, dependencies and task execution. It invokes reusable commands rather than embedding transformation logic in DAG files.
 
-The FastAPI webhook receiver remains available outside a DAG run: verify and persist before acknowledging. An acquisition worker fetches receipt/detail resources; this is separate from dbt transformation. Retain the tested fingerprint specification; any SQL implementation must pass the same fixture cases as the Python utilities.
+The webhook receiver remains available outside a DAG run: verify and persist before acknowledging. M06 resolves the previously proposed FastAPI choice to a bounded standard-library threaded HTTP service using the existing pinned Python/Psycopg stack for this local demo. This adds no production-server claim. An acquisition worker fetches receipt/detail resources; this is separate from dbt transformation. Retain the tested fingerprint specification; any SQL implementation must pass the same fixture cases as the Python utilities.
 
 ### C3.2. Local deployment and repository
 
-Proposed support stack: Python, PostgreSQL, FastAPI, Psycopg, dbt Core with the PostgreSQL adapter, Airflow and Docker Compose. Pin mutually compatible supported versions during bootstrap. Start with one PostgreSQL instance and separate databases/roles: website_source, marketplace_sim, data_platform and airflow_meta. Separate Airflow metadata from project raw/audit/core tables. Measure laptop resource use before choosing concurrency; no performance claim is made.
+Local support stack: Python, PostgreSQL, Psycopg, dbt Core with the PostgreSQL adapter, Airflow and Docker Compose; M06 uses standard-library HTTP instead of adding FastAPI. Dependencies remain pinned in the existing lock files/images. One PostgreSQL instance has separate databases/roles: website_source, marketplace_sim, data_platform and airflow_meta. Separate Airflow metadata from project raw/audit/core tables. Measure laptop resource use before choosing concurrency; no performance claim is made.
 
 Use one public repository, proposed name multi-channel-order-platform. Suggested directories: simulator/ (state driver, API and signed sender); ingestion/ (collectors, receiver and raw/work persistence); transformations/ (dbt project, models and tests); orchestration/ (DAGs); migrations/ (source/platform DDL); fixtures/s01/; tests/; reports/; docs/; infra/ (Compose); plus README.md and .env.example.
 

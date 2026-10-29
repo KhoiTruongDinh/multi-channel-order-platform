@@ -6,6 +6,7 @@ import subprocess
 import pendulum
 from airflow.sdk import dag,task,get_current_context,Param
 from airflow.sdk.exceptions import AirflowFailException
+from orchestration.scheduling import periodic_schedule
 
 
 def invoke(source, abort=False):
@@ -13,6 +14,7 @@ def invoke(source, abort=False):
     prefix='WEBSITE' if source=='internal_web' else 'EBAY'
     command=['/opt/airflow/project-venv/bin/python','-m','orchestration.polling',
         '--source',source,'--execution-id',c['run_id'],'--dag-id',c['dag'].dag_id,
+        '--wait-seconds','15',
         '--window-end',c['data_interval_end'].isoformat(),
         '--overlap-seconds',os.environ.get('POLL_OVERLAP_SECONDS','120')]
     initial=os.environ.get(prefix+'_POLL_INITIAL_START','')
@@ -35,7 +37,7 @@ def build_dag(source,prefix,manual=False):
         raise ValueError(prefix+' polling interval must be at least 10 seconds')
     name='website_polling' if source=='internal_web' else 'ebay_polling'
     @dag(dag_id=name+('_replay' if manual else ''),
-         schedule=None if manual else timedelta(seconds=interval),catchup=False,
+         schedule=periodic_schedule(timedelta(seconds=interval),manual),catchup=False,
          start_date=pendulum.datetime(2026,10,17,tz='UTC'),
          is_paused_upon_creation=True,max_active_runs=1,max_active_tasks=1,
          dagrun_timeout=timedelta(minutes=30),

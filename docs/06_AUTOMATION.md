@@ -2,7 +2,8 @@
 
 Planning revision: 2026-10-28, following the owner's request to close orchestration
 gaps. M05B implements the website/eBay requirements below; exact runtime evidence
-and limits are in STATUS. Etsy/reporting/changing-source requirements remain future work.
+and limits are in STATUS. M06 implements the local Etsy requirements; reporting
+and changing-source requirements remain future work.
 Approved S01 payloads, source interfaces, identities, money and observed-history
 rules remain fixed. The current executable checkpoint is in [STATUS.md](STATUS.md).
 
@@ -12,7 +13,7 @@ rules remain fixed. The current executable checkpoint is in [STATUS.md](STATUS.m
 | --- | --- | --- |
 | Website | M02/M03 pipeline, M04 manual S01 DAG, M05B opt-in periodic polling | M08 changing-source/recovery campaign |
 | eBay | M05A HTTP pipeline, M05B bounded periodic/replay DAGs | M08 changing-source/recovery campaign |
-| Etsy | Fixed fixtures only | M06 always-on receiver plus scheduled inbox worker, recovery scans and tested publication |
+| Etsy | M06 always-on receiver, leased work, scheduled inbox/recovery, tested publication | M08 changing-source/cold recovery campaign |
 | Changing local sources | Manual fixed-state playback | M08 opt-in independent current-clock simulator/driver demo |
 | Dashboard | Contract/SQL/views only | M07 read-only UI, per-source release labels and live failure visibility |
 
@@ -95,6 +96,11 @@ work. Finalize any needed operational fields/constraints before dependent DDL.
 
 ## Etsy and reporting integration
 
+M06's implementation sequence, missing operational definitions and explicit
+acceptance matrix are in [07_M06_READINESS.md](07_M06_READINESS.md). Implemented
+commands and limits are in [the Etsy guide](../orchestration/ETSY.md); exact runtime
+results, including the initial failed campaigns, are in STATUS.
+
 Implemented commands, environment options and the acceptance runner are in
 [the polling guide](../orchestration/POLLING.md). Scheduled DAGs start paused;
 polling uses `orders_polling`, not the historical S01 `orders` checkpoint stream.
@@ -105,7 +111,15 @@ receipt recovery scans even when notifications are absent. They use HTTP, durabl
 attempts, and the same serialized tested-release mechanism. The callback does not
 run dbt or wait for a scheduled DAG before acknowledging stored notifications.
 
-Publications are currently source-specific (`website_orders`, `ebay_orders`),
+Maintenance must stop new intervals without stranding existing retries. The M06
+runner temporarily sets `POLLING_DRAIN_MODE=true` (periodic `schedule=None`), waits
+for serialized timetable refresh and leaves existing runs unpaused until terminal.
+Only then does it pause and restore normal configuration. Timed-out FAILED DAGs
+whose watcher was skipped can have their platform parent closed through guarded
+abort; no attempt reset or fabricated success. Full campaign PASS is printed only
+after safe cleanup. See `orchestration/ETSY.md` for drain-only recovery.
+
+Publications are source-specific (`website_orders`, `ebay_orders`, `etsy_orders`),
 so M07 must display a source-to-batch/time mapping, not invent a single global
 batch label. Read that mapping and business datasets in one read-only repeatable
 read transaction. Add restricted live health views for newer failed runs/work/
