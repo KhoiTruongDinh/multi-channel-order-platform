@@ -20,7 +20,9 @@ with connect() as c:
     assert not c.execute("SELECT has_table_privilege('platform_ingest','ops.polling_cycles','UPDATE')").fetchone()[0]
     try:
         with c.transaction():
-            c.execute("UPDATE ops.pipeline_runs SET requested_window_end=requested_window_end+INTERVAL '1 second' WHERE run_id=%s",(run_id,))
+            # M06 adds windowless drain cycles: NULL + interval is still NULL,
+            # not a mutation. COALESCE exercises a genuine change for both kinds.
+            c.execute("UPDATE ops.pipeline_runs SET requested_window_end=coalesce(requested_window_end,clock_timestamp())+INTERVAL '1 second' WHERE run_id=%s",(run_id,))
     except Exception as error:
         assert 'immutable' in str(error),str(error)
     else:

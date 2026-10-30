@@ -76,7 +76,10 @@ tasks. M05B uses a session advisory coordinator spanning the whole cycle, a
 same-connection freeze, and the durable active-batch guard across task crashes;
 contention should wait/defer without consuming the business failure budget.
 Do not loosen the current active-batch guard to make concurrent schedules pass.
-Collection may remain independent where safe; no task gets simulator controls,
+M07 makes collection independent across source/accounts: a source session lock
+spans its cycle and durable collect precedes the global release barrier. Slot
+waits/stage execution have separate actual-clock measurements; see
+`09_M07_SCALE_MONITORING.md`. No task gets simulator controls,
 fixtures, source-writer credentials or Docker socket access.
 
 ## Runtime quality versus fixture assertions

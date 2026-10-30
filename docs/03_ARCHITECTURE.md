@@ -202,7 +202,32 @@ persist across scheduler restart and task clear. A terminal failure watcher clos
 an active batch and remains a failed leaf; an exhausted cycle needs a new explicit
 execution ID. Full commands and recovery limits are in `orchestration/README.md`.
 
-Implement the proposed report contract in A5 using read-only published mart views, consistent business reads, batch labels and separately labeled live health context. Airflow task logs, structured application logs and dbt artifacts share run/batch/entity/raw references. Store runtime logs outside Git with ops metadata links; choose the small local retention policy during implementation.
+M07 resolves the A5 report to Streamlit in a separate pinned localhost service.
+One report-role-only read-only REPEATABLE READ transaction loads business views,
+source-specific publication mapping and restricted live operational projections
+per render/Refresh. No query cache/auto-refresh, pipeline control, source access or
+free-form error/raw/secret exposure. See `08_M07_REPORTING.md` for fields/filters.
+The owner-selected Operations Manager workspace uses presentation-only review
+suggestions, canceled/requested precedence and reason/fulfillment charts. Restricted
+observed-history and matching eBay allocation views support order detail without
+changing canonical warehouse states or inventing an Etsy parcel bridge. Technical
+health and publication IDs are separate from the default worklist. This remains
+read-only decision support, not an order-management write-back application.
+Airflow task logs, application logs and dbt artifacts retain run/batch/entity/raw
+links outside the dashboard. General remediation/retention packaging remains M08.
+
+The approved M07 scale revision supersedes the earlier whole-table reader and
+default worklist layout: three English screens, SQL-side aggregates/filtering,
+keyset pages and per-selected-order detail. A publication-bound cursor resets on
+release/filter changes. One business panel transaction retains consistent reads;
+option lookups and monitoring are separate explicitly labeled snapshots.
+Independent sources now collect before the existing global freeze/build/publish
+barrier; source/account session locks retain same-source serialization. Shared
+candidate tables still require that release barrier. Durable measurements use
+real UTC/monotonic clocks, not old S01 observation clocks. An isolated observer
+reads Airflow metadata and exports sanitized DAG/heartbeat samples; report never
+receives its credentials. See `09_M07_SCALE_MONITORING.md` for finalized fields,
+staleness rules, benchmarks and remaining full-history/full-snapshot limits.
 
 Technical references: https://docs.getdbt.com/docs/build/sources ; https://docs.getdbt.com/docs/build/data-tests ; https://docs.getdbt.com/best-practices/how-we-handle-cdc/2-choosing-incremental-or-snapshots ; https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/overview.html ; https://www.postgresql.org/docs/current/datatype-binary.html . Pin compatible versions during bootstrap.
 

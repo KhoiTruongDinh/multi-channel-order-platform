@@ -84,6 +84,34 @@ show UNKNOWN coverage and live-health read time honestly. Background publication
 does not imply browser refresh; document manual or explicit UI auto-refresh.
 Suggested owner commit: feat: add operations and data-health dashboard.
 
+M07 technical resolution (2026-10-29): Streamlit 1.66.1 in a separate pinned
+runtime; report-role-only read-only REPEATABLE READ per render, no result cache
+or auto-refresh. Currency isolation and product-only line filtering prevent grain
+errors. Restricted live-view fields precede migration 006; see
+[08_M07_REPORTING.md](08_M07_REPORTING.md). Batch failure is not a parsed dbt test
+result. Leave M07 unstaged after M06's authorized local commit; stop before M08.
+
+Owner-approved M07 revision: Operations Manager-first English **Order Operations**
+page with attention cards, useful reason/fulfillment charts, one-row-per-order
+review worklist and observed order detail. Technical health is separate. Finalize
+review precedence and safe detail fields before migration 007 in the M07 contract.
+S01 operational review is eBay only; canceled website is never a fulfillment task,
+Etsy cancellation UNKNOWN alone is not a task. No invented SLA or write-back.
+
+Owner-approved scale/monitoring redo (2026-10-29): English **Multi-channel
+Overview**, **Order Operations**, **Pipeline Monitoring** supersede the earlier
+two-screen layout. SQL-filtered aggregates, exact order search, indexed keyset
+pages (50/default, 100/max), publication-bound cursors and capped selected-order
+detail replace unbounded Python filtering/all-ID selectors. Add real stage/slot
+telemetry and an isolated sanitized scheduler observer; collect independently by
+source before the shared freeze/build/publish barrier. Finalized fields and
+acceptance precede migration 008 in [09_M07_SCALE_MONITORING.md](09_M07_SCALE_MONITORING.md).
+Acceptance adds three-screen interactions, SQL/Python rule parity, cursor resets,
+real measured CLI/observer evidence, coordinator/failed-release regressions and a
+rollback-only 100k target-query EXPLAIN benchmark. This is NOT million-order
+ingestion certification: retained-history dbt rebuild/source-snapshot publication
+remain explicit limits. No source contract changes, reset or M08 generator.
+
 M08 — Recovery and portfolio release: exercise old/repeated versions,
 429/500/timeouts, interrupted work, missing mappings and failed publication;
 add smoke CI and reproducible fresh-setup and restart instructions. Package two
@@ -136,15 +164,17 @@ Example task: Read AGENTS.md and docs/STATUS.md. Implement M01 from docs/04_PLAN
 
 Approved: S01, source contract v0.1, website schema/rules, eBay/Etsy selected schemas/rules, F01–F05 solution direction and the practical DE scope. Required: dbt and Airflow. New reporting/tool details, physical schema/release strategy and this milestone plan remain DRAFT for review.
 
-Existing progress (2026-10-28): M01-M05 are committed locally; M05A eBay HTTP
+Existing progress (2026-10-29): M01-M06 are committed locally; M05A eBay HTTP
 acquisition/dbt/allocation/publication and M05B scheduling/restart/budget checks
-passed and the owner approved the result. M06 now has local implementation and
-runtime acceptance evidence in STATUS; changes remain unstaged for review.
+passed and the owner approved the result. M06 owner sign-off, final checks and
+commit are recorded in STATUS. M07 local report/SQL/AppTest acceptance passed;
+M07 changes remain unstaged for review.
 The fixed fixture pack
 passes 10 offline checks and 10 utility unit tests. M05 additionally passes 7 HTTP
 tests, SQL fingerprint/evidence tests, and shared M03 command regression. M06 adds
 Etsy security/lease/fingerprint/SQL tests and real scheduled/fault checks. The
-dashboard and combined changing-source/cold recovery campaign remain future work. Exact commands,
+dashboard adds report/live-health/role/filter/UI checks. Combined changing-source/
+cold recovery remains M08 work. Exact commands,
 run/batch IDs, intermediate failures and limits are recorded in STATUS.md.
 
 Accepted limits: no fabricated unobserved snapshots; no general Etsy shipment-to-transaction allocation; no confirmed refunds/delivery/revenue recognition without evidence; no live vendor certification or scale claim. Keep optional AI investigation outside the first delivery.

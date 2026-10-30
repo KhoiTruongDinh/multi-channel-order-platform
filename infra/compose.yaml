@@ -169,6 +169,40 @@ services:
       timeout: 5s
       retries: 12
 
+  scheduler-observer:
+    profiles: ["m07"]
+    build:
+      context: ..
+      dockerfile: infra/python/Dockerfile.airflow
+    restart: unless-stopped
+    entrypoint: ["/opt/airflow/project-venv/bin/python", "-m", "orchestration.scheduler_probe"]
+    environment:
+      PLATFORM_DB_HOST: postgres
+      PLATFORM_INGEST_PASSWORD: ${PLATFORM_INGEST_PASSWORD:?set PLATFORM_INGEST_PASSWORD in .env}
+      AIRFLOW_APP_PASSWORD: ${AIRFLOW_APP_PASSWORD:?set AIRFLOW_APP_PASSWORD in .env}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  report:
+    profiles: ["m07"]
+    build:
+      context: ..
+      dockerfile: infra/python/Dockerfile.report
+    environment:
+      PLATFORM_DB_HOST: postgres
+      PLATFORM_REPORT_PASSWORD: ${PLATFORM_REPORT_PASSWORD:?set PLATFORM_REPORT_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${REPORT_PORT:-8501}:8501"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   airflow:
     profiles: ["m04"]
     build:

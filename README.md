@@ -44,7 +44,8 @@ Three independent orders, four lines, six ordered units and USD124 original merc
 
 Implemented directories include `fixtures/`, `docs/`, `simulator/`, `ingestion/`,
 `transformation/`, `transformations/`, `orchestration/`, `migrations/`, `tests/`
-and `infra/`. The dashboard under `reports/` is future M07 work. One repository
+and `infra/`. M07 adds the read-only Streamlit dashboard under
+[`reports/`](reports/README.md) (localhost:8501). One repository
 supports a local demo while preserving source access boundaries.
 
 The eBay/Etsy simulators implement only the selected fixed local subsets.

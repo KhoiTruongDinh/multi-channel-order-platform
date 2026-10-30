@@ -24,3 +24,6 @@ done
 "${psql[@]}" --dbname data_platform --file /migrations/platform/003_s01_mapping.sql
 "${psql[@]}" --dbname data_platform --file /migrations/platform/004_polling.sql
 "${psql[@]}" --dbname data_platform --file /migrations/platform/005_etsy_work.sql
+"${psql[@]}" --dbname data_platform --file /migrations/platform/006_report_health.sql
+"${psql[@]}" --dbname data_platform --file /migrations/platform/007_report_order_detail.sql
+"${psql[@]}" --dbname data_platform --file /migrations/platform/008_report_queries_telemetry.sql

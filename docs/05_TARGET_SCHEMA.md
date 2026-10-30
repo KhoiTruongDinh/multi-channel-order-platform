@@ -192,6 +192,15 @@ remain separate rows; logical deduplication happens downstream.
 
 ## Configuration
 
+M07 adds read-only live operational views, not business tables/columns. Exact
+column types, nullable fields, grain, secret exclusions and grants were finalized
+before migration 006 in [the M07 contract](08_M07_REPORTING.md#finalized-fields-and-constraints).
+These expose live audit separately from publication-time `mart.source_health`.
+M07 operations revision adds two restricted detail projections (observed order
+history and recorded current eBay line allocations), with fields/grain finalized
+before migration 007 in the same reporting contract. No base-table grants or
+canonical business-state changes are needed.
+
 `config.product_mapping` has: `mapping_id UUID ! PK`, `mapping_version TEXT !`,
 source/account `TEXT !`, source listing/variant/SKU `TEXT ?`,
 `canonical_variant_id TEXT !`, `mapping_status TEXT !`, `valid_from
@@ -235,6 +244,13 @@ before dependent DDL. Do not grant report users
 direct access to ops/raw or reuse the stable source_health timestamp as live status.
 
 ## Ownership and evidence links
+
+M07 report/query and telemetry extension: finalized before migration 008 in
+[09_M07_SCALE_MONITORING.md](09_M07_SCALE_MONITORING.md). Adds presentation review
+projection, seek/lookup/history/time indexes, immutable real execution measurements,
+sanitized latest scheduler observations and nullable actual work recording clock
+(new inserts only). These do not redefine source snapshots or business states.
+Report views only; no report base-table access or credentials are added.
 
 M06 readiness: existing inbox/delivery/work tables are reusable foundations, not
 a completed Etsy worker design. Before dependent DDL, finalize lease ownership/

@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 import psycopg
 from ingestion.website import db_kwargs, parse_time
 from transformation.source_config import SOURCES
+from orchestration import telemetry
 
 MAX_ATTEMPTS = 5
 STAGES = ('collect', 'freeze', 'build_and_test', 'publish')
@@ -215,6 +216,7 @@ def run_stage(args, stage):
             print(f'execution={args.execution_id} stage={stage} already succeeded')
             return
         attempt_id, number = attempt
+        measurement = telemetry.begin(conn,args,stage,attempt_id)
         try:
             perform(conn, args, stage, number)
             conn.execute("UPDATE ops.task_attempts SET status='SUCCEEDED',finished_at=GREATEST(%s,started_at) WHERE attempt_id=%s",
@@ -222,6 +224,7 @@ def run_stage(args, stage):
             if stage == 'publish':
                 conn.execute("UPDATE ops.pipeline_runs SET status='SUCCEEDED',finished_at=GREATEST(%s,started_at) WHERE run_id=%s",
                              (datetime.now(timezone.utc), args.workflow_id))
+            telemetry.finish(conn,measurement,'SUCCEEDED',commit=False)
             conn.commit()
         except Exception as error:
             conn.rollback()
@@ -231,6 +234,7 @@ def run_stage(args, stage):
                 ('RETRYABLE' if number < MAX_ATTEMPTS else 'FAILED', datetime.now(timezone.utc),
                  type(error).__name__, str(error)[:1000], attempt_id),
             )
+            telemetry.finish(conn,measurement,'FAILED',commit=False)
             conn.commit()
             raise
         finally:

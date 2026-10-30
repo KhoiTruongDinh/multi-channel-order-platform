@@ -152,3 +152,10 @@ credentials/ports and `run_m06_s01.ps1` / `run_m06_scheduled.ps1` acceptance.
 See [the automation contract](../docs/06_AUTOMATION.md).
 Keep existing S01 commands for deterministic replay; they must not be repurposed
 as a current-clock source generator. M08 packages that separate demo.
+
+## M07 local workspace
+
+See [reports/README.md](../reports/README.md) for the report/observer startup,
+three-screen review, bounded pagination, actual monitoring clocks and retained-
+data acceptance. M07 does not unpause DAGs or reset volumes. The 100k rollback-only
+target-query benchmark is separate from source ingestion/load generation (M08).

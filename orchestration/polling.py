@@ -11,6 +11,7 @@ from orchestration import website_workflow as workflow
 from ingestion.website import parse_time
 from transformation.batch import connect as release_connection
 from transformation.source_config import SOURCES
+from orchestration import telemetry
 
 
 def prepare(args):
@@ -78,38 +79,61 @@ def prepare(args):
             VALUES (%s,%s,%s,%s,%s,%s,%s)''',(args.workflow_id,*config[:-1],Jsonb(settings)))
 
 
-def coordinate(args):
+def claim_slot(lock,args,source_slot=False):
+    """Slot waiting is measured separately and consumes no business attempt."""
     deadline=time.monotonic()+args.wait_seconds
-    with release_connection() as lock:
-        if args.abort:
-            own = lock.execute("SELECT status FROM ops.transform_batches WHERE batch_id=%s", (args.batch_id,)).fetchone()
-            lock.commit()
-            if not own or own[0] not in ('FROZEN','BUILDING','TESTED'):
-                # Closing a windowless/contended parent cannot touch another source's batch.
-                workflow.run_stage(args,'abort')
-                return
-        while True:
-            got_lock=lock.execute("SELECT pg_try_advisory_lock(hashtext('platform-release'))").fetchone()[0]
-            lock.commit()
-            if got_lock:
-                active=lock.execute("SELECT batch_id FROM ops.transform_batches WHERE status IN ('FROZEN','BUILDING','TESTED')").fetchall()
+    with workflow.connect() as measurements:
+        measurement=telemetry.begin(measurements,args,'source_slot' if source_slot else 'release_slot')
+        try:
+            while True:
+                if source_slot:
+                    got_lock=lock.execute('SELECT pg_try_advisory_lock(hashtextextended(%s,0))',
+                        (f'source-cycle:{args.source}:{SOURCES[args.source][0]}',)).fetchone()[0]
+                else:
+                    got_lock=lock.execute("SELECT pg_try_advisory_lock(hashtext('platform-release'))").fetchone()[0]
                 lock.commit()
-                if not active or active==[(args.batch_id,)]:
+                if got_lock and source_slot:
                     break
-                lock.execute("SELECT pg_advisory_unlock(hashtext('platform-release'))")
-                lock.commit()
-            if time.monotonic()>=deadline:
-                # Contention has not allocated a stage attempt; retry is safe.
-                raise TimeoutError('release coordinator busy; no business attempt consumed')
-            time.sleep(2)
-        args.freeze_connection=lock
-        if args.abort:
+                if got_lock:
+                    active=lock.execute("SELECT batch_id FROM ops.transform_batches WHERE status IN ('FROZEN','BUILDING','TESTED')").fetchall()
+                    lock.commit()
+                    if not active or active==[(args.batch_id,)]:
+                        break
+                    lock.execute("SELECT pg_advisory_unlock(hashtext('platform-release'))")
+                    lock.commit()
+                if time.monotonic()>=deadline:
+                    raise TimeoutError('release/source coordinator busy; no business attempt consumed')
+                time.sleep(2)
+        except Exception as error:
+            telemetry.finish(measurements,measurement,'TIMED_OUT' if isinstance(error,TimeoutError) else 'FAILED')
+            raise
+        telemetry.finish(measurements,measurement,'SUCCEEDED')
+
+
+def coordinate(args):
+    if args.abort:
+        with release_connection() as check:
+            own=check.execute('SELECT status FROM ops.transform_batches WHERE batch_id=%s',(args.batch_id,)).fetchone()
+        if not own or own[0] not in ('FROZEN','BUILDING','TESTED'):
             workflow.run_stage(args,'abort')
             return
-        for stage in workflow.STAGES:
+    # Same-source ordering remains serialized; independent channels can acquire
+    # while another channel holds the shared candidate/release barrier.
+    with release_connection() as source_lock:
+        claim_slot(source_lock,args,source_slot=True)
+        if not args.abort:
             args.observed_at=datetime.now(timezone.utc)
-            workflow.run_stage(args,stage)
-        print(f'POLL PASS source={args.source} cycle={args.workflow_id} batch={args.batch_id}')
+            workflow.run_stage(args,'collect')
+        with release_connection() as lock:
+            claim_slot(lock,args)
+            args.freeze_connection=lock
+            if args.abort:
+                workflow.run_stage(args,'abort')
+                return
+            for stage in workflow.STAGES[1:]:
+                args.observed_at=datetime.now(timezone.utc)
+                workflow.run_stage(args,stage)
+    print(f'POLL PASS source={args.source} cycle={args.workflow_id} batch={args.batch_id}')
 
 
 def main():

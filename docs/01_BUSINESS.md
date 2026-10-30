@@ -54,6 +54,23 @@ The report is a project deliverable. Here, report means the documented metrics a
 
 ### A5.1 Questions, metrics and S01 acceptance
 
+Owner-approved M07 presentation revision: primary user is the Operations Manager,
+English UI. **Order Operations** answers which orders need review and why,
+with attention cards, fulfillment/reason charts, scoped worklist and observed order
+detail. CANCELED excludes operational fulfillment review; REQUESTED routes to
+cancellation review; UNKNOWN Etsy cancellation alone does not imply a task.
+Missing mappings are data issues, not shipping instructions. Rules, limits and
+acceptance are explicit in `08_M07_REPORTING.md`; no SLA, urgency, write-back or
+new canonical states are introduced. Technical health is a separate page.
+
+The approved scale/monitoring redo defaults to **Multi-channel Overview** to show
+integrated published order volume, units and observed versions by channel. **Order
+Operations** is a SQL-searchable, paginated workbench, not an all-order download.
+**Pipeline Monitoring** uses actual execution time for attempts, duration, waits,
+errors, backlog and scheduler observations. Source creation-date activity is not
+new-order processing throughput. Current contracts/limits are in
+`09_M07_SCALE_MONITORING.md`; historical S01 data is not a continuity/scale proof.
+
 Operations page: filter by UTC source-created date, source/account and currency. Count distinct source/account/order keys from orders_current; count line keys and sum original ordered quantity from order_lines_current. Keep order amounts at order grain. Do not remove canceled orders from original order activity.
 
 Proposed metrics for the complete S01 run: orders created 3; current lines 4; ordered units 6; original merchandise amount USD124; source-reported order amount USD124 under the S01 zero-discount/shipping/tax assumptions. Product units: V001 blue 4 and V002 white 2. The two monetary measures must remain separate outside these assumptions.
@@ -72,7 +89,7 @@ Dashboard acceptance: figures match published SQL for the same batch/filter; S01
 
 ### A5.3 Tool recommendation and synchronization
 
-Recommend Streamlit for the first local dashboard: source code and SQL can live in reports/ and be reviewed with the rest of the repository. This is a recommendation, not a tool choice already approved. Power BI Desktop is a supported alternative for a BI-oriented portfolio; do not build both in the first milestone.
+M07 technical resolution (2026-10-29, owner delegated routine choices): select Streamlit for the local dashboard, with source code/queries in reports/. Power BI remains an alternative, not a second deliverable. See 08_M07_REPORTING.md for finalized filter/access/refresh contracts; business/S01 definitions are unchanged.
 
 The dashboard connects directly to PostgreSQL published mart/report views using a read-only role. It does not connect to the simulator, the fixture answers or an intermediate dbt build. Airflow runs ingestion → dbt/tests → successful publication; it need not push JSON or images into the dashboard.
 

@@ -67,3 +67,16 @@ bytes and business/source meanings are unchanged. Actual runtime evidence and
 intermediate failures are in STATUS. Google Doc/Sheet/exports were not updated;
 synchronization of these local implementation/operating decisions remains pending.
 
+## M07 reporting / scale revision: 2026-10-29
+
+Owner approved the English operations-first dashboard and subsequent multi-channel/
+bounded-query/monitoring redo. Finalized local contracts 08/09 precede migrations
+006–008. Three screens, read-only projections, real-clock stage/slot telemetry and
+isolated scheduler sampling do not alter approved CSV/source/S01/fixture bytes,
+canonical states or fingerprint behavior. M05/M06 test adjustments fix a NULL
+no-op mutation probe and supply explicit validation mode to a mocked stage.
+Independent collection retains guarded freeze/build/test/publication; full-history
+rebuild and snapshot publication remain declared scale limits. Benchmark rows
+are rolled back, not a new source truth dataset. STATUS records exact evidence,
+failures and not-run scopes. Google exports/documents were not synchronized.
+

@@ -98,6 +98,15 @@ allocating business-stage attempts. DB session loss releases the transient lock;
 the active durable batch still prevents another source from overwriting candidates
 until its owning workflow resumes or is explicitly aborted.
 
+M07 refinement: a source/account session lock protects the cycle; collect runs
+before the global freeze/build/test/publish barrier. Independent sources may
+acquire while another source builds; shared candidate tables still serialize
+release work. Actual stage and source/release-slot waits are recorded separately
+in `ops.execution_measurements`, preserving old source/scenario timestamps. See
+`docs/09_M07_SCALE_MONITORING.md`. No change to checkpoints, frozen manifests or
+five-attempt business budgets. A collect completed before slot timeout is reused
+on the same-cycle retry, not reacquired.
+
 M06 fairness refinement: DAG invocations wait at most 15 seconds for coordination,
 then yield their executor slot via bounded Airflow retry instead of occupying all
 local workers while the owning batch awaits retry. CLI default remains 600 seconds.

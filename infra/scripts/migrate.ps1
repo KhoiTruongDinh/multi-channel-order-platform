@@ -27,7 +27,10 @@ foreach ($file in @(
     "/migrations/platform/002_access.sql",
     "/migrations/platform/003_s01_mapping.sql",
     "/migrations/platform/004_polling.sql",
-    "/migrations/platform/005_etsy_work.sql"
+    "/migrations/platform/005_etsy_work.sql",
+    "/migrations/platform/006_report_health.sql",
+    "/migrations/platform/007_report_order_detail.sql",
+    "/migrations/platform/008_report_queries_telemetry.sql"
 )) {
     docker compose --env-file $composeEnv --file $compose exec -T postgres sh -c `
         "psql --set ON_ERROR_STOP=1 --username `"`$POSTGRES_USER`" --dbname data_platform --file '$file'"

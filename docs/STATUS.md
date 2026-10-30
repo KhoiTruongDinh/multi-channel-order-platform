@@ -1,8 +1,8 @@
 # Actual project status
 
-Updated: 2026-10-29 (Asia/Bangkok).
+Updated: 2026-10-30 (Asia/Bangkok).
 
-- Stage: owner approved M06 and explicitly requested final verification, local M06 commit and then M07 implementation. M06 final verification passed as recorded below. Preserve unrelated `HANDOFF_SHA256SUMS.txt`; do not push. M07 changes will remain unstaged for owner review.
+- Stage: owner accepted M07 and explicitly authorized its local milestone commit on 2026-10-30; acceptance and commit handoff checks are below. Parent M06 is `dfd8d58a6f2b0c5a696a4ac830233f988bc6395a` on `main`. Obtain the resulting M07 SHA from Git, not this commit's own contents. Preserve unrelated `HANDOFF_SHA256SUMS.txt`; no push. M08 not started.
 - Historical M04 Git checkpoint: created commit `21b9f4461105d0d09cfd96fbf31ba96b06a63981` (`feat: orchestrate website pipeline with Airflow`), 15 task-owned files, with owner authorization. Git identity, diff/check, Python compile, Compose config/health and the 10 fixture checks/10 utility tests passed before commit. Prior M04 runtime evidence below remains the acceptance record approved by the owner. Subsequent M05 commit is recorded below; this M06 task authorizes no Git write action.
 - Previous checkpoint (2026-10-26): the owner approved M03 commit `ca2e23cd21b8155a2a20cab72e0ae5b802e902d8` (`feat: transform and publish website orders with dbt`). At that checkpoint `main` and `origin/main` both pointed to that SHA and M04 was unstaged; the agent did not push. The current M04 commit is recorded above.
 - Approved and preserved: S01/source contracts, independent mapping version, observed-only history, source/account identity, amount grain/currency, and independent payment/fulfillment/cancellation state.
@@ -15,7 +15,193 @@ Updated: 2026-10-29 (Asia/Bangkok).
 - Implemented through M05A: fixed eBay list/order/shipping HTTP interfaces, durable raw/work and bounded request retries, source-specific dbt history/current/marts and atomic publication, exact dated line allocation, paging/replay/older-window/failed-release acceptance.
 - Implemented through M05B: opt-in periodic website/eBay DAGs, separate historical/runtime checkpoints and validation, immutable cycle configuration, whole-release coordination, optional environment UI credentials and real scheduled/restart/exhausted-budget acceptance.
 - Implemented through M06: durable signed webhook receiver, HTTP receipt/list recovery, token-fenced bounded work/replay, Etsy dbt/release and independently scheduled inbox/recovery paths. Local operation: `orchestration/ETSY.md`.
-- Not implemented: dashboard/live health views, generalized exception remediation and the changing-source/recovery demo (M07/M08).
+- Implemented through M07: Streamlit operations/live-health report, restricted report views, scoped filters, manual refresh and consistent publication/business/health snapshot; guide `reports/README.md`.
+- Not implemented: generalized exception remediation and changing-source/cold-setup/recovery/CI demo (M08).
+
+## M07 owner acceptance / local commit handoff (2026-10-30)
+
+- Current task explicitly authorizes staging/committing M07 only, superseding
+  earlier leave-unstaged instructions for this milestone. Inspected branch/main,
+  M06 HEAD, worktree, tracked diff/new report/migration/controller/tests and local
+  tools before action. Git user.name/user.email are configured. No staged changes
+  existed on entry; unrelated untracked `HANDOFF_SHA256SUMS.txt` excluded.
+- Reran `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m07_report.ps1`:
+  exit0, final `M07 report PASS`; idempotent migrations, SQL/role/null-money/
+  scoped-identity probes rolled back, pinned image build, report health, sanitized
+  observer7 DAG samples, pip check, runtime boundaries, 9 rule tests and10 real-DB/
+  Streamlit tests PASS. S01 still3 orders/4 lines/6 units/USD124/6 versions. Bare-
+  mode ScriptRunContext warnings did not fail acceptance. No database/volume reset.
+- From `fixtures/s01`, `python verify.py` PASS10 offline checks and
+  `python -m unittest -v test_tools.py` PASS10. Root
+  `python -m compileall -q reports orchestration tests` and
+  `git -c core.autocrlf=false diff --check` PASS. Real pipeline/retry/failed-release,
+  focused M05/M06 regression and100k rollback benchmark evidence remains the
+  2026-10-29 record below; those campaigns were not repeated for this commit.
+- Stage only explicitly listed M07 files, inspect cached names/diff and run
+  `git diff --cached --check` before `git commit`. Never include `.env`, runtime,
+  caches, dbt artifacts or unrelated handoff. No push or history rewrite authorized.
+- Owner asked about M08 changing-source simulation/load testing. Explanation only:
+  an external simulator driver can generate source changes, with pipeline still
+  reading website read-only / marketplaces over HTTP. Continuous correctness demo
+  and opt-in isolated load tests are distinct; rates/limits/metrics need explicit
+  readiness criteria. No M08 generator, stress run or capacity guarantee added.
+  Next task is M08 readiness/implementation only after owner direction.
+
+## M07 multi-channel / scale / monitoring redo (2026-10-29)
+
+Current contract: `09_M07_SCALE_MONITORING.md`, finalized before dependent migration
+008. Supersedes the earlier whole-table reader/two-screen UI, NOT approved S01,
+source contracts, review precedence, identities, clocks or publication safety.
+Inspected AGENTS, STATUS/plan and relevant business/source/architecture/code,
+dirty Git worktree and available Python 3.12/PowerShell/Git/Docker/rg first.
+Existing M07 files were uncommitted; unrelated handoff and `.env` preserved.
+
+Implemented:
+
+- Three English screens: Multi-channel Overview (order/unit/review/version channel
+  comparisons, source-date activity and product chart), Order Operations (SQL
+  filters/exact ID/reason/worklist, all-match summary, 50-row keyset pages and
+  page-only inspection), Pipeline Monitoring (actual-time channel attempts/outcomes,
+  per-stage/slot p95 + sample count, duration time series, backlog, DAG samples).
+- Report SQL filtering/aggregation precedes fetch; no production all-order/line/
+  history reader or full-ID selector. SQL review function matches all120 Python
+  oracle combinations. Currency/Decimal/missing money/empty zero and source-account
+  grain remain intact. Page max100; selected detail max100 per collection with
+  truncation notice; top20 products; date max366days. Publication/filter-bound
+  cursors reset pages/detail. All business panel data/publication map in one report
+  role read-only REPEATABLE READ transaction; options/monitoring separately labeled.
+- Migration008 adds seek/lookup/history/time indexes, immutable real stage/slot
+  measurements, sanitized latest DAG observations, actual recording clock on NEW
+  work only and safe report projections. Backlog excludes successful inventory;
+  missing old recording clocks remain Unknown. Report receives no writer/Airflow
+  credentials. Isolated observer samples7 DAGs every30s, >90s sample/>120s heartbeat
+  stale; paused is distinct from enabled or idle.
+- Architecture correction: source/account session lock spans a polling cycle;
+  durable collect precedes global freeze/build/test/publish barrier, allowing
+  independent-source acquisition. Shared candidate safety, active-batch guard,
+  immutable config/checkpoints, resume semantics and five-attempt budgets retained.
+  Old source/scenario timestamps are not relabeled duration. Monotonic duration
+  and actual UTC apply only to new measurements. A recorded RUNNING is not liveness.
+- Synced local plan/business/architecture/schema/automation/provenance/report and
+  polling guides. External primary design references are linked in09. Google
+  exports unchanged. Full-history dbt rebuild, source-wide atomic snapshot publish,
+  window-materialized website extraction and single-host resources remain stated
+  large-volume limits; do not claim million-order ingestion capacity.
+
+Executed commands/results (repository root unless stated):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/migrate.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m07_report.ps1
+Get-Content tests/m07_scale.sql -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T postgres psql --username postgres --dbname data_platform
+docker compose --env-file .env --file infra/compose.yaml --profile m04 build airflow
+docker compose --env-file .env --file infra/compose.yaml --profile m04 up --detach --wait --wait-timeout 300 airflow
+Get-Content tests/test_m07_pipeline.py -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T airflow /opt/airflow/project-venv/bin/python -
+docker compose --env-file .env --file infra/compose.yaml --profile m04 run --rm -T --no-deps --env PYTHONPATH=/repo --volume "${PWD}:/repo:ro" --volume "${PWD}/fixtures/s01:/fixtures/s01:ro" --entrypoint /opt/airflow/project-venv/bin/python airflow -c "import subprocess,sys; names=['test_m06_unit','test_m06_scheduling','test_m05_http','test_m05_fingerprint','test_m07_coordinator','test_m06_clock','test_m06_cycle','test_m06_draining','test_m06_sql','test_m06_leases','test_m05_constraints','test_m05b_invariants']; [subprocess.run([sys.executable,'/repo/tests/'+n+'.py'],check=True) for n in names]"
+Get-Content tests/m07_acceptance.sql -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T postgres psql --set ON_ERROR_STOP=1 --username postgres --dbname data_platform
+Get-Content tests/m06_probe.py -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T airflow /opt/airflow/project-venv/bin/python - check
+Get-Content tests/m01_acceptance.sql -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T postgres psql --set ON_ERROR_STOP=1 --username postgres --dbname data_platform
+docker compose --env-file .env --file infra/compose.yaml exec -T airflow airflow dags list-import-errors --output json
+python -m compileall -q reports orchestration tests
+git diff --check
+git diff --cached --name-only
+```
+
+- Migration/repeated migration PASS on retained storage. Report runner PASS after
+  corrections: SQL live-failure/secret/role probes rolled back, pip check clean,
+  9 review-rule tests, runtime credential/socket/fixture boundaries and10 real-SQL/
+  Streamlit tests. Covers S01 totals, product independence, exact/scope/currency/
+  empty filters, capped details, read-only RR, 120 rule cases, pagination/cursor
+  invalidation, all3 screens, selected Etsy, sanitized unavailable and next/previous
+  UI with a MOCKED million-order summary but only50 selectable rows. This mock is
+  UI boundary evidence, not a million-row runtime benchmark. Extended SQL probes
+  for same ID/different account, two unmapped lines and null money also PASS and
+  roll back. Streamlit bare-mode ScriptRunContext warnings are not test failures.
+  Final runner completed 2026-10-29 16:07 UTC, exit0, final `M07 report PASS`;
+  includes successful-work backlog exclusion and per-channel time-series fixes.
+- Actual pipeline test exit0: run `d0070a65-06f8-5f70-8ac7-2e4301ae8efd`, batch
+  `65ef5b39-6ce0-5417-8374-3e34da08e0de`. Real collect completed BEFORE release-slot
+  timeout with another session holding the global barrier; no freeze/build attempt
+  spent during contention. Retried same cycle reused collect; all4 stages succeeded,
+  and complete replay created no extra business attempts. dbt PASS54/54 (33 models,
+  17 data tests, 4 hooks); measured collect842.55ms, freeze35.64ms,
+  build/test35996.00ms, publish1144.36ms. Initial release-slot timeout6.31ms at
+  wait-seconds0. Current-clock empty acquisitions correctly observed0 orders, but
+  retained frozen history still published the existing S01 order, not new orders.
+- Injected failure run `52c68879-1c15-5b08-a339-a2ea9fd27c02`, batch
+  `dc6b8a50-635f-58b2-ae7a-c769ea552898`: dbt53 PASS/1 expected injected failure,
+  failed stage measured, abort closed batchFAILED, good publication unchanged.
+  Raw/acquisition/task/failure artifacts retained intentionally. Dashboard may warn
+  about this newer failure; it is acceptance evidence, not an erased incident.
+- Consolidated focused regression command exit0: M06 security7, scheduling4,
+  M05 HTTP7, fingerprint11 valid+2 invalid, coordinator3, backwards-clock lifecycle,
+  cycle4, draining5, Etsy SQL6 canonical/3 divisors/4 invalid, real HTTP lease reclaim/
+  token fencing/five-attempt exhaustion, fulfillment6 invalid and M05B immutable
+  config/artifact-mode checks. A source-slot timeout probe retains an explicitly
+  failed parent audit but allocates zero business attempts. Other probes roll back.
+- 100k target benchmark exit0 after setup correction: INSERT100000 history25.401s,
+  INSERT100000 current21.618s; report role EXPLAIN ANALYZE page51 rows via
+  `orders_report_seek_idx`1.501ms, exact ID via `orders_report_lookup_idx`0.157ms,
+  all-match source count100001 rows49.536ms. These are local DB execution times,
+  not UI latency/end-to-end throughput. All synthetic rows rolled back and absence
+  asserted; planner statistics refreshed. No volume/source reset or material data
+  deletion. Query benchmark contains target orders/history, not realistic million-
+  row line/audit/work cardinalities or concurrent production traffic.
+- M06 golden probe PASS (3 orders/4 lines/6 units/USD124/6 versions), M01 database
+  contract PASS, DAG imports `[]`; services healthy, observer running/sampling7
+  DAGs. Existing6 polling/replay DAGs stay paused; manual website_orders unpaused.
+  No DAG pause state changed. Zero unfinished transform batches. Host
+  `Invoke-RestMethod http://localhost:8501/_stcore/health` returned `ok`.
+- From `fixtures/s01`: `python verify.py` PASS10 offline checks and
+  `python -m unittest -v test_tools.py` PASS10 utility tests. Root Python compile
+  passes. Initial compile issued from fixture subdirectory printed cannot-list;
+  rerun from root is the valid result. Git HEAD/main unchanged, index empty.
+  PowerShell AST parsing for migrate/report runners, local Markdown link targets,
+  `git diff --check` and `rg -n '[ \t]+$'` over all new task files PASS. Git's
+  LF-to-CRLF notices are normalization warnings, not whitespace errors. Inspected
+  tracked diff and new report/migration/controller/test sources; no fixture or
+  secret changes, untracked handoff untouched.
+
+Intermediate failures corrected, not hidden: report privilege test initially
+resolved a prohibited schema-qualified name; fixed catalog OID assertion (did NOT
+grant access). Actual monitoring data exposed timezone-aware Altair serialization;
+fixed explicit ISO timestamps and per-channel/time aggregation. Legacy M05B probe
+mistook NULL+interval=NULL for a mutation on a M06 windowless drain; now COALESCE
+forces a real change and guard rejects it. Mocked clock test declares validation
+mode explicitly. Benchmark first60s insert timed out/rolled back; second setup
+was canceled at184.566s ONLY in the identified uncommitted benchmark session.
+Composite expansion recomputed JSON record construction per column; lateral
+record construction fixed setup, then full100k PASS above. One exploratory Compose
+exec with invalid `--volume-test` exited1, made no changes and is not a check.
+
+Not run/claimed: full M01–M06 destructive/restart/scheduled/exhaustion campaigns,
+real simultaneous multi-source load/hard-kill/concurrent-publication stress,
+million-order ingestion/UI transfer, cold setup, changing-source/CI (M08), live
+vendor APIs, browser screenshot/accessibility/multi-viewport suite. AppTest/chart
+specs/HTTP are runtime evidence, NOT owner visual sign-off. Next: owner review at
+localhost:8501, inspect docs09/data/app/008/telemetry/polling/tests; then decide on
+M07 commit. Do not start M08 or stage/commit/push automatically.
+
+## M07 Operations Manager revision (earlier same-day baseline, superseded UI)
+
+- Owner selected an English operations-first dashboard and authorized document readiness review followed by implementation. Existing technical M07 was not sufficient audience sign-off. Updated A5/plan/architecture/report guide and finalized review rules, precedence, filter/chart semantics and two safe detail view schemas in `08_M07_REPORTING.md` before migration 007. Existing approved sources/published states, currencies and source-version fingerprints unchanged. Readiness is sufficient for this bounded revision, not for new SLA, source write-back, assignment, refunds or M08 continuous-source claims.
+- Default **Order Operations** now has attention cards, fulfillment-by-channel and review-reason charts, Needs review/All orders/Canceled/Data issues tabs, readable columns, review suggestions, composite-key order selector, observed status timeline and recorded eBay allocations. Technical runs/checkpoints/batches stay under **Data Quality & Pipeline** and audit IDs are collapsed. Product activity is secondary and independently filtered; review-reason filtering affects worklist only. No new dependencies or pipeline execution from UI.
+- CANCELED takes precedence over every operational rule; REQUESTED suppresses fulfillment queue rules; multiple reasons yield one order row and overlapping reason counts. Mapping gaps are separate data issues. S01 review queue has exactly one order (eBay, Partial fulfillment), canceled=1 website, requests=0, mapping issues=0; Etsy SHIPPED/UNKNOWN alone is not a task. Charts show 2 non-canceled orders and one review reason. No urgency/overdue or delivered/refund assertion is invented.
+- Migration 007 projects published observed history and current matching eBay line allocations only; no raw JSON, tracking numbers or base-table grants. Every detail is read in the same report-role read-only REPEATABLE READ snapshot. S01 detail has 6 observed versions (3/2/1) and FUL001 allocating 2 blue units; Etsy has no line-level parcel bridge. Missing allocation is not treated as proof of non-shipment.
+- `python tests/test_m07_operations.py` PASS (9 offline tests: canceled/requested precedence, confirmed-payment fulfillment rules, unknowns, multiple reasons/accounts, separate mapping issues, sorting, newer vs historical failure availability). `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m07_report.ps1` ran twice during this revision, both exit 0 with final M07 report PASS; final image `b9198265caf87197f531e9e66abe880f4997acc1267cb24b1bf9a4286659e9f4`. It reran migrations idempotently on retained storage, rollback-only SQL/role/secret/history/allocation probes, pip check, 9 rules tests, runtime credential/socket/fixture boundaries and 12 real-DB/Streamlit AppTest tests. UI cases include charts, reason/product filter independence, technical-page refresh, selecting Etsy then website then no accounts, empty publication and sanitized unavailable reader. AppTest's bare-mode ScriptRunContext warning did not fail tests. No source build/publication was triggered.
+- Final M01 acceptance SQL and M06 golden probe PASS (3 orders/4 lines/6 units/USD124/6 versions); host report health returned ok and service healthy. Offline fixture verify (10) and utility tests (10), Python compile, PowerShell AST, tracked/new-file whitespace, 43 local Markdown links and empty-index checks PASS. `.env`, source fixtures, existing unrelated work and M06 HEAD preserved; no stage/commit/push/reset.
+- Browser limit: an optional local Chrome headless screenshot with an isolated ignored `runtime/m07-review-*` profile captured only Streamlit's loading skeleton, so it is NOT counted as visual acceptance. AppTest interactions/chart specs and real SQL/HTTP acceptance did pass; owner should visually review localhost:8501. No full M01-M06 scheduler campaign, multi-browser/viewport suite, concurrent-publication stress, live marketplace or M08 fresh-setup/continuous-demo/CI was rerun. Dated external Google exports remain historical, not automatically synchronized.
+
+## M07 reporting decisions and checks (initial technical baseline, 2026-10-29)
+
+- Owner explicitly authorized the M06 local commit, M07 implementation and routine doc/process corrections. M06 committed exactly 67 task-owned files (2782 insertions/80 deletions), no secrets/runtime/unrelated handoff; index then empty. No push. Reviewed A5 business report definitions, architecture, current views/roles/schema, source health/audit streams and selected M07 plan before dependent changes.
+- Finalized column types/grain/nullability/security in `08_M07_REPORTING.md` before migration 006. Selected Streamlit 1.66.1 + existing Psycopg 3.3.6, report-specific fully pinned dependencies and non-root localhost-only Compose profile m07. `platform_report` sees published business and restricted live ops views only; no raw/free-form error/exception reason/details, writer/source/API/Airflow credentials or Docker socket. New live views do not replace publication-time marts.
+- One read-only REPEATABLE READ transaction per render/filter/Refresh, no query cache or auto-refresh, source-to-batch publication map in that same snapshot. UTC creation-date cohort, source/account identity and one currency selected; product affects line metrics only; order cards explicitly cohort-wide. Decimal totals, unknown money vs empty zero, independent states, canceled original activity and unmapped lines preserved. Two pages: Operations and Data health. No SLA or complete-coverage claim; batch status labeled FAILED_OR_INTERRUPTED rather than pretending it is a parsed dbt test result.
+- Initial migration 006 and rerun PASS. First report test pass found a test bug: `has_table_privilege` with text names cannot resolve a schema the report role cannot USAGE. Changed the test to look up relation OIDs via PostgreSQL catalogs and keep the actual denied raw SELECT assertion; no role grants widened. Other seven original metric/UI checks passed in that first run.
+- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m07_report.ps1` — PASS, exit 0, final `M07 report PASS (SQL, role, metrics, filters, UI and runtime boundaries)`. This reran migration 006 on retained storage, built the fully pinned report image, waited for HTTP health, executed rollback-only SQL failed-run/blocking-exception/secret-exclusion/role/golden probes, ran `pip check` (`No broken requirements found`), verified no writer/API/signing/Airflow credentials, fixture mount or Docker socket, and passed all 9 `tests/test_m07_report.py` tests against actual published DB plus Streamlit AppTest. Cases include grain/Decimal/product totals and source publication IDs, account/product filtering, empty/null/unmapped/currency handling, read-only REPEATABLE READ, denied base-table access, failed batch visibility with good release preserved, Operations -> filter -> Data health -> Refresh interactions, empty publication and sanitized unavailable DB UI. The last two UI states use injected readers, not actual DB shutdown.
+- Final `Get-Content tests/m07_acceptance.sql -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T postgres psql --set ON_ERROR_STOP=1 --username postgres --dbname data_platform` — PASS after clock-stable statement-timestamp test refinement; all probe inserts rolled back. Same invocation with `tests/m01_acceptance.sql` PASS (`M01 database contract PASS`). `tests/m06_probe.py` golden check via Airflow PASS (3/4/6/USD124/6 observed versions). No extra source acquisition/build/publication was initiated by M07. Six services healthy; host `http://localhost:8501/_stcore/health` returned `ok`.
+- `python -m compileall -q reports tests/test_m07_report.py`, PowerShell AST over all infrastructure runners, local Markdown link check (43 targets), tracked/new-file whitespace checks and `git diff --cached --exit-code` PASS. M07 remains unstaged; `.env`, fixture bytes, source contracts and unrelated handoff untouched. Documentation synchronized: A5 tool choice, architecture, plan, target dictionary link, documentation map, root/report guides. Dated Google exports were not automatically updated.
+- Limits/not rerun: no full new M01-M06 runtime campaign (their final read-only evidence/regression checks above passed), visual browser/human review or concurrent-publication stress test, live provider integration, volume reset/fresh setup, performance/load claims, unattended browser refresh, M08 demo/CI or automatic exception remediation. AppTest + HTTP is not a claim of full browser rendering verification. Read-only RR was verified on the real report connection; no additional global release ID was invented. Suggested future owner commit: `feat: add operations and data-health dashboard`.
 
 ## M06 owner sign-off and final commit checks (2026-10-29)
 
@@ -289,11 +475,12 @@ All Compose commands used `docker compose --env-file .env --file infra/compose.y
 
 ## Next task
 
-Owner review of the unstaged M06 implementation, evidence above and local guide
-`orchestration/ETSY.md`. M05 remains committed locally as
-`468cb815d8027dbf7afc6a89502c8f5508d95529`; no push or M06 commit. After approval,
-the owner normally stages/commits. Start M07 only on explicit selection; first
-finalize read-only live-health/report contracts before dependent dashboard work.
+Owner review of unstaged M07 via `reports/README.md` and localhost:8501, including
+Order Operations review rules/charts/worklist/details and Data Quality & Pipeline.
+M06 is committed as
+`dfd8d58a6f2b0c5a696a4ac830233f988bc6395a`; no push or M07 commit. After review,
+the owner normally stages/commits. Start M08 only on explicit selection, keeping
+cold-setup/destructive checks isolated to approved disposable storage.
 
 ## Session update template
 

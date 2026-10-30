@@ -33,7 +33,7 @@ class RollbackOnly:
 
 execution='clock-regression-'+uuid.uuid4().hex
 args=argparse.Namespace(execution_id=execution,workflow_id=w.identity(execution,'workflow'),
-    batch_id=w.identity(execution,'batch'),source='etsy_sim',window_start=None,window_end=None,dag_id=None)
+    batch_id=w.identity(execution,'batch'),source='etsy_sim',validation_mode='s01',window_start=None,window_end=None,dag_id=None)
 c=w.connect()
 def regress(*args):
     Clock.value-=timedelta(seconds=1)
