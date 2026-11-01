@@ -8,6 +8,14 @@ Airflow metadata and exports only sanitized samples; it has no HTTP endpoint.
 
 ## Run / acceptance (PowerShell, repository root)
 
+Overview presentation (2026-11-01): operational counts first, original merchandise
+and order total on a separate two-card row, fixed orders/units channel charts.
+No product-ID text input or technical version selector in the business overview.
+Read timestamps, availability/publications and observed-version evidence are at
+the bottom; availability warnings remain visible. Backend product filtering and
+all money-grain/observed-history rules are unchanged. Offline UI regression:
+`python tests/test_m07_layout.py` with the report image dependencies; no DB needed.
+
 Keep existing M01–M06 S01 evidence and root `.env`; never reset volumes.
 Golden tests require three published sources; this runner does not initialize S01.
 
@@ -40,11 +48,13 @@ publicly. Exact checks/evidence and not-run limits are in STATUS.
 
 ## Owner review walkthrough
 
-1. **Multi-channel Overview**: S01 = 3 published orders, 6 observed versions,
-   6 ordered units, USD124 merchandise and USD124 original order totals. Per-channel
-   bars compare orders/units/reviews/versions. Source-created daily trend is a
-   historical date chart, not processing throughput. Product top20 + exact product
-   filter affect line metrics only: V002 = 2 units/USD44, still 3 order totals.
+1. **Multi-channel Overview**: select the S01 date2026-10-17 for 3 published orders,
+   1 order to review, 6 ordered units, USD124 merchandise and USD124 original order
+   total. Separate money cards show full amounts. Fixed per-channel bars compare
+   orders and ordered units. Source-created daily activity is not processing
+   throughput. Top20 products rank original quantity; no product text input.
+   Six S01 observed versions remain in the collapsed technical footer, not a
+   business KPI. A mixed live database defaults to all available dates, not S01.
 2. **Order Operations**: all-match summary = 3 orders, 1 review (eBay partial),
    1 canceled website, 0 mapping issues. Switch worklist/reason or exact order ID.
    All orders means searchable cohort, NOT loading all orders: max50 per UI page,

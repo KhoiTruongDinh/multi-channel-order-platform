@@ -1,5 +1,8 @@
 # Documentation map
 
+Portfolio readers: [project pitch, architecture, demos, CV and evidence index](18_PORTFOLIO.md).
+This M09 package explicitly distinguishes verified scope from deferred recovery/load work.
+
 Start here: [actual checkpoint](STATUS.md), then the selected milestone in
 [the plan](04_PLAN.md). M08B daily operation has one supported primary path:
 [live-up + manual generate](../tools/s02_data/README.md), configured with

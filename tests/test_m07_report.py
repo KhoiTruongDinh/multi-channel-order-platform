@@ -107,11 +107,17 @@ class ReportTests(unittest.TestCase):
     def test_ui_three_screens_filters_and_detail(self):
         app=AppTest.from_file('/app/reports/app.py',default_timeout=30).run()
         self.assertFalse(app.exception)
+        # Golden assertions target S01, not every retained live dataset. The UI
+        # correctly defaults to the available date range on a mixed local DB.
+        app.sidebar.date_input(key='dates').set_value((self.f.start,self.f.end)).run()
+        self.assertFalse(app.exception)
         values=lambda:{m.label:m.value for m in app.metric}
         self.assertEqual(values()['Published orders'],'3')
-        app.text_input(key='product').set_value('V002').run()
-        self.assertEqual(values()['Ordered units'],'2')
-        self.assertEqual(values()['Published orders'],'3')
+        self.assertNotIn('product',[item.key for item in app.text_input])
+        self.assertNotIn('channel_metric',[item.key for item in app.selectbox])
+        self.assertNotIn('Observed versions',values())
+        self.assertEqual(values()['Original merchandise'],'USD 124.00')
+        self.assertEqual(values()['Ordered units'],'6')
         app.sidebar.radio(key='workspace').set_value('Order Operations').run()
         self.assertFalse(app.exception)
         self.assertEqual(values()['Orders to review'],'1')

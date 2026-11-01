@@ -113,8 +113,6 @@ if page=='Order Operations':
         format_func=lambda s:dict(all='All orders',review='Needs review',canceled='Canceled',data='Data issues')[s])
     exact=st.text_input('Exact order ID (optional)',max_chars=256,key='exact').strip()
     reason=st.selectbox('Review reason',['']+list(SUGGESTIONS),key='reason',format_func=lambda s:s or 'All reasons')
-else:
-    product=st.text_input('Exact canonical product (activity only; optional)',max_chars=256,key='product').strip()
 try:
     filters=data.Filters(tuple(selected),currency,*dates,order_id=exact,group=group,reason=reason,product=product)
 except ValueError as error:
@@ -137,35 +135,28 @@ if panel['reset'] or st.session_state.get('publication_signature',panel['signatu
     panel['detail']=None
 else:
     st.session_state['publication_signature']=panel['signature']
-st.caption(f"Report read {utc(panel['metadata']['read_at'])} UTC. All figures use one read-only repeatable-read snapshot. Source creation date ≠ processing time.")
-with st.expander('Data availability and source publications'):
-    availability_rows=availability(panel,{tuple(s.split(' / ',1)) for s in selected})
-    st.dataframe(availability_rows,hide_index=True)
-    st.dataframe(panel['publications'],hide_index=True)
-    st.caption('A successful check or publication does not prove completeness or an SLA. Last good data remains visible after failed processing.')
-if any(r['Data status']!='Published' for r in availability_rows):
-    st.warning('Some sources are unpublished or have a newer processing failure. Inspect availability before acting.')
 summary=panel['summary']
 if page=='Multi-channel Overview':
     st.caption('Published, source/account-scoped unique orders. Includes canceled orders. Amounts are original activity, not recognized revenue.')
-    for col,label,value in zip(st.columns(5),['Published orders','Observed versions','Ordered units','Original merchandise','Original order total'],
-            [summary['orders'],sum(r['versions'] for r in panel['versions']),panel['lines']['units'],amount(panel['lines']['merchandise'],currency),amount(summary['order_amount'],currency)]):
+    for col,label,value in zip(st.columns(3),['Published orders','Orders to review','Ordered units'],
+            [summary['orders'],summary['reviews'],panel['lines']['units']]):
         col.metric(label,value)
-    st.subheader('How much order activity does each channel contribute?')
-    channel_metric=st.selectbox('Channel comparison',['orders','units','reviews','versions'],key='channel_metric')
-    chart(panel['channels'],'source_system:N',f'{channel_metric}:Q','source_system:N')
-    st.dataframe(panel['channels'],hide_index=True)
-    st.subheader('Order activity by source creation date')
+    for col,label,value in zip(st.columns(2),['Original merchandise','Original order total'],
+            [amount(panel['lines']['merchandise'],currency),amount(summary['order_amount'],currency)]):
+        col.metric(label,value)
+    st.subheader('Orders by channel')
+    chart(panel['channels'],'source_system:N','orders:Q','source_system:N')
+    st.subheader('Order activity over time')
     chart(panel['series'],'day:T','orders:Q','source_system:N','line')
-    st.caption('A single historical fixture day is not a continuity trend. Observed versions are deduplicated versions, not API calls or fabricated events.')
+    st.caption('Source order creation dates, not pipeline processing time.')
     left,right=st.columns(2)
     with left:
-        st.subheader('Observed versions by channel')
-        chart(panel['versions'],'source_system:N','versions:Q','source_system:N')
+        st.subheader('Ordered units by channel')
+        chart(panel['channels'],'source_system:N','units:Q','source_system:N')
     with right:
-        st.subheader('Top 20 products by ordered units')
+        st.subheader('Top products by ordered units')
         chart(panel['products'],'units:Q','product:N','product:N')
-        st.caption('Product filter affects only line activity and this chart; order count and order totals do not change.')
+        st.caption('Up to 20 products, ranked by original ordered quantity.')
 else:
     st.caption('Counts and charts cover ALL filtered matches, not just the displayed page. Suggestions are not source actions or overdue alerts.')
     for col,label,value in zip(st.columns(4),['Matching orders','Orders to review','Canceled orders','Data issues'],
@@ -219,3 +210,15 @@ else:
                 if not detail[name]:
                     st.info('No retained evidence available. Missing allocations do not prove nothing shipped.')
         st.caption('Only retained eBay line allocations are available. Etsy order-level shipping is not a parcel-to-line allocation. Unknown is not false; no refund or unobserved event is inferred.')
+
+# Supporting technical evidence follows the business workspace, not its headline.
+st.caption(f"Report read {utc(panel['metadata']['read_at'])} UTC. All figures use one read-only repeatable-read snapshot. Source creation date ≠ processing time.")
+availability_rows=availability(panel,{tuple(s.split(' / ',1)) for s in selected})
+if any(r['Data status']!='Published' for r in availability_rows):
+    st.warning('Some sources are unpublished or have a newer processing failure. Inspect availability before acting.')
+with st.expander('Data availability and source publications'):
+    st.dataframe(availability_rows,hide_index=True)
+    st.dataframe(panel['publications'],hide_index=True)
+    st.caption('A successful check or publication does not prove completeness or an SLA. Last good data remains visible after failed processing.')
+    st.caption('Observed versions are deduplicated source snapshots, not orders, API calls or a complete event history.')
+    st.dataframe(panel['versions'],hide_index=True)

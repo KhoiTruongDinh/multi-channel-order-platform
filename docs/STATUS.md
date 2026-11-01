@@ -21,9 +21,11 @@ and PostgreSQL system identity. The overall window FAILED its first C probe;
 restoration PASS is not a complete campaign PASS. Evidence:
 `runtime/isolated/c-window-69859f6f01af4c7f9c11a3d19856e819`.
 
-- Branch `main`, HEAD `7f459aba8ac2b545ac14b82259a6579bcd25f91b` (M07).
-  This is the pre-checkpoint HEAD. The owner now explicitly authorizes a local
-  checkpoint commit, not a remote push. Preserve unrelated `HANDOFF_SHA256SUMS.txt`.
+- Branch `main`, checkpoint HEAD `63c36c986d42fa5812ac73bc2afdbac78ed50b91`:
+  `feat: checkpoint live S02 workflow and partial recovery verification`.
+  Local commit explicitly requested by owner; no push. Previous M07 HEAD was
+  `7f459aba8ac2b545ac14b82259a6579bcd25f91b`. Preserve unrelated HANDOFF_SHA256SUMS.txt
+  and owner-customized local_now.json/quick_6min.json, excluded from the commit.
 - M01-M07 accepted previously; M08A baseline/guards passed locally. M08B daily
   live finite correctness passed; owner requested cleanup and M08C implementation.
 - M08C **paused, NOT accepted**. M08D deferred; M09 packaging requested. Component checks
@@ -200,3 +202,142 @@ Only offline review checks may run during packaging; no new fault campaigns.
 - Candidate-file scan found no local `.env` password values or private-key/token
   patterns. Git identity is configured. Runtime, `.env`, caches and unrelated
   HANDOFF_SHA256SUMS.txt are excluded from the checkpoint commit.
+
+## M09 documentation packaging (owner-prioritized partial handoff)
+
+Implemented [18_PORTFOLIO.md](18_PORTFOLIO.md): English CV bullets, project pitch,
+architecture/ownership diagram, offline S01 and changing-source demo routes,
+fresh bootstrap prerequisites, code-review route, sanitized evidence index and
+explicit operational/scale limits. README and documentation map now link to one
+portfolio entrypoint. No application/schema/source semantics changed by M09.
+
+The owner requested documentation/CV work before completing C/D. This changes
+delivery priority, NOT the evidence rules. Packaging is not full M09 release
+acceptance: independent-machine reproduction, complete C/D, remote CI and browser
+visual checks remain pending. No extra runtime campaign or service mutation ran
+while packaging. M09 changes remain unstaged for owner review; the requested
+checkpoint commit covers the preceding M08 work only.
+
+Packaging checks actually run (all exit0):
+
+- `python -m tools.s02_data --help` and `python -m test_support.m08c --help`:
+  PASS, parser/help only, no source generation or Docker calls.
+- `python -c "import json; from pathlib import Path; from tools.s02_data.config import validate; validate(json.loads(Path('tools/s02_data/config/observe_6min.json').read_text()))"`:
+  PASS, versioned demo config validates without preparing data.
+- PowerShell local Markdown-link validation across README.md, docs/README.md and
+  docs/18_PORTFOLIO.md: PASS64 existing local targets; external URLs not fetched.
+  New portfolio document trailing-whitespace scan PASS.
+- `git diff --check`: PASS; final diff inspected; index empty after checkpoint.
+  No M09 application deployment, fresh bootstrap, new scheduled runtime, remote
+  CI or browser screenshots performed. Full M09 runtime release remains pending.
+
+Handoff: review the unstaged M09 package/CV wording. Resume health investigation
+and incomplete C/D only when the owner requests it; do not auto-start campaigns.
+
+### Recruiter-facing README presentation (2026-11-01)
+
+Owner requested a polished English project introduction for the GitHub link on
+their CV. README now leads with the business problem, actual dashboard output,
+source-to-report architecture, engineering decisions, stack and a code-review map.
+Milestone backlog/unfinished work stays in STATUS/plan instead of the landing-page
+narrative. This is presentation separation, not removal or completion of those
+requirements. The README still identifies synthetic local source interfaces and
+does not claim real seller integration, performance certification or full event
+history. No application, migration, source contract or environment change.
+
+Added actual local-browser PNG captures:
+`docs/assets/dashboard-overview.png` (126708 bytes) and
+`docs/assets/dashboard-operations.png` (132667 bytes). A dedicated hidden Chrome
+profile opened localhost:8501, switched read-only report workspaces and captured
+the rendered pages through CDP; no mock data or image edits. Both images were
+visually inspected: synthetic channel/account IDs and charts, no credentials or
+customer details. Existing availability warnings remain visible, unmodified.
+The dedicated browser closed after capture; the helper/profile remain ignored
+under runtime/readme-capture, not source assets. Services were not restarted,
+source data was not generated, and recovery/load tests remain paused.
+
+Actual checks:
+
+- `Invoke-WebRequest http://localhost:8501/_stcore/health`: HTTP200.
+- Initial sandbox browser/CDP attempt: FAIL (`fetch failed`); separate authorized
+  hidden-browser launch and `node runtime/readme-capture/capture.cjs`: PASS, exit0,
+  both rendered screenshots captured. No dependency install/download required.
+- PowerShell README/portfolio local-link and heading-anchor scan: PASS32 targets,
+  including both PNGs; GitHub-hosted Mermaid rendering not directly tested.
+- From fixtures/s01: `python verify.py` PASS10 checks;
+  `python -m unittest -v test_tools.py` PASS10 tests.
+- `git diff --check`: PASS. Diff inspected; all current task changes remain
+  unstaged. No stage, commit or push requested/performed for this README revision.
+
+Next: owner reviews README in Markdown/GitHub preview and the actual screenshots;
+continuing runtime stabilization remains a separate explicit request.
+
+### Owner-requested operations dashboard layout revision (2026-11-01)
+
+Scope: presentation refinement during M09, not resumed C/D campaigns. Removed
+the exact canonical-product text input from the UI (backend product filtering
+unchanged), removed the channel metric selector and technical version KPI/chart.
+Overview now has operational counts, a separate two-column money row, and fixed
+orders/units channel charts with short direct titles. Supporting read metadata,
+publications and version evidence moved to the business-page footer; availability
+warnings are retained immediately above it. Warehouse/money/history semantics,
+filters, bounded detail/search, roles and source contracts are unchanged.
+The current reporting contract09 and reports README are synchronized.
+
+Actual commands/results:
+
+- `python tests/test_m07_operations.py`: PASS9 tests.
+- Common container prefix: `docker compose --env-file .env --file infra/compose.yaml
+  --file infra/compose.live.yaml --profile live run --rm --no-deps
+  --volume D:/hocTap/git/multi-channel-order-platform/tests:/app/tests:ro
+  --entrypoint python report`.
+  With `/app/tests/test_m07_layout.py`: PASS4 offline AppTests using explicit
+  mocked UI data, no DB acquisition. Initial FAIL1: test used nonexistent
+  Expander.expanded API; corrected assertion to Expander.proto.expanded, rerun PASS.
+  First development run additionally mounted reports read-only before rebuilding.
+- Same prefix with `/app/tests/test_m07_report.py`: PASS10 tests on real retained
+  read-only report-role SQL and UI, including money grain, scope, bounded queries,
+ 120-rule parity, history and role security. Initial FAIL1: UI test compared all
+  available live dates (1115 orders) to S01-only3. Added an explicit S01 date
+  selection to the TEST; rerun10/10 PASS, no source/warehouse mutation or reset.
+- Deployment: `docker compose --env-file .env --file infra/compose.yaml
+  --file infra/compose.live.yaml --profile live up --detach --build --no-deps
+  --wait --wait-timeout 120 report`: PASS, only report recreated, healthy.
+  Image sha256:43ab48f3eac1d29aa224106bec308f58329c21995c7c00f244632050e0eac21c.
+  No Airflow/PG/SIM restart, pause-state modification or data generation.
+- `node runtime/readme-capture/capture.cjs`: PASS, actual rendered app captured
+  in a dedicated hidden local browser, then closed. Visually inspected both PNGs:
+  full currency amounts visible at1600px; no product input/version selector;
+  actual business charts, no credentials/customer details. Replaced task-owned
+  README images: overview117718 bytes, operations121179 bytes. No image edits.
+  README overview description/alt text updated for operational KPI labels.
+- `python -m compileall -q reports tests/test_m07_layout.py tests/test_m07_report.py`:
+  PASS. From fixtures/s01, `python verify.py` PASS10 checks and
+  `python -m unittest -v test_tools.py` PASS10 tests.
+- README/report-guide local link scan PASS20; `git diff --check` PASS.
+  Git diff reviewed; changes left unstaged. No commit or push this task.
+
+Handoff: owner refreshes localhost:8501 and reviews updated README screenshots.
+No new C/D runtime-acceptance or capacity claim follows from this UI change.
+
+### M09 reviewed local commit request
+
+The owner reviewed the portfolio README and dashboard presentation, then explicitly
+requested a local commit of M09-related changes. Commit scope: README, portfolio
+guide, plan/documentation links, reporting presentation contract, dashboard UI,
+updated real screenshots, UI regressions and this evidence log. No M08 recovery
+implementation, local secrets, runtime or owner data/configuration is added.
+
+Pre-commit reruns: `python tests/test_m07_operations.py` PASS9;
+`python -m compileall -q reports tests/test_m07_layout.py tests/test_m07_report.py`
+PASS; from fixtures/s01, `python verify.py` PASS10 checks and
+`python -m unittest -v test_tools.py` PASS10 tests; `git diff --check` PASS.
+The unchanged dashboard revision retains its previously recorded PASS4 layout
+and PASS10 SQL/UI checks; these container/runtime tests were not rerun merely
+to commit. No service/data mutation, new recovery/load run or push in this task.
+
+Excluded owner/unrelated files: HANDOFF_SHA256SUMS.txt,
+tools/s02_data/config/local_now.json and tools/s02_data/config/quick_6min.json.
+Full release-certification gates remain as recorded; this commit packages M09
+presentation/demo scope, not completion of the paused C/D work. Read Git log for
+the resulting SHA; a commit's own SHA is not embedded in its files.

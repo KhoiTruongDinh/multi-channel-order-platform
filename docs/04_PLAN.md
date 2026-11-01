@@ -207,6 +207,12 @@ Do not run more fault/load campaigns during the pause. Documentation packaging
 does not certify the runtime as production-ready. The original full release
 acceptance below remains pending until M08D acceptance and outstanding checks.
 
+Packaging deliverable: [18_PORTFOLIO.md](18_PORTFOLIO.md), linked from README and
+the documentation map. Packaging checks: local links and documented CLI help
+resolve, versioned demo config validates, evidence/claims match STATUS, no private
+runtime/credentials included. These document checks are separate from the full
+runtime acceptance below and do not reclassify failed/unrun cases as PASS.
+
 Full release scope:
 Publish tested fresh-setup/restart/recovery instructions and two distinct demos:
 unchanged deterministic S01 and opt-in continuous S02. Expand CI around the already

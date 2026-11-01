@@ -3,6 +3,16 @@
 Owner approved 2026-10-29. This supersedes the unbounded reader/combobox and
 table-only monitoring in 08_M07_REPORTING.md, not S01 or its review rules.
 English UI: Multi-channel Overview, Order Operations, Pipeline Monitoring.
+
+Owner-approved presentation update (2026-11-01): Overview shows three operational
+cards (published orders, orders to review, ordered units), then a separate two-card
+row for full original merchandise/order amounts. Fixed charts show orders and
+units by channel, order-created-date activity and top20 products; no metric
+selector or technical version KPI/chart in the operational overview. Remove the
+canonical product text input from this UI; backend product-scope semantics/tests
+remain unchanged. Publication/read metadata and observed-version evidence appear
+in a collapsed footer on both business pages. Availability warnings remain
+visible above that footer; no health/coverage facts or business rules are removed.
 No stage/commit/push, user-data reset, source-contract change or M08 generator.
 The implementation-time Git restriction above is superseded only for the owner's
 explicit 2026-10-30 request to create the local M07 milestone commit. No push.
