@@ -1,0 +1,26 @@
+{
+  "dataset": "local-s02-coverage",
+  "timezone": "Asia/Bangkok",
+  "start_at": "2026-10-20T01:00:00+07:00",
+  "end_at": "2026-10-31T00:00:00+07:00",
+  "order_seed": 17,
+  "event_seed": 91,
+  "profile": "coverage",
+  "channels": {
+    "internal_web": {
+      "orders": 6,
+      "required": { "pending": 1, "request": 1, "cancel": 1 }
+    },
+    "ebay_sim": {
+      "orders": 6,
+      "basket": {
+        "lines_min": 2,
+        "lines_max": 8,
+        "quantity_min": 1,
+        "quantity_max": 5
+      },
+      "required": { "pending": 1, "partial": 1, "ship": 1 }
+    },
+    "etsy_sim": { "orders": 6, "required": { "pending": 1, "ship": 1 } }
+  }
+}

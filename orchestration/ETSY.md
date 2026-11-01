@@ -113,8 +113,13 @@ only `etsy_orders` stable rows/pointer are replaced by an Etsy release. Receiver
 does not wait for that coordinator. Direct ad-hoc dbt commands are not coordinated.
 Etsy DAG retries restore their captured configuration, including recovery scope,
 rather than switching to newly loaded environment values. Explicit CLI calls without
-`--reuse-cycle-config` reject a changed context. DAG contention waits 15 seconds
-before bounded retry, consuming no business attempt; CLI default remains 600.
+`--reuse-cycle-config` reject a changed context. DAG contention defaults to15 seconds
+before bounded retry, consuming no business attempt; CLI default remains600.
+`POLLING_SLOT_WAIT_SECONDS` in root `.env` configures the DAG wait (integer0..600;
+invalid values fail DAG parsing). M08B isolated correctness uses300s to avoid
+starvation across four scheduled paths on a small VM; it does not reset retries
+or durable budgets. A change needs the normal reviewed Airflow recreate, not just
+a restart. Do not recreate the owner environment during an isolated acceptance.
 
 ## Acceptance
 

@@ -1,0 +1,17 @@
+# Explicit local overlay; never used by ordinary S01 Compose commands.
+services:
+  ebay-sim:
+    environment:
+      SIMULATOR_MODE: s02-pg
+      S02_CAMPAIGN_ID: ${S02_CAMPAIGN_ID:?select a prepared dataset with the manual CLI}
+      S02_DB_PASSWORD: ${S02_EBAY_READER_PASSWORD:?set stable S02_EBAY_READER_PASSWORD in .env}
+  etsy-sim:
+    environment:
+      SIMULATOR_MODE: s02-pg
+      S02_CAMPAIGN_ID: ${S02_CAMPAIGN_ID:?select a prepared dataset with the manual CLI}
+      S02_DB_PASSWORD: ${S02_ETSY_READER_PASSWORD:?set stable S02_ETSY_READER_PASSWORD in .env}
+  airflow:
+    environment:
+      S02_LOCAL_PLAYBACK: "true"
+      S02_CAMPAIGN_ID: ${S02_CAMPAIGN_ID:?select a prepared dataset with the manual CLI}
+      POLLING_MAPPING_VERSION: s02-catalog-v1

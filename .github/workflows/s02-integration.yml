@@ -1,0 +1,122 @@
+name: Finite S02 integration
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  daily-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # Disposable hosted-runner test credentials, never real/local credentials.
+      S02_EBAY_READER_PASSWORD: ephemeral-ci-ebay-only
+      S02_ETSY_READER_PASSWORD: ephemeral-ci-etsy-only
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Disposable runner bootstrap only
+        run: |
+          test "$GITHUB_ACTIONS" = true
+          test ! -e .env
+          cp .env.example .env
+          docker compose --env-file .env --file infra/compose.yaml up --detach --wait postgres
+          python - <<'PY'
+          import os
+          assert os.environ.get('GITHUB_ACTIONS') == 'true'
+          from tools.s02_data.load import LocalDB, ROOT
+          db=LocalDB()
+          for database in ('website_source','marketplace_sim','data_platform','airflow_meta'):
+              db.sql((ROOT/'migrations/bootstrap/002_database_baseline.sql').read_text(),database)
+          db.sql((ROOT/'migrations/website_source/001_schema.sql').read_text(),'website_source')
+          for path in sorted((ROOT/'migrations/platform').glob('*.sql')):
+              db.sql(path.read_text(),'data_platform')
+          PY
+          docker compose --env-file .env --file infra/compose.yaml --profile m04 up --detach --build --wait --wait-timeout 420 airflow
+      - name: Same public live workflow as local operators
+        run: |
+          python tests/test_s02_live.py
+          python -m tools.s02_data live-up
+          python -m tools.s02_data generate --config tools/s02_data/config/observe_6min.json
+          python -m tools.s02_data generate --config tools/s02_data/config/quick_faults.json
+          python -m test_support.m08b_live_check --wait-seconds 1200 --verify-reread-seconds 600 --require-observed-changes
+      - name: Sanitized live evidence
+        if: always()
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          for path in Path('runtime').glob('m08b-live-check-*.json'):
+              print(path.name)
+              print(path.read_text())
+          PY
+          docker compose --env-file .env --file infra/compose.yaml --file infra/compose.live.yaml --profile live ps
+  finite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [baseline, continuous]
+        backend: [ram, postgres]
+        include:
+          - profile: continuous
+            backend: local-replay
+          - profile: continuous
+            backend: local-realtime
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Offline gates
+        run: |
+          python tests/test_m08a_guards.py
+          python tests/test_m08b_window.py
+          python tests/test_m08b_sources.py
+          python tests/test_s02_diverse.py
+          python tests/test_s02_temporal.py
+          python tests/test_s02_local.py
+          python tests/test_s02_clock.py
+          python tests/test_s02_local_scheduled.py
+          python tests/test_m06_scheduling.py
+          python -m compileall -q tools ingestion simulator transformation orchestration reports test_support tests
+          cd fixtures/s01
+          python verify.py
+          python -m unittest -v test_tools.py
+      - name: Fresh guarded S02 run (no owner project on runner)
+        env:
+          S02_PROFILE: ${{ matrix.profile }}
+          S02_BACKEND: ${{ matrix.backend }}
+        run: |
+          module=test_support.m08b
+          if [ "$S02_BACKEND" = postgres ]; then module=test_support.m08b_temporal; fi
+          if [[ "$S02_BACKEND" = local-* ]]; then module=test_support.m08b_local_scheduled; fi
+          output=$(python -m "$module" init)
+          printf '%s\n' "$output"
+          test_id="${output##*id=}"
+          test_id="${test_id%%;*}"
+          python -m "$module" check --id "$test_id"
+          if [[ "$S02_BACKEND" = local-* ]]; then
+            python -m "$module" accept --id "$test_id" --mode "${S02_BACKEND#local-}" --ci
+          else
+            python -m "$module" accept --id "$test_id" --profile "$S02_PROFILE" --seed 17 --ci
+          fi
+      - name: Sanitized evidence in workflow log
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for path in Path('runtime/isolated').glob('m08a-*/evidence/result.json'):
+              result=json.loads(path.read_text())
+              print(json.dumps({k:result.get(k) for k in ('id','status','protection_mode','protected_check','teardown','failure','s02')},indent=2))
+          PY

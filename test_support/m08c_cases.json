@@ -1,0 +1,20 @@
+[
+  {"id":"api_failures","scope":"HTTP retries/pages/checkpoints; live-PG visibility separately required","runner":"m08c_http_probe"},
+  {"id":"receiver_audit","scope":"HTTP invalid/stale signatures and duplicate audit","runner":"test_m06_receiver.py"},
+  {"id":"late_reordered_webhooks","scope":"late/reversed notifications and omitted recovery","runner":"webhook"},
+  {"id":"stage_resume","scope":"durable raw/freeze hook interruption and idempotent retry","runner":"pipeline"},
+  {"id":"abrupt_raw_inbox","scope":"process loss after durable raw; receiver ACK separately asserted","runner":"loss"},
+  {"id":"lease_fencing","scope":"real SQL/HTTP rollback-only lease/budget/replay","runner":"test_m06_leases.py"},
+  {"id":"abrupt_lease_owner","scope":"independent old worker returns after committed lease reclaim","runner":"worker"},
+  {"id":"failed_gate","scope":"real dbt failed test retains last-good publication","runner":"pipeline"},
+  {"id":"data_quality","scope":"actual compiled dbt SQL policies: missing mapping/unknown status/equal-time conflict","runner":"quality"},
+  {"id":"abrupt_freeze_dbt","scope":"orphaned frozen/building batch operator recovery","runner":"loss"},
+  {"id":"publish_atomicity","scope":"loss during transaction and commit-before-ACK retry","runner":"loss"},
+  {"id":"task_clear_budget","scope":"durable exhaustion survives actual Airflow task clear","runner":"lifecycle"},
+  {"id":"postgres_restart","scope":"graceful test PostgreSQL persistence","runner":"restart"},
+  {"id":"other_service_restarts","scope":"receiver/API/Airflow graceful restart and real source-worker commit/progress recovery","runner":"lifecycle"},
+  {"id":"abrupt_service_loss","scope":"receiver/API/Airflow/PostgreSQL SIGKILL and real source-worker SIGKILL restart","runner":"lifecycle"},
+  {"id":"scheduled_pause_resume","scope":"sources advance while consumers paused; actual scheduled catch-up","runner":"lifecycle"},
+  {"id":"maintenance_drain","scope":"in-flight retry drains; deterministic barrier and timeout/operator restoration","runner":"lifecycle"},
+  {"id":"outage_visibility","scope":"actual source/observer/scheduler outage preserves last-good and unknown health","runner":"lifecycle"}
+]

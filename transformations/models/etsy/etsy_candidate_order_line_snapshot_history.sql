@@ -9,7 +9,7 @@ WITH lines AS (
                min(canonical_variant_id) FILTER (WHERE source_sku=line->>'sku') AS sku_variant
           FROM {{ source('configuration','product_mapping') }} m
          WHERE m.source_system=l.source_system AND m.source_account_id=l.source_account_id
-           AND m.mapping_version='{{ var("mapping_version") }}' AND m.mapping_status='CONFIRMED' AND m.valid_to IS NULL
+           AND m.mapping_version IN {{ mapping_release_versions() }} AND m.mapping_status='CONFIRMED' AND m.valid_to IS NULL
     ) m
 )
 SELECT snapshot_id,line->>'transaction_id' AS source_line_id,

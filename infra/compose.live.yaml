@@ -1,0 +1,61 @@
+# Daily append-only source environment; use together with compose.yaml.
+# No dataset selector and no new PostgreSQL/Airflow instance.
+services:
+  ebay-sim:
+    profiles: ["live"]
+    environment:
+      SIMULATOR_MODE: live-pg
+      S02_DB_PASSWORD: ${S02_EBAY_READER_PASSWORD:?set S02_EBAY_READER_PASSWORD in .env}
+  etsy-sim:
+    profiles: ["live"]
+    environment:
+      SIMULATOR_MODE: live-pg
+      S02_DB_PASSWORD: ${S02_ETSY_READER_PASSWORD:?set S02_ETSY_READER_PASSWORD in .env}
+  airflow:
+    profiles: ["live"]
+    environment:
+      S02_LOCAL_PLAYBACK: "false"
+      POLLING_LIVE_CURRENT_TIME: "true"
+      POLLING_DRAIN_FILE: /opt/airflow/state/polling-drain
+      POLLING_MAPPING_VERSION: local-live-v1
+      WEBSITE_POLL_INTERVAL_SECONDS: ${LIVE_POLL_INTERVAL_SECONDS:-60}
+      EBAY_POLL_INTERVAL_SECONDS: ${LIVE_POLL_INTERVAL_SECONDS:-60}
+      ETSY_INBOX_INTERVAL_SECONDS: ${LIVE_POLL_INTERVAL_SECONDS:-60}
+      ETSY_RECOVERY_INTERVAL_SECONDS: ${LIVE_POLL_INTERVAL_SECONDS:-60}
+      POLLING_SLOT_WAIT_SECONDS: ${LIVE_SLOT_WAIT_SECONDS:-300}
+      WEBSITE_POLL_INITIAL_START: "2026-01-08T00:00:00Z"
+      EBAY_POLL_INITIAL_START: "2026-01-08T00:00:00Z"
+      ETSY_RECOVERY_INITIAL_START: "2026-01-08T00:00:00Z"
+  etsy-receiver:
+    profiles: ["live"]
+  report:
+    profiles: ["live"]
+  scheduler-observer:
+    profiles: ["live"]
+  live-source:
+    profiles: ["live"]
+    build:
+      context: ..
+      dockerfile: infra/python/Dockerfile.live-source
+    restart: unless-stopped
+    environment:
+      MARKETPLACE_WRITER_PASSWORD: ${MARKETPLACE_WRITER_PASSWORD:?set MARKETPLACE_WRITER_PASSWORD in .env}
+      WEBSITE_WRITER_PASSWORD: ${WEBSITE_WRITER_PASSWORD:?set WEBSITE_WRITER_PASSWORD in .env}
+      WEBSITE_DB_HOST: postgres
+      ETSY_SIGNING_SECRET: ${ETSY_SIGNING_SECRET:-whsec_bG9jYWwtczAxLXRlc3Qtc2VjcmV0}
+      ETSY_RECEIVER_URL: http://etsy-receiver:8000/webhooks/etsy
+    depends_on:
+      postgres:
+        condition: service_healthy
+      etsy-receiver:
+        condition: service_healthy
+      ebay-sim:
+        condition: service_healthy
+      etsy-sim:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import time; from pathlib import Path; assert time.time()-float(Path('/tmp/live-source-heartbeat').read_text())<120"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s

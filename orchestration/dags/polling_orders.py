@@ -1,4 +1,4 @@
-"""Opt-in current-clock polling. No source fixtures, SQL transformations or IO at parse."""
+"""Opt-in current-clock polling. No source data or business SQL at parse."""
 from datetime import timedelta
 import os
 import subprocess
@@ -6,7 +6,9 @@ import subprocess
 import pendulum
 from airflow.sdk import dag,task,get_current_context,Param
 from airflow.sdk.exceptions import AirflowFailException
-from orchestration.scheduling import periodic_schedule
+from orchestration.scheduling import periodic_schedule, slot_wait_seconds
+
+SLOT_WAIT_SECONDS = slot_wait_seconds()
 
 
 def invoke(source, abort=False):
@@ -14,7 +16,8 @@ def invoke(source, abort=False):
     prefix='WEBSITE' if source=='internal_web' else 'EBAY'
     command=['/opt/airflow/project-venv/bin/python','-m','orchestration.polling',
         '--source',source,'--execution-id',c['run_id'],'--dag-id',c['dag'].dag_id,
-        '--wait-seconds','15',
+        '--mapping-version',os.environ.get('POLLING_MAPPING_VERSION','s01-v1'),
+        '--wait-seconds',str(SLOT_WAIT_SECONDS),
         '--window-end',c['data_interval_end'].isoformat(),
         '--overlap-seconds',os.environ.get('POLL_OVERLAP_SECONDS','120')]
     initial=os.environ.get(prefix+'_POLL_INITIAL_START','')

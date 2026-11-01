@@ -7,6 +7,9 @@ import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlencode, urlsplit
+from simulator.s02_store import Store, control as handle_control
+from simulator.s02_temporal import make_store, PostgresStore, LivePostgresStore
+from simulator.http_faults import Faults
 
 ROOT = '/sell/fulfillment/v1/order'
 
@@ -15,20 +18,24 @@ class State:
     def __init__(self, fixtures):
         self.fixtures = Path(fixtures)
         self.lock = threading.Lock()
+        self.s02 = make_store('ebay')
         self.configure({'state': '0912'})
 
     def configure(self, value):
+        faults = Faults(value.get('transport_fault'))
         name = value.get('state', '0912')
         if name not in ('0902', '0912'):
             raise ValueError('unsupported source state')
         with self.lock:
-            self.data = json.loads((self.fixtures / f'{name}.json').read_text())
+            self.data = (json.loads((self.fixtures / f'{name}.json').read_text())
+                         if self.s02 is None else {})
             self.repeat = bool(value.get('repeat_page', False))
             self.extra_order = bool(value.get('extra_order', False))
             self.bad_next = bool(value.get('bad_next', False))
             self.fail_offset = value.get('fail_offset')
             self.error_status = int(value.get('error_status', 500))
             self.errors_left = int(value.get('errors_left', 0))
+            self.faults = faults
 
 
 def handlers(state):
@@ -37,14 +44,18 @@ def handlers(state):
             pass  # Never log Authorization or URL query credentials.
 
         def send_json(self, status, value):
-            raw = json.dumps(value, ensure_ascii=False, separators=(',', ':')).encode()
+            broken = state.faults.response(self.path, status)
+            raw = broken if broken is not None else json.dumps(value, ensure_ascii=False, separators=(',', ':')).encode()
             self.send_response(status)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(raw)))
             if status == 429:
                 self.send_header('Retry-After', '0')
             self.end_headers()
-            self.wfile.write(raw)
+            try:
+                self.wfile.write(raw)
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # Expected when the timeout test client has disconnected.
 
         def do_GET(self):
             if self.path == '/health':
@@ -60,6 +71,10 @@ def handlers(state):
         def serve(self):
             split = urlsplit(self.path)
             query = parse_qs(split.query)
+            if split.path=='/s02/clock' and not query and isinstance(state.s02,PostgresStore) and not isinstance(state.s02,LivePostgresStore):
+                return self.send_json(200,state.s02.clock())
+            if state.s02 is not None:
+                return self.serve_s02(split, query)
             data = state.data
             order = copy.deepcopy(data['order'])
             if state.extra_order and split.path.startswith(ROOT + '/12-10001-10002'):
@@ -110,11 +125,71 @@ def handlers(state):
                     return self.send_json(200, fulfillment)
             return self.send_json(404, {'error': 'not found'})
 
+        def serve_s02(self, split, query):
+            from datetime import datetime
+            if split.path == ROOT:
+                match = re.fullmatch(r'lastmodifieddate:\[(.+)\.\.(.+)\]', query.get('filter', [''])[0])
+                if not match or set(query) - {'filter', 'limit', 'offset'} or any(len(v) != 1 for v in query.values()):
+                    raise ValueError('bounded filter required')
+                start, end = (datetime.fromisoformat(x.replace('Z', '+00:00')) for x in match.groups())
+                limit, offset = int(query.get('limit', ['50'])[0]), int(query.get('offset', ['0'])[0])
+                if offset == state.fail_offset and state.errors_left > 0:
+                    state.errors_left -= 1
+                    return self.send_json(state.error_status, {'error': 'intentional test fault'})
+                if start.tzinfo is None or end.tzinfo is None or start > end or not 1 <= limit <= 200 or offset < 0:
+                    raise ValueError('invalid bounds/page')
+                if isinstance(state.s02, PostgresStore):
+                    # Deliberately repeat the first logical order for a named
+                    # test only; ordinary live pages are unchanged.
+                    at = max(0, offset - 1) if state.repeat and offset else offset
+                    size = max(1,limit-1) if state.repeat and offset == 0 else limit
+                    values, total = state.s02.query(start=start,end=end,limit=size,offset=at)
+                    if state.repeat and total:
+                        total += 1
+                        if offset == 0 and limit > 1:
+                            values = [values[0], *values][:limit]
+                    rows = [v['order'] for v in values]
+                else:
+                    ordered = sorted(state.s02.rows.values(), key=lambda v: (state.s02.identity(v)[1], v['order']['orderId']))
+                    available = [copy.deepcopy(v['order']) for v in ordered if start <= state.s02.identity(v)[1] <= end]
+                    total, rows = len(available), available[offset:offset+limit]
+                for row in rows:
+                    row['cancelStatus']['cancelRequests'] = []
+                def href(at):
+                    return os.environ.get('EBAY_PUBLIC_ORIGIN', 'http://ebay-sim') + ROOT + '?' + urlencode(
+                        dict(filter=query['filter'][0], limit=limit, offset=at))
+                result = dict(orders=rows, total=total, limit=limit, offset=offset, href=href(offset))
+                if offset + limit < total:
+                    result['next'] = 'http://untrusted.invalid/steal' if state.bad_next else href(offset + limit)
+                if offset:
+                    result['prev'] = href(max(0, offset-limit))
+                return self.send_json(200, result)
+            if isinstance(state.s02, PostgresStore):
+                match = re.fullmatch(re.escape(ROOT)+r'/([^/]+)(?:/shipping_fulfillment(?:/([^/]+))?)?',split.path)
+                if not match or query:
+                    return self.send_json(404, {'error':'not found'})
+                value = state.s02.get(match[1])
+                candidates = [(match[1],value)] if value else []
+            else:
+                candidates = state.s02.rows.items()
+            for identity, value in candidates:
+                path = ROOT + '/' + identity
+                if split.path == path and not query:
+                    return self.send_json(200, value['order'])
+                if split.path == path + '/shipping_fulfillment' and not query:
+                    return self.send_json(200, dict(total=len(value['fulfillments']), fulfillments=value['fulfillments']))
+                for fulfillment in value['fulfillments']:
+                    if split.path == path + '/shipping_fulfillment/' + fulfillment['fulfillmentId'] and not query:
+                        return self.send_json(200, fulfillment)
+            return self.send_json(404, {'error': 'not found'})
+
     class Control(API):
         def do_GET(self):
             self.send_json(404, {'error': 'test control only'})
 
         def do_POST(self):
+            if handle_control(self, state):
+                return
             if self.path != '/state':
                 return self.send_json(404, {})
             try:

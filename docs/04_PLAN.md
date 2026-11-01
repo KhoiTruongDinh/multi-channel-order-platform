@@ -1,4 +1,9 @@
-# D. Delivery plan and AI coding workflow — DRAFT
+# D. Delivery plan and AI coding workflow
+
+Current M08B daily-live revision (2026-11-01): start-once/manual-append workflow
+and whole-M08 fault review are in16_M08_LIVE_LOCAL.md. Its current acceptance
+status is in STATUS. Older completion statements below describe prior isolated/
+replay revisions, not automatic sign-off of changed operator workflows.
 
 ## D1. Milestones and completion evidence
 
@@ -112,32 +117,117 @@ rollback-only 100k target-query EXPLAIN benchmark. This is NOT million-order
 ingestion certification: retained-history dbt rebuild/source-snapshot publication
 remain explicit limits. No source contract changes, reset or M08 generator.
 
-M08 — Recovery and portfolio release: exercise old/repeated versions,
-429/500/timeouts, interrupted work, missing mappings and failed publication;
-add smoke CI and reproducible fresh-setup and restart instructions. Package two
-separate demos: unchanged deterministic S01, and an opt-in continuous local demo
-whose simulator/driver emits current-clock source changes through the real source
-interfaces. The driver stays outside ingestion/DAGs and never writes warehouse
-answers. Preserve the S01 fixture bytes/timeline; continuous-demo counts are not
-the S01 golden counts. Acceptance: combined golden/recovery checks pass; another
-setup follows README without relying on the owner's retained raw; after a single
-documented startup/enable step, source changes, polling/webhook processing and
-publication continue across at least two scheduler cycles without per-cycle
-commands. Demonstrate restart, pause/resume and visible failure/staleness without
-resetting user data. Run destructive fresh-bootstrap tests only on explicitly
-disposable isolated test storage. Record measured laptop resource use; no
-large-scale claim from S01. Suggested owner commit: test: verify recovery and
-package reproducible demos.
+M08 — S02 verification and stabilization, split by owner direction on 2026-10-30.
+The earlier combined recovery/portfolio milestone is superseded by the gates below.
+Read [10_S02_TEST_STRATEGY.md](10_S02_TEST_STRATEGY.md) before implementation.
+These are gated deliverables; M08A local acceptance is recorded in STATUS.
+Current M08B operation is the single-stack daily live path in
+[16_M08_LIVE_LOCAL.md](16_M08_LIVE_LOCAL.md): start once, append manual batches.
+Its finite correctness gates passed locally; retained failures and current health
+remain visible in STATUS. Older RAM/temporal/replay revisions are regression
+references, not additional daily setup or empty-owner-dataset requirements.
+Owner authorized M08C on 2026-11-01, then explicitly paused further campaigns and
+requested a checkpoint commit and M09 CV/demo packaging. Recovery inventory:
+[17_M08C_RECOVERY.md](17_M08C_RECOVERY.md). M08C is paused/incomplete, not certified
+by B or by component tests. M08D is deferred. M09 packaging is now authorized,
+but full release certification still requires the original C/D gates. Generated
+code is not runtime evidence; see STATUS.
 
-Dependencies: M00 → M01 → M02 → M03 → M04 → M05 → M06 → M07 → M08. Validate report queries in M03 and extend them with each source. M07 adds the complete presentation, not the first discussion of report requirements. Scope and status can evolve in Git with explicit evidence.
+- **M08A — Isolated test environment and safety harness.** Separate Compose project,
+  named volumes, ports, credentials, Airflow/dbt/log/artifact bind paths and explicit
+  disposable-environment verification. Cold bootstrap/rerun existing S01 checks in
+  test storage, compare protected owner-environment signatures before/after, and
+  reject wrong/missing targets before any fault/reset operation. Add basic offline
+  CI now; finalize reproducible baseline and evidence formats. Acceptance: clean
+  isolated bootstrap + rerun/persistence + guard-negative tests PASS, no owner
+  dataset/final runtime drift. A temporary owner-Airflow stop/restore requires
+  separate explicit authorization and verified restoration. No generator, load
+  or crash campaign yet.
+  Finalized harness policy: [11_M08A_ISOLATION.md](11_M08A_ISOLATION.md); local
+  baseline/guard acceptance passed; owner confirmed completion, Git checkpoint pending. Exact evidence
+  and small-VM test-window limits are in STATUS; no B-D acceptance is implied.
+- **M08B — S02 generator and continuous correctness.** Daily workflow revised
+    on2026-11-01: start DB-backed SIMs/source worker/pipelines once, then append
+    manual batches without campaign selection or checkpoint reset. Acceptance
+    must exercise user-facing live-up/generate and at least two batches through
+    actual schedules; old isolated PASS does not certify this path. Design and
+    M08 fault boundaries: [16_M08_LIVE_LOCAL.md](16_M08_LIVE_LOCAL.md).
+    External seeded driver
+  changes website source transactions and marketplace simulator state; Etsy emits
+  signed notifications. Pipeline access remains website read-only/marketplace HTTP.
+  Baseline/continuous profiles, bounded generation and independent test-only ledger;
+  actual observation evidence, not all generated transitions, defines history.
+  Acceptance: source/account/money/state/lineage checks PASS; all three paths publish
+  current source changes through at least two real scheduled successes per path
+  after one documented enable step; eventual final-state reconciliation and replay
+  dedupe PASS. Add bounded integration CI; retain unchanged S01 suite separately.
+  Finalized finite profiles, control/ledger/oracle boundaries and small-VM settings:
+  [12_M08B_CONTINUOUS.md](12_M08B_CONTINUOUS.md). Current runtime evidence in STATUS.
+  Owner requested richer S02 inputs on2026-10-31: 30 mapped products,100 synthetic
+  customers and variable line/quantity counts. Offline reference/payload helpers
+  are implemented, including runtime bootstrap and immutable dataset/version wiring.
+  Storage, fresh CLI reconciliation and final-code scheduled/replay checks have
+  separate PASS evidence in STATUS. Owner authorized C on2026-11-01; current
+  health and incomplete recovery gates remain explicitly recorded in STATUS.
+  See [13_S02_GENERATION.md](13_S02_GENERATION.md); previous v1 PASS is not diversity
+  runtime acceptance. Do not silently replace v1 totals or S01 mappings.
+  Revised source-storage implementation: prepare immutable source versions/components
+  in isolated `marketplace_sim`, serve as-of source state via unchanged HTTP,
+  with no runtime marketplace business-status UPDATE required. Website keeps its
+  approved SQL/writer interface. Finalize physical schema/clock/source branch
+  matrix before DDL; [14_S02_TEMPORAL_SOURCE.md](14_S02_TEMPORAL_SOURCE.md) documents
+  the implemented opt-in backend. STATUS distinguishes storage/CLI/scheduled
+  evidence and remaining gates; this is not a certified load profile.
+- **M08C — Recovery, restart and pause/resume.** Execute the fault/lifecycle matrix:
+  API/page failures, duplicate/out-of-order/omitted webhooks, interrupted raw/work,
+  lease fencing, frozen batch/dbt/publish faults, bounded retry exhaustion, service
+  restart and abrupt process loss. Pause while sources advance, resume and verify
+  supported catch-up without inventing missed history. Acceptance: each required
+  case has reproducible evidence and the documented automatic OR explicit operator
+  recovery outcome; failed gates retain last-good publication and all audits.
+  Fix discovered correctness bugs and rerun affected regression before advancing.
+- **M08D — Load, burst, soak and bottleneck stabilization.** Opt-in isolated tests
+  with declared source mix, initial history/line cardinality, offered rate, bounded
+  duration, resource ceilings and stop conditions. Measure actual generation vs
+  logical processing, publication latency, backlog/drain, errors/retries and laptop
+  resources. First measure baseline, then make evidence-driven bounded fixes and
+  rerun the same workload plus regressions. Acceptance: a declared normal-load
+  envelope meets predeclared correctness/latency/drain limits; burst/soak and any
+  optional stress ceiling have honest results, not fabricated capacity claims.
+  Saturation is not a correctness failure by itself; silent loss/corruption is.
+
+Review and stop after EACH part. Physical changes need finalized fields/constraints
+before DDL. Major incremental/release redesign requires its own scoped acceptance,
+not a silent widening of M08D. Leave changes unstaged unless currently authorized.
+
+M09 — Portfolio and reproducibility packaging. Owner priority revision (2026-11-01):
+prepare evidence-backed CV text, architecture/review map and separate demo paths
+now; label C/D incomplete/deferred and known availability/performance limits.
+Do not run more fault/load campaigns during the pause. Documentation packaging
+does not certify the runtime as production-ready. The original full release
+acceptance below remains pending until M08D acceptance and outstanding checks.
+
+Full release scope:
+Publish tested fresh-setup/restart/recovery instructions and two distinct demos:
+unchanged deterministic S01 and opt-in continuous S02. Expand CI around the already
+working smoke/integration suites; document measured hardware/workload/limits,
+known unsupported cases and a sanitized evidence index. Acceptance: another setup
+can follow README from fresh isolated storage without the owner's retained raw;
+demo, reproducibility and selected CI checks PASS. Do not defer operational runbooks
+or minimal regression CI needed by M08A-C until M09. No live-vendor certification
+or general million-order claim. Suggested owner commit: docs: package verified
+multi-channel demos and recovery evidence.
+
+Release dependencies: M00 → M01 → M02 → M03 → M04 → M05 → M06 → M07 → M08A → M08B → M08C → M08D → M09 certification. Owner-approved exception: M09 documentation/CV packaging may proceed from the current partial checkpoint; it does not satisfy deferred runtime gates. Validate report queries in M03 and extend them with each source. M07 adds the complete presentation, not the first discussion of report requirements. Scope and status can evolve in Git with explicit evidence.
 
 ### Completion rules for automatic operation
 
 Use [06_AUTOMATION.md](06_AUTOMATION.md) for clock modes, polling windows,
 cross-source release serialization, attempt budgets and scheduler evidence.
 M05B delivers automatic local website/eBay polling; M06 delivers scheduled Etsy
-work/recovery around its always-on receiver; M08 adds an unattended changing-source
-demo and clean-setup proof. A frozen fixture can return valid empty windows forever;
+work/recovery around its always-on receiver; M08A proves isolated clean setup,
+M08B adds unattended changing-source correctness, M08C verifies recovery/lifecycle,
+M08D measures load and M09 packages reproducibility. A frozen fixture can return valid empty windows forever;
 a running scheduler alone is not evidence of new source data or complete history.
 
 ## D2. Repository instructions and continuity
@@ -162,19 +252,29 @@ Example task: Read AGENTS.md and docs/STATUS.md. Implement M01 from docs/04_PLAN
 
 ## D4. Decision provenance and actual status
 
-Approved: S01, source contract v0.1, website schema/rules, eBay/Etsy selected schemas/rules, F01–F05 solution direction and the practical DE scope. Required: dbt and Airflow. New reporting/tool details, physical schema/release strategy and this milestone plan remain DRAFT for review.
+Approved: S01, source contract v0.1, website schema/rules, eBay/Etsy selected
+schemas/rules, F01–F05 solution direction and the practical DE scope. Required:
+dbt and Airflow. M01-M07 routine implementation choices and acceptance are recorded
+in STATUS. Owner requested the M08A-D/M09 roadmap split on 2026-10-30; this approves
+the planning direction, not unimplemented runtime behavior or unspecified physical
+schemas. New material semantic/architecture choices still require review, and
+each planned part must pass its own acceptance before the next begins.
 
-Existing progress (2026-10-29): M01-M06 are committed locally; M05A eBay HTTP
+Existing progress (2026-10-30): M01-M07 are committed locally; M07 is
+`7f459aba8ac2b545ac14b82259a6579bcd25f91b`. M05A eBay HTTP
 acquisition/dbt/allocation/publication and M05B scheduling/restart/budget checks
 passed and the owner approved the result. M06 owner sign-off, final checks and
-commit are recorded in STATUS. M07 local report/SQL/AppTest acceptance passed;
-M07 changes remain unstaged for review.
+commit are recorded in STATUS. M07 local report/SQL/AppTest acceptance passed and
+the owner approved its local commit. M08A is locally implemented/verified and
+owner confirmed completion; M08B passed local case-based acceptance and awaits review.
+M08C has partial implementation/runtime evidence and is paused; M08D is deferred.
+M09 documentation packaging is authorized; full release certification is pending.
 The fixed fixture pack
 passes 10 offline checks and 10 utility unit tests. M05 additionally passes 7 HTTP
 tests, SQL fingerprint/evidence tests, and shared M03 command regression. M06 adds
 Etsy security/lease/fingerprint/SQL tests and real scheduled/fault checks. The
 dashboard adds report/live-health/role/filter/UI checks. Combined changing-source/
-cold recovery remains M08 work. Exact commands,
+cold recovery/load stabilization remain M08A-D work; portfolio release is M09. Exact commands,
 run/batch IDs, intermediate failures and limits are recorded in STATUS.md.
 
 Accepted limits: no fabricated unobserved snapshots; no general Etsy shipment-to-transaction allocation; no confirmed refunds/delivery/revenue recognition without evidence; no live vendor certification or scale claim. Keep optional AI investigation outside the first delivery.

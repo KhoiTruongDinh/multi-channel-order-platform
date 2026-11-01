@@ -6,14 +6,17 @@ import subprocess
 import pendulum
 from airflow.sdk import dag, task, get_current_context, Param
 from airflow.sdk.exceptions import AirflowFailException
-from orchestration.scheduling import periodic_schedule
+from orchestration.scheduling import periodic_schedule, slot_wait_seconds
+
+SLOT_WAIT_SECONDS = slot_wait_seconds()
 
 
 def invoke(mode, abort=False):
     ctx = get_current_context()
     command = ['/opt/airflow/project-venv/bin/python', '-m', 'orchestration.polling',
                '--source', 'etsy_sim', '--collection-mode', mode,
-               '--wait-seconds','15',
+               '--mapping-version',os.environ.get('POLLING_MAPPING_VERSION','s01-v1'),
+               '--wait-seconds',str(SLOT_WAIT_SECONDS),
                '--reuse-cycle-config',
                '--execution-id', ctx['run_id'] + ':' + mode, '--dag-id', ctx['dag'].dag_id,
                '--airflow-run-id', ctx['run_id']]

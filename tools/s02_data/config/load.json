@@ -1,0 +1,10 @@
+{
+  "dataset": "local-s02-prepared-load", "timezone": "Asia/Bangkok",
+  "start_at": "2026-10-20T00:00:00+07:00", "end_at": "2026-10-21T00:00:00+07:00",
+  "order_seed": 17, "event_seed": 91, "profile": "normal",
+  "channels": {
+    "internal_web": {"orders": 1000,"peak_hours":[{"start":"19:00","end":"22:00","weight":3}]},
+    "ebay_sim": {"orders": 600,"peak_hours":[{"start":"09:00","end":"12:00","weight":2}]},
+    "etsy_sim": {"orders": 400,"peak_hours":[{"start":"20:00","end":"23:00","weight":4}]}
+  }
+}

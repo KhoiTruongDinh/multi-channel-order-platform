@@ -1,9 +1,25 @@
 # Local automation and acceptance contract
 
-Planning revision: 2026-10-28, following the owner's request to close orchestration
-gaps. M05B implements the website/eBay requirements below; exact runtime evidence
-and limits are in STATUS. M06 implements the local Etsy requirements; reporting
-and changing-source requirements remain future work.
+Daily local M08B live revision (2026-11-01): [live sources](16_M08_LIVE_LOCAL.md).
+Start source services/worker and schedules once; manual generate admits additional
+source batches without dataset configuration in consumers. Uses actual UTC,
+normal SQL/HTTP interfaces and retained checkpoints. Per-batch clock selection
+below applies to explicit replay, not this live path. Acceptance status: STATUS.
+New live cycles use actual UTC at cycle entry, not stale Airflow interval ends;
+the window/policy is persisted and retries never resample it. Coordinator waits
+can still delay acquisition; this does not promise every source state is observed.
+
+Planning revision: 2026-10-30; the M08 stabilization split is defined in
+[10_S02_TEST_STRATEGY.md](10_S02_TEST_STRATEGY.md). M05B implements the website/eBay
+requirements below; exact runtime evidence
+and limits are in STATUS. M06 implements the local Etsy requirements; M07 reporting
+is implemented. M08A isolates test storage/runtime; M08B adds finite seeded S02
+generation/scheduled correctness with local case-based checks. Recovery faults/load remain
+planned M08C-D work. M09 packages verified demos. M08A's actual commands/
+prerequisites are in [the host harness guide](../test_support/README.md), with
+local acceptance and resource limits recorded in STATUS. Do not infer runnable
+C-D commands from this plan. B commands/limits are in
+[the S02 guide](../test_support/M08B.md); STATUS records actual acceptance.
 Approved S01 payloads, source interfaces, identities, money and observed-history
 rules remain fixed. The current executable checkpoint is in [STATUS.md](STATUS.md).
 
@@ -11,11 +27,11 @@ rules remain fixed. The current executable checkpoint is in [STATUS.md](STATUS.m
 
 | Path | Implemented now | Required delivery |
 | --- | --- | --- |
-| Website | M02/M03 pipeline, M04 manual S01 DAG, M05B opt-in periodic polling | M08 changing-source/recovery campaign |
-| eBay | M05A HTTP pipeline, M05B bounded periodic/replay DAGs | M08 changing-source/recovery campaign |
-| Etsy | M06 always-on receiver, leased work, scheduled inbox/recovery, tested publication | M08 changing-source/cold recovery campaign |
-| Changing local sources | Manual fixed-state playback | M08 opt-in independent current-clock simulator/driver demo |
-| Dashboard | Contract/SQL/views only | M07 read-only UI, per-source release labels and live failure visibility |
+| Website | M02/M03 pipeline, M04 manual S01 DAG, M05B opt-in periodic polling | M08A isolated setup; B generation; C recovery; D load |
+| eBay | M05A HTTP pipeline, M05B bounded periodic/replay DAGs | M08A isolated setup; B generation; C recovery; D load |
+| Etsy | M06 always-on receiver, leased work, scheduled inbox/recovery, tested publication | M08A isolated setup; B generation; C recovery; D load |
+| Changing local sources | Manual fixed-state playback | M08B opt-in independent current-clock S02 driver after A |
+| Dashboard | M07 read-only three-screen UI, release labels and real stage/slot/scheduler monitoring | S02 correctness/lag/load evidence in B-D; no automatic browser refresh implied |
 
 ## Clock and execution modes
 
@@ -35,13 +51,23 @@ initially; a restart reads the last successful checkpoint rather than pretending
 all missed intervals ran.
 
 **Continuous demo** additionally needs actual source changes with current-clock
-timestamps. M08's opt-in simulator/driver supplies them independently of the DAG.
+timestamps. M08B's finite opt-in simulator/driver supplies them independently of the DAG.
 Polling a frozen S01 source may correctly return empty windows; it does not advance
 the source clock, create orders or recover previously unobserved history. Original
 S01 golden tests and continuous-demo assertions must use separate evidence/scopes.
 Do not mix historical and current-clock checkpoint state in the owner's dataset;
 use an explicitly isolated disposable acceptance environment or a separately
 designed operational scope. No automatic checkpoint rewind or data reset.
+
+S02 acceptance campaigns require the dedicated M08A isolated scope, including
+all writable bind mounts, not just a Compose project prefix. Everyday manual
+generation may instead use an explicitly clean local scope under document15;
+there is no automatic owner S01 transition. The generator/test ledger is inaccessible to
+pipeline/report services. M08C distinguishes graceful restart, abrupt process loss,
+normal DAG pause and drain maintenance; recovery may be a tested explicit operator
+procedure rather than guaranteed automatic handling. M08D adds bounded load,
+burst/soak and predeclared resource/deadline criteria; full-history rebuild/snapshot
+publication remain potential limits until measured and safely improved.
 
 ## Bounded polling and durable execution
 
@@ -144,8 +170,27 @@ approved sales/state definitions or select a second dashboard tool.
 - Exercise overlapping website/eBay releases in M05B and Etsy in M06; no shared
   candidates may be overwritten between freeze/test/publish. Verify source roles.
 - M06 demonstrates scheduled inbox draining and a missed-notification recovery
-  scan; M08 demonstrates new source changes automatically reaching the report
-  interface, cold setup and restart. Keep deterministic S01 counts separate.
+  scan; M08A proves isolated cold setup, B demonstrates changing-source processing,
+  C verifies lifecycle/recovery and D measures load/stability. M09 packages these
+  verified results. Keep deterministic S01 counts separate.
 - Publish tested startup, enable/pause/resume and controlled recovery instructions
   only when commands exist. Record all unrun checks in STATUS; a plan or green
   manually triggered run is not evidence of a working periodic schedule.
+
+## Opt-in S02 local business-clock revision
+
+The manual local workflow in `15_S02_LOCAL_WORKFLOW.md` adds a separate logical
+business time, not an Airflow/OS clock change. `S02_LOCAL_PLAYBACK=true` is set only
+by the explicit S02 overlay. Polling obtains replay/realtime source bounds from the
+authenticated simulator clock endpoint over HTTP, persists them with campaign/
+mode metadata in polling cycle settings, and reuses the same bounds on retry.
+Legacy `clock_mode=current` remains the physical schema label; the opt-in logical
+mode is explicitly recorded in `settings.logical_clock`, not falsely reported as
+changing the scheduler clock. Observed timestamps, leases, retries and signatures
+remain wall-clock UTC. Ordinary S01/current-clock operation is unchanged.
+Real scheduled acceptance of the new logical path is a separate gate in STATUS.
+Initial source materialization precedes polling enable: run the source-only
+driver while DAGs are paused, verify due rows/notifications, then enable once.
+The finite runner enforces this barrier rather than allowing an empty startup
+watermark to skip subsequently inserted old planned timestamps. A prepared
+dataset is not itself proof that Website source rows are already materialized.

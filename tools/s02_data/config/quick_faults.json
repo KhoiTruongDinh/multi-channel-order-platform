@@ -1,0 +1,27 @@
+{
+  "dataset": "local-s02-quick-faults",
+  "timezone": "Asia/Bangkok",
+  "duration_minutes": 6,
+  "order_seed": 17,
+  "event_seed": 91,
+  "profile": "faults",
+  "channels": {
+    "internal_web": {
+      "orders": 6,
+      "delay_seconds": [45, 60],
+      "required": {"pending": 1, "request": 1, "cancel": 1}
+    },
+    "ebay_sim": {
+      "orders": 6,
+      "basket": {"lines_min": 2, "lines_max": 8, "quantity_min": 1, "quantity_max": 5},
+      "delay_seconds": [45, 60],
+      "required": {"pending": 1, "partial": 1, "ship": 1}
+    },
+    "etsy_sim": {
+      "orders": 6,
+      "delay_seconds": [45, 60],
+      "required": {"pending": 1, "ship": 1},
+      "notifications": {"omit": 1, "duplicate": 1}
+    }
+  }
+}

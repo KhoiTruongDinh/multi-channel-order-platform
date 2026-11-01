@@ -1,5 +1,17 @@
 # C. Technical architecture and pipeline — DRAFT
 
+Daily local workflow revision2026-11-01: [live source contract](16_M08_LIVE_LOCAL.md).
+One stack, DB-backed marketplace HTTP, persistent source-only Website/webhook
+worker, actual-time scheduled ingestion and manual append-only generation. No
+per-batch pipeline campaign setting or empty-warehouse requirement in live mode.
+Legacy replay remains a separate explicit test tool. Verification is in STATUS.
+
+S02-only opt-in backing-store revision (acceptance status in STATUS):
+[pre-generated temporal marketplace sources](14_S02_TEMPORAL_SOURCE.md).
+Simulator reconstructs current source JSON from immutable DB versions as of a
+shared clock. Collectors retain HTTP-only marketplace access; no direct event-table
+ingestion, golden-output access or change to the approved Website SQL interface.
+
 ## C1. Local implementation constraints
 
 Start locally with controlled workloads on the available laptop: Intel i5-8250U, 12 GB RAM, SSD. No laptop benchmark has been performed. One PostgreSQL instance and one small API service are a proposed starting point, with logical separation and access controls rather than multiple heavy servers.
@@ -214,7 +226,8 @@ changing canonical warehouse states or inventing an Etsy parcel bridge. Technica
 health and publication IDs are separate from the default worklist. This remains
 read-only decision support, not an order-management write-back application.
 Airflow task logs, application logs and dbt artifacts retain run/batch/entity/raw
-links outside the dashboard. General remediation/retention packaging remains M08.
+links outside the dashboard. M08A-D now own isolated testing, changing sources,
+recovery and measured stabilization; M09 owns verified portfolio/retention packaging.
 
 The approved M07 scale revision supersedes the earlier whole-table reader and
 default worklist layout: three English screens, SQL-side aggregates/filtering,
@@ -228,6 +241,44 @@ real UTC/monotonic clocks, not old S01 observation clocks. An isolated observer
 reads Airflow metadata and exports sanitized DAG/heartbeat samples; report never
 receives its credentials. See `09_M07_SCALE_MONITORING.md` for finalized fields,
 staleness rules, benchmarks and remaining full-history/full-snapshot limits.
+
+The planned S02 harness/driver stays outside the pipeline in a separately isolated
+Compose environment, including writable runtime binds. No source writer, expected-
+answer ledger or test-control privilege enters collectors/dbt/DAGs/report. See
+`10_S02_TEST_STRATEGY.md` for observation-aware reconciliation, crash boundaries,
+pause vs drain semantics and load limits. This planning split adds no physical
+schema, new runtime service or claim that existing bottlenecks have been fixed.
+
+M08A now implements a host-only stdlib harness (`test_support/`), deriving a private
+standalone model from existing Compose services with isolated volume/network,
+writable binds, image tags, ports and credentials. No warehouse schema/pipeline
+change. Finalized guards/resources are in `11_M08A_ISOLATION.md`; initial local
+checks exposed a bootstrap health race and a dual-Airflow/Engine availability
+failure. STATUS, not generated tooling, decides whether M08A runtime acceptance
+has passed. At that checkpoint B-D source generation, recovery faults and load
+were not yet implemented; the following paragraph records the B follow-up.
+
+M08B adds an external finite seeded driver/host-only test ledger and independent
+oracle, opt-in bounded marketplace current-state stores on authenticated control
+listeners, and a transactional source-only website writer. Existing collectors,
+dbt, publish controller and DAG topology remain unchanged. DAG coordinator wait
+is now bounded/configurable (default15s unchanged, B300s), with an opt-in private
+maintenance signal to stop new intervals while unpaused work finishes. B reuses A isolation with an
+explicit profile marker; test secrets/control privileges never enter pipeline
+services. Source inputs and test truth are not mounted into collectors/DAGs/report.
+No warehouse DDL or new dependency. B stores are in memory: restart persistence,
+fault handling and load are NOT certified by B. See `12_M08B_CONTINUOUS.md` and
+STATUS for the gate/actual evidence, not a claim from generated tooling.
+
+The owner-approved stable local revision now centralizes manual preparation in
+`tools/s02_data`, reuses one local stack via an explicit overlay, and stores
+Website plans/references/playback control alongside immutable marketplace versions.
+It adds per-channel peak sampling and separate purchase/event streams. Simulator
+clock metadata reaches opt-in polling only through authenticated HTTP, never a
+collector connection to backing storage. See `15_S02_LOCAL_WORKFLOW.md` for the
+pre-DDL physical contract, activation refusal rules and separate verification
+gates. Historical RAM/isolated PASS above does not certify this new path. No
+automatic S01 reset or local activation occurs during code delivery.
 
 Technical references: https://docs.getdbt.com/docs/build/sources ; https://docs.getdbt.com/docs/build/data-tests ; https://docs.getdbt.com/best-practices/how-we-handle-cdc/2-choosing-incremental-or-snapshots ; https://airflow.apache.org/docs/apache-airflow/stable/core-concepts/overview.html ; https://www.postgresql.org/docs/current/datatype-binary.html . Pin compatible versions during bootstrap.
 

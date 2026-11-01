@@ -4,6 +4,7 @@ import json
 import re
 import sys
 import time
+import os
 from datetime import datetime, timedelta, timezone
 
 from psycopg.types.json import Jsonb
@@ -28,6 +29,10 @@ def prepare(args):
     if args.source=='etsy_sim':
         settings['collection_mode']=args.collection_mode
         settings['checkpoint_stream']=args.checkpoint_stream
+    if getattr(args,'logical_clock',None):
+        settings['logical_clock']=args.logical_clock
+    if getattr(args,'window_policy',None):
+        settings['window_policy']=args.window_policy
     config=('runtime','current',args.mapping_version,args.transformation_version,args.overlap_seconds,settings)
     with workflow.connect() as conn:
         # Same-cycle preparation must not race checkpoint advancement or itself.
@@ -42,7 +47,7 @@ def prepare(args):
                 if prior[1]!=args.window_end or prior[2]!=args.dag_id:
                     raise ValueError('existing cycle has different bounds/context/configuration')
                 args.mapping_version,args.transformation_version,args.overlap_seconds=prior[5:8]
-                if set(prior[8])-{'fault_after_raw_once','fault_after_freeze_once','inject_test_failure','collection_mode','checkpoint_stream'}:
+                if set(prior[8])-{'fault_after_raw_once','fault_after_freeze_once','inject_test_failure','collection_mode','checkpoint_stream','logical_clock','window_policy'}:
                     raise ValueError('unsupported persisted cycle settings')
                 for key,value in prior[8].items():
                     setattr(args,key,value)
@@ -161,6 +166,31 @@ def main():
         p.error('invalid Etsy checkpoint scope')
     if args.overlap_seconds<0 or args.wait_seconds<0:
         p.error('overlap/wait must be nonnegative')
+    if os.environ.get('S02_LOCAL_PLAYBACK')=='true':
+        # Retry uses its immutable prior bounds; never resample T for the same cycle.
+        cycle=workflow.identity(f'poll:{args.source}:{args.execution_id}','workflow')
+        with workflow.connect() as conn:
+            old=conn.execute('SELECT p.requested_window_end,c.settings FROM ops.pipeline_runs p JOIN ops.polling_cycles c USING(run_id) WHERE p.run_id=%s',(cycle,)).fetchone()
+        if old:
+            args.window_end=old[0]
+            args.logical_clock=old[1].get('logical_clock')
+        else:
+            from orchestration.source_clock import read
+            logical=read()
+            if not logical['running']:
+                print('Source playback stopped; no new cycle'); return
+            args.window_end=parse_time(logical['now'])
+            args.initial_start=parse_time(logical['initial_start'])-timedelta(seconds=1)
+            args.logical_clock={k:logical[k] for k in ('campaign_id','mode')}
+        args.mapping_version='s02-catalog-v1'
+    elif os.environ.get('POLLING_LIVE_CURRENT_TIME')=='true':
+        # A scheduled interval can be old by the time a queued task starts.
+        # Current-state APIs cannot reconstruct unobserved states as of that end.
+        from orchestration.live_window import bounds
+        cycle=workflow.identity(f'poll:{args.source}:{args.execution_id}','workflow')
+        with workflow.connect() as conn:
+            old=conn.execute('SELECT p.requested_window_end,c.settings FROM ops.pipeline_runs p JOIN ops.polling_cycles c USING(run_id) WHERE p.run_id=%s',(cycle,)).fetchone()
+        args.window_end,args.window_policy=bounds(old)
     prepare(args)
     coordinate(args)
 

@@ -1,5 +1,26 @@
 # M05A eBay local HTTP source
 
+Daily M08B workflow: [start-once live sources](../tools/s02_data/README.md).
+live-pg APIs read all admitted DB-backed batches; live-source continuously writes
+Website transactions and sends signed Etsy deliveries. Manual generate appends
+data without selecting a campaign in SIM/collector config. Legacy fixture,
+RAM and single-campaign replay modes below remain explicit regression tools.
+
+New opt-in `s02-pg` mode reconstructs current source JSON from immutable prepared
+PostgreSQL versions. It does not use RAM `/s02/upsert` and collectors still use
+HTTP. Read [temporal guide](../test_support/TEMPORAL.md) for NEW isolated IDs and
+[document14](../docs/14_S02_TEMPORAL_SOURCE.md) for schema/diagrams. Actual checks
+remain in STATUS; legacy RAM restart limitations below do not describe PG mode.
+
+M08B adds a separate OPT-IN seeded S02 scope, not a replacement for this fixed
+S01 interface. See [S02 runner](../test_support/M08B.md) and
+[source/control contract](../docs/12_M08B_CONTINUOUS.md). Default mode remains S01;
+only guarded B models enable empty bounded stores and authenticated `/s02/upsert`
+on the control listener. Collectors still use read-only data APIs. The website
+S02 writer updates source transactions without deleting historical purchase rows.
+Test ledger/oracle remain on the host; no service reads them. Restart durability
+of changing stores is not claimed by B.
+
 For the M06 local Etsy receipt/list simulator, signed sender and receiver/worker
 workflow, see [the Etsy operating guide](../orchestration/ETSY.md). These are local
 fixed subsets, not live vendor integrations.

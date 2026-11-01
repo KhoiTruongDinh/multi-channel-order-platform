@@ -1,0 +1,46 @@
+name: Offline smoke
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Fixed S01 offline verification
+        working-directory: fixtures/s01
+        run: |
+          python verify.py
+          python -m unittest -v test_tools.py
+      - name: Offline M08A isolation guards
+        run: python tests/test_m08a_guards.py
+      - name: Owner maintenance restoration guards
+        run: python tests/test_m08b_window.py
+      - name: S02 seeded source and HTTP guards
+        run: python tests/test_m08b_sources.py
+      - name: S02 diverse references and temporal preparation
+        run: |
+          python tests/test_s02_diverse.py
+          python tests/test_s02_temporal.py
+          python tests/test_s02_local.py
+          python tests/test_s02_clock.py
+          python tests/test_s02_local_scheduled.py
+          python tests/test_s02_live.py
+      - name: Preserve M06 scheduler defaults
+        run: python tests/test_m06_scheduling.py
+      - name: M08C inventory and target guards (stdlib only)
+        run: python tests/test_m08c.py
+      - name: Compile application and test code
+        run: python -m compileall -q tools ingestion simulator transformation orchestration reports test_support tests

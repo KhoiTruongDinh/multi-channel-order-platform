@@ -1,493 +1,202 @@
 # Actual project status
 
-Updated: 2026-10-30 (Asia/Bangkok).
-
-- Stage: owner accepted M07 and explicitly authorized its local milestone commit on 2026-10-30; acceptance and commit handoff checks are below. Parent M06 is `dfd8d58a6f2b0c5a696a4ac830233f988bc6395a` on `main`. Obtain the resulting M07 SHA from Git, not this commit's own contents. Preserve unrelated `HANDOFF_SHA256SUMS.txt`; no push. M08 not started.
-- Historical M04 Git checkpoint: created commit `21b9f4461105d0d09cfd96fbf31ba96b06a63981` (`feat: orchestrate website pipeline with Airflow`), 15 task-owned files, with owner authorization. Git identity, diff/check, Python compile, Compose config/health and the 10 fixture checks/10 utility tests passed before commit. Prior M04 runtime evidence below remains the acceptance record approved by the owner. Subsequent M05 commit is recorded below; this M06 task authorizes no Git write action.
-- Previous checkpoint (2026-10-26): the owner approved M03 commit `ca2e23cd21b8155a2a20cab72e0ae5b802e902d8` (`feat: transform and publish website orders with dbt`). At that checkpoint `main` and `origin/main` both pointed to that SHA and M04 was unstaged; the agent did not push. The current M04 commit is recorded above.
-- Approved and preserved: S01/source contracts, independent mapping version, observed-only history, source/account identity, amount grain/currency, and independent payment/fulfillment/cancellation state.
-- M01 technical direction accepted by the owner: PostgreSQL 16.15 Bookworm, one instance/four databases, named-volume persistence, idempotent migrations, least-privilege service roles, candidate `build` schema, and stable report views.
-- Git workflow updated by the owner on 2026-10-25: Codex leaves completed work unstaged for review; the owner normally stages, commits, and pushes. Codex performs Git write actions only when explicitly requested in the current task.
-- Implemented: target field dictionary; Compose PostgreSQL bootstrap; database/role boundaries; raw/ops/config/core/mart/report schemas; migration ledger and rerun command; four-row approved S01 mapping seed; empty stable publication tables/views; repeatable M01 database acceptance SQL.
-- Implemented through M02: the website source schema, fixed S01 source-state playback, consistent read-only website extraction, append-only raw acquisition evidence, run/checkpoint audit, interruption injection, replay evidence, and repeatable runtime acceptance runner.
-- Implemented through M03: website dbt sources/staging, source-content fingerprint parity, scoped product mapping, distinct observed order/line history and raw evidence links, current tables, four marts, frozen raw manifests, per-batch dbt artifacts, guarded batch lifecycle and atomic stable publication. Published website data now exists in core/mart/report.
-- Implemented through M04: pinned Airflow runtime, isolated metadata/project environments, bounded website DAG invoking reusable commands, deterministic workflow/batch identities, durable stage attempt budgets, failure audit/cleanup, real scheduler retry/restart checks, CLI/DAG business parity, and exhausted-budget protection after an actual task clear.
-- Implemented through M05A: fixed eBay list/order/shipping HTTP interfaces, durable raw/work and bounded request retries, source-specific dbt history/current/marts and atomic publication, exact dated line allocation, paging/replay/older-window/failed-release acceptance.
-- Implemented through M05B: opt-in periodic website/eBay DAGs, separate historical/runtime checkpoints and validation, immutable cycle configuration, whole-release coordination, optional environment UI credentials and real scheduled/restart/exhausted-budget acceptance.
-- Implemented through M06: durable signed webhook receiver, HTTP receipt/list recovery, token-fenced bounded work/replay, Etsy dbt/release and independently scheduled inbox/recovery paths. Local operation: `orchestration/ETSY.md`.
-- Implemented through M07: Streamlit operations/live-health report, restricted report views, scoped filters, manual refresh and consistent publication/business/health snapshot; guide `reports/README.md`.
-- Not implemented: generalized exception remediation and changing-source/cold-setup/recovery/CI demo (M08).
-
-## M07 owner acceptance / local commit handoff (2026-10-30)
-
-- Current task explicitly authorizes staging/committing M07 only, superseding
-  earlier leave-unstaged instructions for this milestone. Inspected branch/main,
-  M06 HEAD, worktree, tracked diff/new report/migration/controller/tests and local
-  tools before action. Git user.name/user.email are configured. No staged changes
-  existed on entry; unrelated untracked `HANDOFF_SHA256SUMS.txt` excluded.
-- Reran `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m07_report.ps1`:
-  exit0, final `M07 report PASS`; idempotent migrations, SQL/role/null-money/
-  scoped-identity probes rolled back, pinned image build, report health, sanitized
-  observer7 DAG samples, pip check, runtime boundaries, 9 rule tests and10 real-DB/
-  Streamlit tests PASS. S01 still3 orders/4 lines/6 units/USD124/6 versions. Bare-
-  mode ScriptRunContext warnings did not fail acceptance. No database/volume reset.
-- From `fixtures/s01`, `python verify.py` PASS10 offline checks and
-  `python -m unittest -v test_tools.py` PASS10. Root
-  `python -m compileall -q reports orchestration tests` and
-  `git -c core.autocrlf=false diff --check` PASS. Real pipeline/retry/failed-release,
-  focused M05/M06 regression and100k rollback benchmark evidence remains the
-  2026-10-29 record below; those campaigns were not repeated for this commit.
-- Stage only explicitly listed M07 files, inspect cached names/diff and run
-  `git diff --cached --check` before `git commit`. Never include `.env`, runtime,
-  caches, dbt artifacts or unrelated handoff. No push or history rewrite authorized.
-- Owner asked about M08 changing-source simulation/load testing. Explanation only:
-  an external simulator driver can generate source changes, with pipeline still
-  reading website read-only / marketplaces over HTTP. Continuous correctness demo
-  and opt-in isolated load tests are distinct; rates/limits/metrics need explicit
-  readiness criteria. No M08 generator, stress run or capacity guarantee added.
-  Next task is M08 readiness/implementation only after owner direction.
-
-## M07 multi-channel / scale / monitoring redo (2026-10-29)
-
-Current contract: `09_M07_SCALE_MONITORING.md`, finalized before dependent migration
-008. Supersedes the earlier whole-table reader/two-screen UI, NOT approved S01,
-source contracts, review precedence, identities, clocks or publication safety.
-Inspected AGENTS, STATUS/plan and relevant business/source/architecture/code,
-dirty Git worktree and available Python 3.12/PowerShell/Git/Docker/rg first.
-Existing M07 files were uncommitted; unrelated handoff and `.env` preserved.
-
-Implemented:
-
-- Three English screens: Multi-channel Overview (order/unit/review/version channel
-  comparisons, source-date activity and product chart), Order Operations (SQL
-  filters/exact ID/reason/worklist, all-match summary, 50-row keyset pages and
-  page-only inspection), Pipeline Monitoring (actual-time channel attempts/outcomes,
-  per-stage/slot p95 + sample count, duration time series, backlog, DAG samples).
-- Report SQL filtering/aggregation precedes fetch; no production all-order/line/
-  history reader or full-ID selector. SQL review function matches all120 Python
-  oracle combinations. Currency/Decimal/missing money/empty zero and source-account
-  grain remain intact. Page max100; selected detail max100 per collection with
-  truncation notice; top20 products; date max366days. Publication/filter-bound
-  cursors reset pages/detail. All business panel data/publication map in one report
-  role read-only REPEATABLE READ transaction; options/monitoring separately labeled.
-- Migration008 adds seek/lookup/history/time indexes, immutable real stage/slot
-  measurements, sanitized latest DAG observations, actual recording clock on NEW
-  work only and safe report projections. Backlog excludes successful inventory;
-  missing old recording clocks remain Unknown. Report receives no writer/Airflow
-  credentials. Isolated observer samples7 DAGs every30s, >90s sample/>120s heartbeat
-  stale; paused is distinct from enabled or idle.
-- Architecture correction: source/account session lock spans a polling cycle;
-  durable collect precedes global freeze/build/test/publish barrier, allowing
-  independent-source acquisition. Shared candidate safety, active-batch guard,
-  immutable config/checkpoints, resume semantics and five-attempt budgets retained.
-  Old source/scenario timestamps are not relabeled duration. Monotonic duration
-  and actual UTC apply only to new measurements. A recorded RUNNING is not liveness.
-- Synced local plan/business/architecture/schema/automation/provenance/report and
-  polling guides. External primary design references are linked in09. Google
-  exports unchanged. Full-history dbt rebuild, source-wide atomic snapshot publish,
-  window-materialized website extraction and single-host resources remain stated
-  large-volume limits; do not claim million-order ingestion capacity.
-
-Executed commands/results (repository root unless stated):
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/migrate.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m07_report.ps1
-Get-Content tests/m07_scale.sql -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T postgres psql --username postgres --dbname data_platform
-docker compose --env-file .env --file infra/compose.yaml --profile m04 build airflow
-docker compose --env-file .env --file infra/compose.yaml --profile m04 up --detach --wait --wait-timeout 300 airflow
-Get-Content tests/test_m07_pipeline.py -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T airflow /opt/airflow/project-venv/bin/python -
-docker compose --env-file .env --file infra/compose.yaml --profile m04 run --rm -T --no-deps --env PYTHONPATH=/repo --volume "${PWD}:/repo:ro" --volume "${PWD}/fixtures/s01:/fixtures/s01:ro" --entrypoint /opt/airflow/project-venv/bin/python airflow -c "import subprocess,sys; names=['test_m06_unit','test_m06_scheduling','test_m05_http','test_m05_fingerprint','test_m07_coordinator','test_m06_clock','test_m06_cycle','test_m06_draining','test_m06_sql','test_m06_leases','test_m05_constraints','test_m05b_invariants']; [subprocess.run([sys.executable,'/repo/tests/'+n+'.py'],check=True) for n in names]"
-Get-Content tests/m07_acceptance.sql -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T postgres psql --set ON_ERROR_STOP=1 --username postgres --dbname data_platform
-Get-Content tests/m06_probe.py -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T airflow /opt/airflow/project-venv/bin/python - check
-Get-Content tests/m01_acceptance.sql -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T postgres psql --set ON_ERROR_STOP=1 --username postgres --dbname data_platform
-docker compose --env-file .env --file infra/compose.yaml exec -T airflow airflow dags list-import-errors --output json
-python -m compileall -q reports orchestration tests
-git diff --check
-git diff --cached --name-only
-```
-
-- Migration/repeated migration PASS on retained storage. Report runner PASS after
-  corrections: SQL live-failure/secret/role probes rolled back, pip check clean,
-  9 review-rule tests, runtime credential/socket/fixture boundaries and10 real-SQL/
-  Streamlit tests. Covers S01 totals, product independence, exact/scope/currency/
-  empty filters, capped details, read-only RR, 120 rule cases, pagination/cursor
-  invalidation, all3 screens, selected Etsy, sanitized unavailable and next/previous
-  UI with a MOCKED million-order summary but only50 selectable rows. This mock is
-  UI boundary evidence, not a million-row runtime benchmark. Extended SQL probes
-  for same ID/different account, two unmapped lines and null money also PASS and
-  roll back. Streamlit bare-mode ScriptRunContext warnings are not test failures.
-  Final runner completed 2026-10-29 16:07 UTC, exit0, final `M07 report PASS`;
-  includes successful-work backlog exclusion and per-channel time-series fixes.
-- Actual pipeline test exit0: run `d0070a65-06f8-5f70-8ac7-2e4301ae8efd`, batch
-  `65ef5b39-6ce0-5417-8374-3e34da08e0de`. Real collect completed BEFORE release-slot
-  timeout with another session holding the global barrier; no freeze/build attempt
-  spent during contention. Retried same cycle reused collect; all4 stages succeeded,
-  and complete replay created no extra business attempts. dbt PASS54/54 (33 models,
-  17 data tests, 4 hooks); measured collect842.55ms, freeze35.64ms,
-  build/test35996.00ms, publish1144.36ms. Initial release-slot timeout6.31ms at
-  wait-seconds0. Current-clock empty acquisitions correctly observed0 orders, but
-  retained frozen history still published the existing S01 order, not new orders.
-- Injected failure run `52c68879-1c15-5b08-a339-a2ea9fd27c02`, batch
-  `dc6b8a50-635f-58b2-ae7a-c769ea552898`: dbt53 PASS/1 expected injected failure,
-  failed stage measured, abort closed batchFAILED, good publication unchanged.
-  Raw/acquisition/task/failure artifacts retained intentionally. Dashboard may warn
-  about this newer failure; it is acceptance evidence, not an erased incident.
-- Consolidated focused regression command exit0: M06 security7, scheduling4,
-  M05 HTTP7, fingerprint11 valid+2 invalid, coordinator3, backwards-clock lifecycle,
-  cycle4, draining5, Etsy SQL6 canonical/3 divisors/4 invalid, real HTTP lease reclaim/
-  token fencing/five-attempt exhaustion, fulfillment6 invalid and M05B immutable
-  config/artifact-mode checks. A source-slot timeout probe retains an explicitly
-  failed parent audit but allocates zero business attempts. Other probes roll back.
-- 100k target benchmark exit0 after setup correction: INSERT100000 history25.401s,
-  INSERT100000 current21.618s; report role EXPLAIN ANALYZE page51 rows via
-  `orders_report_seek_idx`1.501ms, exact ID via `orders_report_lookup_idx`0.157ms,
-  all-match source count100001 rows49.536ms. These are local DB execution times,
-  not UI latency/end-to-end throughput. All synthetic rows rolled back and absence
-  asserted; planner statistics refreshed. No volume/source reset or material data
-  deletion. Query benchmark contains target orders/history, not realistic million-
-  row line/audit/work cardinalities or concurrent production traffic.
-- M06 golden probe PASS (3 orders/4 lines/6 units/USD124/6 versions), M01 database
-  contract PASS, DAG imports `[]`; services healthy, observer running/sampling7
-  DAGs. Existing6 polling/replay DAGs stay paused; manual website_orders unpaused.
-  No DAG pause state changed. Zero unfinished transform batches. Host
-  `Invoke-RestMethod http://localhost:8501/_stcore/health` returned `ok`.
-- From `fixtures/s01`: `python verify.py` PASS10 offline checks and
-  `python -m unittest -v test_tools.py` PASS10 utility tests. Root Python compile
-  passes. Initial compile issued from fixture subdirectory printed cannot-list;
-  rerun from root is the valid result. Git HEAD/main unchanged, index empty.
-  PowerShell AST parsing for migrate/report runners, local Markdown link targets,
-  `git diff --check` and `rg -n '[ \t]+$'` over all new task files PASS. Git's
-  LF-to-CRLF notices are normalization warnings, not whitespace errors. Inspected
-  tracked diff and new report/migration/controller/test sources; no fixture or
-  secret changes, untracked handoff untouched.
-
-Intermediate failures corrected, not hidden: report privilege test initially
-resolved a prohibited schema-qualified name; fixed catalog OID assertion (did NOT
-grant access). Actual monitoring data exposed timezone-aware Altair serialization;
-fixed explicit ISO timestamps and per-channel/time aggregation. Legacy M05B probe
-mistook NULL+interval=NULL for a mutation on a M06 windowless drain; now COALESCE
-forces a real change and guard rejects it. Mocked clock test declares validation
-mode explicitly. Benchmark first60s insert timed out/rolled back; second setup
-was canceled at184.566s ONLY in the identified uncommitted benchmark session.
-Composite expansion recomputed JSON record construction per column; lateral
-record construction fixed setup, then full100k PASS above. One exploratory Compose
-exec with invalid `--volume-test` exited1, made no changes and is not a check.
-
-Not run/claimed: full M01–M06 destructive/restart/scheduled/exhaustion campaigns,
-real simultaneous multi-source load/hard-kill/concurrent-publication stress,
-million-order ingestion/UI transfer, cold setup, changing-source/CI (M08), live
-vendor APIs, browser screenshot/accessibility/multi-viewport suite. AppTest/chart
-specs/HTTP are runtime evidence, NOT owner visual sign-off. Next: owner review at
-localhost:8501, inspect docs09/data/app/008/telemetry/polling/tests; then decide on
-M07 commit. Do not start M08 or stage/commit/push automatically.
-
-## M07 Operations Manager revision (earlier same-day baseline, superseded UI)
-
-- Owner selected an English operations-first dashboard and authorized document readiness review followed by implementation. Existing technical M07 was not sufficient audience sign-off. Updated A5/plan/architecture/report guide and finalized review rules, precedence, filter/chart semantics and two safe detail view schemas in `08_M07_REPORTING.md` before migration 007. Existing approved sources/published states, currencies and source-version fingerprints unchanged. Readiness is sufficient for this bounded revision, not for new SLA, source write-back, assignment, refunds or M08 continuous-source claims.
-- Default **Order Operations** now has attention cards, fulfillment-by-channel and review-reason charts, Needs review/All orders/Canceled/Data issues tabs, readable columns, review suggestions, composite-key order selector, observed status timeline and recorded eBay allocations. Technical runs/checkpoints/batches stay under **Data Quality & Pipeline** and audit IDs are collapsed. Product activity is secondary and independently filtered; review-reason filtering affects worklist only. No new dependencies or pipeline execution from UI.
-- CANCELED takes precedence over every operational rule; REQUESTED suppresses fulfillment queue rules; multiple reasons yield one order row and overlapping reason counts. Mapping gaps are separate data issues. S01 review queue has exactly one order (eBay, Partial fulfillment), canceled=1 website, requests=0, mapping issues=0; Etsy SHIPPED/UNKNOWN alone is not a task. Charts show 2 non-canceled orders and one review reason. No urgency/overdue or delivered/refund assertion is invented.
-- Migration 007 projects published observed history and current matching eBay line allocations only; no raw JSON, tracking numbers or base-table grants. Every detail is read in the same report-role read-only REPEATABLE READ snapshot. S01 detail has 6 observed versions (3/2/1) and FUL001 allocating 2 blue units; Etsy has no line-level parcel bridge. Missing allocation is not treated as proof of non-shipment.
-- `python tests/test_m07_operations.py` PASS (9 offline tests: canceled/requested precedence, confirmed-payment fulfillment rules, unknowns, multiple reasons/accounts, separate mapping issues, sorting, newer vs historical failure availability). `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m07_report.ps1` ran twice during this revision, both exit 0 with final M07 report PASS; final image `b9198265caf87197f531e9e66abe880f4997acc1267cb24b1bf9a4286659e9f4`. It reran migrations idempotently on retained storage, rollback-only SQL/role/secret/history/allocation probes, pip check, 9 rules tests, runtime credential/socket/fixture boundaries and 12 real-DB/Streamlit AppTest tests. UI cases include charts, reason/product filter independence, technical-page refresh, selecting Etsy then website then no accounts, empty publication and sanitized unavailable reader. AppTest's bare-mode ScriptRunContext warning did not fail tests. No source build/publication was triggered.
-- Final M01 acceptance SQL and M06 golden probe PASS (3 orders/4 lines/6 units/USD124/6 versions); host report health returned ok and service healthy. Offline fixture verify (10) and utility tests (10), Python compile, PowerShell AST, tracked/new-file whitespace, 43 local Markdown links and empty-index checks PASS. `.env`, source fixtures, existing unrelated work and M06 HEAD preserved; no stage/commit/push/reset.
-- Browser limit: an optional local Chrome headless screenshot with an isolated ignored `runtime/m07-review-*` profile captured only Streamlit's loading skeleton, so it is NOT counted as visual acceptance. AppTest interactions/chart specs and real SQL/HTTP acceptance did pass; owner should visually review localhost:8501. No full M01-M06 scheduler campaign, multi-browser/viewport suite, concurrent-publication stress, live marketplace or M08 fresh-setup/continuous-demo/CI was rerun. Dated external Google exports remain historical, not automatically synchronized.
-
-## M07 reporting decisions and checks (initial technical baseline, 2026-10-29)
-
-- Owner explicitly authorized the M06 local commit, M07 implementation and routine doc/process corrections. M06 committed exactly 67 task-owned files (2782 insertions/80 deletions), no secrets/runtime/unrelated handoff; index then empty. No push. Reviewed A5 business report definitions, architecture, current views/roles/schema, source health/audit streams and selected M07 plan before dependent changes.
-- Finalized column types/grain/nullability/security in `08_M07_REPORTING.md` before migration 006. Selected Streamlit 1.66.1 + existing Psycopg 3.3.6, report-specific fully pinned dependencies and non-root localhost-only Compose profile m07. `platform_report` sees published business and restricted live ops views only; no raw/free-form error/exception reason/details, writer/source/API/Airflow credentials or Docker socket. New live views do not replace publication-time marts.
-- One read-only REPEATABLE READ transaction per render/filter/Refresh, no query cache or auto-refresh, source-to-batch publication map in that same snapshot. UTC creation-date cohort, source/account identity and one currency selected; product affects line metrics only; order cards explicitly cohort-wide. Decimal totals, unknown money vs empty zero, independent states, canceled original activity and unmapped lines preserved. Two pages: Operations and Data health. No SLA or complete-coverage claim; batch status labeled FAILED_OR_INTERRUPTED rather than pretending it is a parsed dbt test result.
-- Initial migration 006 and rerun PASS. First report test pass found a test bug: `has_table_privilege` with text names cannot resolve a schema the report role cannot USAGE. Changed the test to look up relation OIDs via PostgreSQL catalogs and keep the actual denied raw SELECT assertion; no role grants widened. Other seven original metric/UI checks passed in that first run.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m07_report.ps1` — PASS, exit 0, final `M07 report PASS (SQL, role, metrics, filters, UI and runtime boundaries)`. This reran migration 006 on retained storage, built the fully pinned report image, waited for HTTP health, executed rollback-only SQL failed-run/blocking-exception/secret-exclusion/role/golden probes, ran `pip check` (`No broken requirements found`), verified no writer/API/signing/Airflow credentials, fixture mount or Docker socket, and passed all 9 `tests/test_m07_report.py` tests against actual published DB plus Streamlit AppTest. Cases include grain/Decimal/product totals and source publication IDs, account/product filtering, empty/null/unmapped/currency handling, read-only REPEATABLE READ, denied base-table access, failed batch visibility with good release preserved, Operations -> filter -> Data health -> Refresh interactions, empty publication and sanitized unavailable DB UI. The last two UI states use injected readers, not actual DB shutdown.
-- Final `Get-Content tests/m07_acceptance.sql -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T postgres psql --set ON_ERROR_STOP=1 --username postgres --dbname data_platform` — PASS after clock-stable statement-timestamp test refinement; all probe inserts rolled back. Same invocation with `tests/m01_acceptance.sql` PASS (`M01 database contract PASS`). `tests/m06_probe.py` golden check via Airflow PASS (3/4/6/USD124/6 observed versions). No extra source acquisition/build/publication was initiated by M07. Six services healthy; host `http://localhost:8501/_stcore/health` returned `ok`.
-- `python -m compileall -q reports tests/test_m07_report.py`, PowerShell AST over all infrastructure runners, local Markdown link check (43 targets), tracked/new-file whitespace checks and `git diff --cached --exit-code` PASS. M07 remains unstaged; `.env`, fixture bytes, source contracts and unrelated handoff untouched. Documentation synchronized: A5 tool choice, architecture, plan, target dictionary link, documentation map, root/report guides. Dated Google exports were not automatically updated.
-- Limits/not rerun: no full new M01-M06 runtime campaign (their final read-only evidence/regression checks above passed), visual browser/human review or concurrent-publication stress test, live provider integration, volume reset/fresh setup, performance/load claims, unattended browser refresh, M08 demo/CI or automatic exception remediation. AppTest + HTTP is not a claim of full browser rendering verification. Read-only RR was verified on the real report connection; no additional global release ID was invented. Suggested future owner commit: `feat: add operations and data-health dashboard`.
-
-## M06 owner sign-off and final commit checks (2026-10-29)
-
-- Read-only verification of latest owner-run campaign `m06_schedule_aa05956ba930496bb224de604c4d2c5b`: scheduled probe since `2026-10-29T08:00:00Z` returned success; `check_retry`, `check_failed` and `budget` via `tests/m05b_probe.py --source etsy_sim` all PASS. Retry batch `475b76ff-861a-5103-a6f2-30b61cccdff2` PUBLISHED with collect/freeze/build/publish counts 2/2/1/1; failed batch `661f125d-0628-504b-b227-65932001a0dd` FAILED with exactly five builds and only injected_failure in its retained artifact. No new campaign was launched by this final read-only audit.
-- Golden/idle probes PASS (3 orders/4 lines/6 units/USD124/6 versions), zero active DAG runs and five healthy services. Re-ran offline fixture verify (10 checks), utility tests (10), schedule switch unit tests (4), actual runner mocked ordering/timeout/cleanup guards, M05B import-array guard (5), Python compile and diff whitespace checks: PASS. Git identity configured; index initially empty; no credential/runtime/build/volume or unrelated handoff file is included. Owner's approval plus these checks close the drain-fix reacceptance gap. M06 SHA is obtained from Git after commit, not embedded in its own commit.
-
-## M06 follow-up: scheduled-run drain ordering (2026-10-29)
-
-- Owner reported repeated scheduled waits followed by `No unpaused DAGs were found`, no final scheduled PASS. Read-only diagnosis: five new successful inbox runs, two recovery runs; final scheduled probe since `2026-10-29T00:37:00Z` returned success, golden probe PASS, but idle returned waiting. eBay run `scheduled__2026-10-29T00:45:04.703530+00:00` was up_for_retry at try 3 and Etsy recovery `scheduled__2026-10-29T00:45:36.335067+00:00` at try 1. Logs showed `release coordinator busy; no business attempt consumed`. DAGs had been paused before idle, preventing remaining retries. No new manual Etsy replay runs existed for this campaign; it is not a completed acceptance, despite five healthy services. A website cycle exhausted coordinator retries, then a later website cycle succeeded; this is not an injected dbt failure.
-- Fix: default-off `POLLING_DRAIN_MODE` disables only periodic timetable creation, not existing run execution. Runner awaits latest serialized NullTimetable for all four periodic DAGs, leaves five participating DAGs unpaused for queued/running retries, awaits both platform AND Airflow idle, then pauses. Drain runs before changing campaign settings, before replay, and on cleanup. `-DrainOnly` recovers old runs without a new campaign. No DB schema/business SQL/source behavior/attempt counter changes. On cleanup failure keep container in drain mode and report failure rather than freeze retries or claim PASS; print the original error before slow cleanup.
-- Regression checks: `python tests/test_m06_scheduling.py` PASS (4 cases: default interval, drain, manual, invalid configuration); `powershell -NoProfile -ExecutionPolicy Bypass -File tests/test_m06_runner.ps1` PASS (actual runner functions mocked: timetable-ready -> unpause -> idle -> pause for five DAGs, blocked retry timeout, already idle, PASS-after-cleanup guard). Python compile of helper/DAGs/probe and `git -c core.safecrlf=false diff --check` PASS. These unit tests alone are not a real scheduler acceptance.
-- Runtime recovery exposed an additional retained-state case: both old runs had exceeded the 30-minute DAG timeout while paused; Airflow marked them FAILED and skipped their watcher when unpaused. Added `orchestration/draining.py`, invoked during idle waits, to close only RUNNING platform parents whose matching Airflow run is FAILED and has no running/queued/restarting task, by the existing guarded abort with captured config and validated identity. Live/missing/successful DAG runs are untouched. `test_m06_draining.py` in the project virtualenv with a read-only `/repo` mount PASS (5 mocked cases: terminal failed delegation, live/success/missing exclusion, live task exclusion, unsuccessful abort rejection, identity mismatch). No attempts reset, raw loss or success fabrication. Final PASS output now follows cleanup/config restoration; already-drained cleanup is not repeated unnecessarily.
-- Actual runtime commands: `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m06_scheduled.ps1 -DrainOnly` built the modified image, verified four latest serialized NullTimetables and drained existing runs; exit 0, `M06 drain PASS`. During this run the timeout case above was discovered and the new reconciliation was executed once explicitly with `Get-Content orchestration/draining.py -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T airflow /opt/airflow/project-venv/bin/python -`; it closed exactly the two listed FAILED parents without a new acquisition/build. Final runner now calls the same reconciliation automatically during idle waits; final cleanup/marker refinements have mocked regression coverage, not a second full campaign. The two historical failures remain FAILED, not successful retries.
-- Final probes: `Get-Content tests/m06_probe.py -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T airflow /opt/airflow/project-venv/bin/python - check` PASS (3/4/6/USD124/6 versions), same command with `idle` returned idle. SQL metadata read confirmed zero queued/running DAG runs, all six opt-in polling/replay DAGs paused (manual `website_orders` unpaused); Airflow healthy and `POLLING_DRAIN_MODE=false` restored. Compose config quiet PASS; import errors `[]` in the drain image. M05B import guard (5 cases), offline fixture verification (10 checks)/utility tests (10), PowerShell AST, local Markdown links (28 targets), diff whitespace and empty-index checks PASS. `.env`, approved fixtures, HEAD and unrelated handoff file unchanged.
-- Not rerun in this follow-up: full M06 scheduled restart/fault/clear campaign, full S01 or M01-M05 campaigns. Owner should now rerun `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m06_scheduled.ps1` and require its final PASS plus exit 0, then the golden check above. Do not accept historical PASS records as verification of this revised complete campaign. No M07, staging, commit, push, volume deletion or budget reset.
-
-## M06 current implementation checkpoint (2026-10-28)
-
-- Owner authorized M06 code and requested notice of documentation/architecture changes. Read readiness, selected milestone, source contracts/fixtures, operational DDL and M05 extension points; inspected Git/tools and stopped services. PostgreSQL was restarted on its existing volume, without reset.
-- Finalized operational fields before migration 005: lease-token fencing, immutable work context, append-only HTTP-attempt audit, separate queue/recovery scopes and raw eligibility. `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/migrate.ps1` PASS, exit 0, including 005 on the retained DB.
-- Technical resolution communicated to owner: use the already pinned standard-library HTTP server plus Psycopg for the bounded local receiver, rather than the previously proposed FastAPI dependency. No production-server claim. Receiver stays outside Airflow, verifies exact bytes and persists delivery/raw/inbox/work before ACK. Each work claim performs one HTTP attempt, at most five durable claims per work cycle; failed cycles require explicit replay, not scheduled counter reset.
-- Added receipt/list simulator/sender, receiver, worker/recovery, explicit source registry, Etsy dbt candidates/quality checks, and separate opt-in inbox/recovery DAGs. The checks below verify the bounded local behavior, not a live provider integration. Synchronized readiness, architecture, target dictionary, source progress, plan, automation and operating guides; approved fixture/source contracts were not changed.
-- First `run_m06_s01.ps1` PASS, exit 0, execution `m06_51ec1d219d394e78abf665f81519965d`: D1/D2/D3 HTTP acceptance, receiver restart after inbox commit, successful drains at explicit simulated 09:06/09:07, good batch `66ba5151-e9d0-4a8c-aa0c-198923610dba` with 33 models/22 tests/4 hooks (`PASS=59`), combined 3 orders/4 lines/6 units/USD124/6 history versions. Injected batch `35408fce-503c-4540-8e8a-76a6ba4605d4` failed only injected_failure (`PASS=58 ERROR=1`), and publisher rejected it. Website/eBay facts stayed unchanged. Final stronger/reordered runner is still being verified below.
-- Isolated checks passed: `test_m06_unit.py` (6 security/URL/freshness/DB-unavailable handler tests); initial `test_m06_receiver.py` real HTTP rejection/concurrent-ignore audit (9 attempts, 1 ignored inbox, no work); `test_m06_sql.py` (6 canonical parity cases, 3 divisors including non-100, 4 invalid cases); `test_m06_mapping.py` actual compiled dbt model with literal nullable-product cases; `test_m06_leases.py` real HTTP + rollback-only reclaim/fencing/five-attempt exhaustion/context protection. M05 bootstrap and frozen-mode/window tests also passed. Later strengthened supported-duplicate/busy-coordinator cases are recorded separately once run.
-- Implementation failures retained honestly: initial SQL parity invocation inside Airflow could not import test fixtures (not mounted by design); reran successfully in a test-only read-only `/repo` mount. The lease probe first exposed transaction-start `now()` versus actual expiry time; switched expiry handling to `clock_timestamp()`. Its context-mutation expectation was corrected to accept the intended permission denial, without widening grants. First scheduled campaign `m06_schedule_e26ce9a888ee4201a1e8c2e99b8947c5` produced real scheduled successes and successful restart/retry, but its probe incorrectly compared null queue bounds; full script exited 1 after safe cleanup. Fixed that probe and added isolated per-campaign `receipts_test_<hex>` checkpoint scopes to allow retained-data-safe reruns without rewinding live recovery state.
-- The next campaign exposed a real host/container clock regression (~20 ms) during freeze audit: finishing both success and error paths violated the preserved `finished_at >= started_at` constraint. The durable frozen batch survived and its owner subsequently resumed; contending cycles were slow because all executor slots could wait behind it. Shared lifecycle writes now clamp end audit time with GREATEST(started_at, current time), never rewriting raw/source observation time. Rollback-only `test_m06_clock.py` exercised the actual shared stage with an injected backward application clock: PASS. DAG coordination now waits 15 seconds before bounded Airflow retry (CLI default 600 unchanged), without allocating a business-stage attempt; abort of a parent without an active own batch does not wait for another source's batch. Etsy DAG retries bind to captured configuration rather than a later environment, with explicit CLI mismatch rejection preserved. The campaign ultimately passed as recorded below; no metadata state was manually rewritten to success.
-
-## M06 acceptance commands and actual outcomes (2026-10-28)
-
-All Compose commands used `docker compose --env-file .env --file infra/compose.yaml` from the repository root. Test-only `/repo` mounts were read-only. Existing volume, checkpoints and audits were retained; `.env` was not modified. Repeated requests add evidence, not logical business versions.
-
-- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/migrate.ps1` — PASS, exit 0, including idempotent 005 reruns. Finalized lease/context/HTTP fields before dependent code. Later explicit `collection_run_id` and `replay_of_work_id` refinements were documented before their DDL; initial development rows remain null rather than invented backfill. Ingest cannot UPDATE HTTP audit/context or CONNECT to marketplace backing storage (all three privilege checks false).
-- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m06_s01.ps1` — final strengthened run PASS, exit 0; execution `m06_6371439c857040bcae2fa1243bf57ec8`. Baseline D1/D2/D3: three new delivery audits, two logical messages, one work each; receiver restart after durable ACK; two observed fetches deduplicate to one receipt version. Separate reverse-order subscription delivered shipped then paid; injected HTTP 429 produced the expected retryable failed drain and a successful later retry. Good batch `8c10b96e-50fe-4dfb-af8c-fff17ee645df`: 33 models/22 tests/4 hooks, `PASS=59 ERROR=0`, 205 frozen inputs. Deliberately failed batch `a138a6d0-91f7-444b-9b7b-c1a39fa7b14f`: `PASS=58 ERROR=1`, only injected_failure; publisher rejected it and good pointer/other-source facts remained unchanged.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m06_scheduled.ps1` — PASS, exit 0, execution `m06_schedule_b3d59858bb934f719551f18da95fcb02`, since `2026-10-28T15:41:22.0404518Z`. Real scheduler produced three successful inbox runs (logical dates 15:41:10.325511, 15:54:36.510522, 15:57:42.829620 UTC) and four recovery runs (15:41:41.306417, 15:52:30.096653, 15:55:07.860509, 15:57:12.440818 UTC). A freshly signed message was drained by scheduled inbox work; independent scheduled recovery acquired receipt work without an inbox event. Successful website/eBay scheduled cycles overlapped Etsy activity without interleaved global publication intervals. Exact recovery overlap and null inbox bounds passed. Test intervals were 30s, not a 30s latency guarantee under contention.
-- Same campaign: post-raw and post-freeze injected faults retried to successful batch `e2da9055-8a37-573d-a769-2d931e0da334`, retaining the same frozen manifest across Airflow restart; durable collect/freeze/build/publish counts 2/2/1/1. Deliberate test failure batch `7d64a80b-2b33-51ab-968b-6ebc6e71f2ee` remained FAILED after five build attempts; an actual task clear reached try 6 without build attempt 6. Artifact error was only injected_failure, prior publication preserved. Final code re-entry of this exhausted cycle returned exit 42; budget probe PASS. The campaign's later restart picked up the clock/coordinator fixes; final lineage/replay/cooldown refinements were verified by focused tests and CLI checks, not another entire scheduled campaign.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m05_s01.ps1` — full M05A regression PASS, exit 0, execution `m05_4047fd5866e3459ebcc7df04fadd02e8`. Good batch `4fb3e7a8-37fc-47a8-94f4-07371ffed45e`: 33 models/21 tests/4 hooks, `PASS=58`; bad batch `92afd5da-ec48-479f-804a-fa74c915b646`: only injected test failed. HTTP/paging/fingerprint/divisor/429/replay/source isolation passed. M05 probe now scopes its two-source totals (2 orders/5 units/USD102) explicitly; M06 separately asserts all three sources.
-- Direct reusable CLI smoke evidence: eBay execution `m06_m05_smoke_3596248e78`, fixed end `2026-10-28T16:27:16.000Z`, batch `2bef7d64-7865-5189-ae62-c5414b676066` PUBLISHED, runtime `PASS=54`; identical re-entry did not reacquire/rebuild. Etsy windowless drain `--source etsy_sim --collection-mode drain --execution-id m06_final_smoke_1882905c0e` — batch `660cd0f1-2f26-55f8-96eb-143ba1b97757` PUBLISHED, `PASS=54`. Re-entry with changed version plus `--reuse-cycle-config` reused captured settings; without that flag the mismatch was rejected as expected. Other-source signature unchanged.
-- `Get-Content tests/m06_probe.py -Raw | ... exec -T airflow /opt/airflow/project-venv/bin/python - scheduled --since 2026-10-28T15:41:22.0404518Z` — PASS (`success`) on final code. Same command with `check` — PASS: 3 current orders / 4 lines / 6 units / USD124 / 6 order history versions / 8 archived line rows. Etsy is PAID/SHIPPED/UNKNOWN, USD22, one version; no fabricated paid-only or DELIVERED snapshot.
-- Focused Python checks inside the project virtualenv: `tests/test_m06_unit.py` — 7 PASS (signature/raw mutation/freshness/URL/DB-unavailable handler/Retry-After); `tests/test_m06_cycle.py` — 4 PASS (windowless captured config and context guards). `tests/test_m06_receiver.py` — PASS, 15 real HTTP attempts / 3 logical inbox rows / exactly 1 supported work: concurrent duplicates, changed-ID conflict, malformed/invalid requests and ACK while release coordinator held. Final raw/delivery response codes agree, including conflict 409. DB-unavailable response was tested with mocked persistence, not by stopping PostgreSQL.
-- `... run --rm -T --no-deps --volume "${PWD}:/repo:ro" --entrypoint /opt/airflow/project-venv/bin/python airflow /repo/tests/test_m06_sql.py` — PASS (6 canonical cases, 3 divisors, 4 rejected invalid inputs); same invocation with `test_m06_mapping.py` — PASS (actual compiled model keeps nullable-product SKU fallback/UNMAPPED lines); `test_m06_leases.py` — PASS on latest image (real HTTP, rolled-back stale-token/expiry/five-attempt protection, immutable context, unresolved FAILED recovery gate and successful linked explicit replay); `test_m06_clock.py` — PASS (rolled-back forced backward-clock shared-stage test). Test rollback is not a fabricated runtime lease success.
-- M05 bootstrap, immutable artifact/window checks, Windows PowerShell import-array guard (5 cases), and optional UI credential tests (3 cases) passed. Offline from `fixtures/s01`: `python verify.py` — 10 PASS; `python -m unittest -v test_tools.py` — 10 PASS. Python compilation and PowerShell AST parsing passed. Final diff/health checks are recorded below.
-- Latest-image positive recovery: `docker compose --env-file .env --file infra/compose.yaml exec -T airflow /opt/airflow/project-venv/bin/python -m orchestration.polling --source etsy_sim --collection-mode recovery --execution-id m06_finish_203782e1ba --window-end 2026-10-28T16:44:47.027Z --initial-start 2026-10-17T09:00:00Z --checkpoint-stream receipts_test_1a183660b135f6d12243529200000000` — PASS, exit 0, batch `7840ef3b-f160-5c40-ab3a-16afcd420064` PUBLISHED, 207 inputs, `PASS=54 ERROR=0`. Initial invocation omitted the required fixed `--window-end` and was rejected before collection; the corrected exact command above passed. This isolated test checkpoint does not rewind runtime state.
-- Final `docker compose --env-file .env --file infra/compose.yaml config --quiet` PASS; `ps` showed all five existing services healthy (PostgreSQL, Airflow, eBay simulator, Etsy simulator, Etsy receiver); `exec -T airflow airflow dags list-import-errors --output json` returned `[]`. `Get-Content tests/m01_acceptance.sql -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T postgres psql --set ON_ERROR_STOP=1 --username postgres --dbname data_platform` — PASS (`M01 database contract PASS`). Final M06 `check`/`idle` probes PASS, no active batch.
-- Final `python -m compileall -q ingestion simulator transformation orchestration tests` and PowerShell AST parse of all `infra/scripts/*.ps1` PASS. Fixture verify/10 utility tests rerun PASS. `git -c core.safecrlf=false diff --check` PASS; new task-owned untracked files checked for trailing whitespace PASS; repository Markdown links PASS (46 local targets). `git diff --cached --exit-code` PASS (index empty); branch `main`, HEAD unchanged. Untracked unrelated handoff file excluded from task checks.
-
-### M06 limits and review boundary
-
-- No live Etsy account, OAuth, provider sandbox, production HTTP/security/load certification or mutable multi-page provider dataset. Simulated fixed receipt/list contract only. Long Retry-After policy has unit/durable-state coverage; real local HTTP 429 acceptance uses a short delay.
-- No clean-volume bootstrap/reset/delete, full M04/M05B campaign rerun, M07 dashboard, M08 changing-source/cold-recovery/CI campaign or generalized remediation. Full M05A, real overlapping M05 schedules and shared-controller regressions did run. No external Google export synchronization; repository docs are current and dated external exports remain historical.
-- All new periodic/manual replay DAGs finish paused; existing manually triggered `website_orders` remains unpaused with no schedule. Receiver remains running. Normal intervals/config restored after the scheduled harness. Fixed simulator polling does not generate new orders or prove complete source coverage; coverage stays UNKNOWN. An exhausted receipt requires explicit replay, not a tick/clear budget reset.
-- No Git write action, secret commit, `.env` edit or M07 implementation. Review the operational dictionary/migration, receiver/worker lease and retry boundaries, dbt fingerprint/money/state models, shared controller clock/config changes, and both runners. Suggested owner commit: `feat: integrate and orchestrate Etsy webhook recovery`.
-
-## M05 commit and M06 readiness review (2026-10-28)
-
-- Created local commit `468cb815d8027dbf7afc6a89502c8f5508d95529`, `feat: integrate eBay and schedule durable source polling`, on `main`: exactly 65 reviewed M05A+B/code/operating/planning files, 2696 insertions and 91 deletions. Checked staged paths/diff and configured identity before commit; no `.env`, passwords, runtime/build artifacts or unrelated `HANDOFF_SHA256SUMS.txt`. No push; immediately after commit only the unrelated handoff file was untracked.
-- Then reviewed M06 against approved Etsy schemas/rules, fixed receipts/deliveries, signature/fingerprint utilities, existing raw/inbox/work DDL and M05 source/manifest/publication/controller code. Enough source evidence exists to start a bounded M06 implementation, but the old paragraph was not a complete operational implementation sequence. The current controller/freezer/publisher source choices are website/eBay-specific; no Etsy behavior can be claimed from existing generic tables.
-- Added `07_M06_READINESS.md` and synchronized plan/documentation map/automation/target follow-ups/Codex handoff/provenance. Key gaps made explicit: target/lease/work-cycle finalization before DDL; atomic delivery/inbox/work persistence before ACK; execution-clock signing vs S01 observation time; URL/shop validation and rejection audit; bounded worker leases/retry/replay; independent scheduled inbox drain and missed-notification recovery; explicit Etsy source-specific release under the existing global coordinator; retained-data-safe acceptance scopes. No agreed source/business behavior was changed.
-- Scope stops at documentation/readiness. No M06 code, DDL, dependencies, Compose services, `.env` values, source/database/volume changes, new DAG runs or Google review edits. Physical M06 fields and receiver dependency pins must still be finalized at implementation gate 1. Planned acceptance cases are not runtime evidence; changing-source/cold recovery remains M08 and dashboard/live views M07. Only M05 was committed; readiness changes remain unstaged.
-- Documentation checks: PowerShell regex/Test-Path scan of repository Markdown links PASS (47 local targets); `git -c core.safecrlf=false diff --check` PASS; Git index empty after commit and doc edits. Offline fixture/utility checks and local M05 runner/config regression tests passed before commit as recorded below. Full Docker/HTTP/Airflow campaigns were not rerun in this commit/docs-only task; the prior recorded runtime evidence and owner-reviewed local run remain the acceptance basis.
-
-## M05 owner sign-off and commit checks (2026-10-28)
-
-- Owner confirmed the local result and requested the M05 commit. The latest read-only audit verified execution `m05b_d6541adeb4cb4052a91ac8a45c69182b`: three successful scheduled cycles per source, successful retry with collect/freeze/build/publish counts 2/2/1/1, and deliberately failed replay with five durable build attempts despite Airflow task try 6. Artifact failures were exactly the injected test. Zero active batches; all three services healthy. The M05 golden-data probe and immutable-window/artifact-mode probe passed. This audit does not claim to have launched a new full campaign.
-- Pre-commit rerun: from `fixtures/s01`, `python verify.py` PASS (10 offline checks), `python -m unittest -v test_tools.py` PASS (10 tests); `powershell -NoProfile -ExecutionPolicy Bypass -File tests/test_m05b_runner.ps1` PASS (5 cases); `python tests/test_m05b_config.py` PASS (3 tests). Diff check passed, index initially empty, Git identity configured. Preserve unrelated `HANDOFF_SHA256SUMS.txt`; exclude credentials, runtime, build artifacts and caches. Commit SHA is obtained from Git after creation, not embedded in its own commit.
-
-## M05B follow-up: Windows PowerShell import guard (2026-10-28)
-
-- Owner's local rerun stopped with `Airflow import errors: []` after the service was healthy. Reproduced on Windows PowerShell 5.1.19041.6456: `@('[]' | ConvertFrom-Json).Count` was 1, so the runner's strengthened import check incorrectly rejected an empty array. This is a runner regression, not a DAG import error; earlier runtime evidence does not verify this later guard revision.
-- Fixed `infra/scripts/run_m05b_polling.ps1`: join output lines before JSON parsing, assign parsed results, then enumerate/filter null before counting actual errors. Real import errors and malformed JSON still stop the runner; no health or business assertions were bypassed.
-- Added `tests/test_m05b_runner.ps1`, which exercises the actual guard extracted from the runner without Docker/workflow side effects. `powershell -NoProfile -ExecutionPolicy Bypass -File tests/test_m05b_runner.ps1`: PASS, exit 0, five cases (empty array, multiline empty array, one real error, multiple errors, malformed JSON). PowerShell AST parsing of the runner: PASS.
-- Read-only runtime check: captured `docker compose --env-file .env --file infra/compose.yaml exec -T airflow airflow dags list-import-errors --output json`, checked exit 0, then executed the exact patched guard against that output: `Actual Airflow import guard PASS: []`. Final tracked diff check and empty-index check passed; the new regression test passed trailing-whitespace inspection.
-- Full scheduler/restart/fault campaign was not rerun for this focused guard fix; its historical evidence follows below. No environment/credentials, container lifecycle, database/volume or Git index changes. Leave changes unstaged for review; stop before M06.
-
-## M05B implementation and current evidence (2026-10-28)
-
-- Owner authorized implementation after the planning review and requested dev-configurable intervals/environment credentials. Starting commit remains `21b9f4461105d0d09cfd96fbf31ba96b06a63981`; existing M05A/docs changes and the unrelated handoff checksum file were preserved. No Git write action is authorized.
-- Finalized the operational extension in `05_TARGET_SCHEMA.md` before DDL. Migration `004_polling.sql` adds immutable cycle configuration/window protections and frozen batch validation mode. The original three M01 ledger entries remain required; the M01 test now permits later migrations. Idempotent `migrate.ps1` upgraded the retained DB without reset and bootstrap includes the new migration.
-- `website_polling`/`ebay_polling` are opt-in, created paused, with env-driven seconds (default 300, minimum 10), explicit first start and `orders_polling` checkpoints separate from historical S01. `ebay_polling_replay` is a manual current-clock recovery/test DAG using the same controller. Cycle bounds/config/versions are durable and immutable across retry/clear; observation time stays current. The original manual `website_orders` DAG remains.
-- One task calls reusable collect/freeze/dbt/test/publish stages, retaining durable per-stage attempts. A session coordinator spans the full release, including the same-connection freeze; cooperating CLI freezes acquire that lock and the existing durable active-batch guard protects interrupted/manual releases. Contention waits before stage-attempt allocation. HTTP retries are five/request and collection stages five/cycle (up to 25 attempts on a repeatedly failing URL); both levels remain audited/bounded.
-- `validation_mode` is frozen and checked against source/mapping/transformation variables in matching dbt artifacts. Runtime disables only four fixed S01 tests; 22 models and 16 invariant tests still execute. Legacy commands default to S01 and retain 20 tests. Optional `.env` UI username/password provisioning preserves generated credentials when blank; DB credential rotation is not implied.
-- `python tests/test_m05b_config.py` PASS (3 isolated credential tests); piped `tests/test_m05b_initial.py` through the Airflow project venv PASS (3 mocked bootstrap/retry-binding tests). Piped `tests/test_m05b_invariants.py` PASS: rollback-only immutable window and frozen-mode checks plus rejection of an artifact with switched validation mode. No credentials were printed or changed during these tests.
-- `docker compose --env-file .env --file infra/compose.yaml --profile m04 --profile m05 build airflow dbt-transform platform-publisher` PASS. Airflow import errors `[]`; all three new DAGs initially paused. Smoke CLI `m05b_cli_smoke` acquired an actual empty HTTP window and published batch `79c55fb7-634f-5979-b53d-47df76a1b734` after `PASS=40 ERROR=0` (22 models/16 tests/2 hooks).
-- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m05b_polling.ps1` PASS, exit 0 including final pause/environment restoration and healthy service recreation. Execution prefix `m05b_98e7996ffd2745e9ac6887c1a7e741ec`. Periodic DAGs produced two successful scheduled runs per source: website logical run IDs `scheduled__2026-10-27T19:15:14.819102+00:00` and `scheduled__2026-10-27T19:16:14.744821+00:00`; eBay `scheduled__2026-10-27T19:15:46.211346+00:00` and `scheduled__2026-10-27T19:16:46.234003+00:00`. These are UTC execution-clock IDs (local date 28 October), not S01 source times. Exact 120-second overlap/checkpoint and noninterleaved-publication assertions passed. Direct CLI and scheduled business signatures agreed, and original S01 checkpoint pointers were unchanged.
-- The same runner observed deliberate post-raw/post-freeze faults in manual replay, restarted Airflow and passed manifest reuse and stage counts collect=2/freeze=2/build=1/publish=1. Retry run suffix `-retry` succeeded and published eBay batch `981d4d4b-9356-5400-861c-41f71f41bf9d`. Run suffix `-failed` exhausted five dbt attempts (only injected_failure failed), closed batch `af050518-b390-5c36-acd1-0d5c4fd8b09c` as FAILED and left the good release unchanged. An actual Airflow clear reached task try 6 but allocated no sixth platform attempt; exhausted-budget probe passed. Intentional failures remain auditable, not deleted.
-- Pausing stopped future scheduling; additional website/eBay scheduled DagRuns had completed their operational workflows but metadata could still show RUNNING while the failure-watcher leaf awaited scheduling. Idle checks therefore inspect actual running tasks and operational runs, not only the DagRun label. No metadata state was manually rewritten to manufacture success; the two finalized successes per source above satisfy acceptance.
-- Final-image checks: rebuilt Airflow after moving the freeze timestamp inside its locks and using the current SDK exception import. Piped `tests/m01_acceptance.sql` to `docker compose --env-file .env --file infra/compose.yaml exec -T postgres psql --username postgres --dbname data_platform --no-psqlrc --set ON_ERROR_STOP=1`: PASS. Piped `tests/test_m05b_invariants.py` through the final Airflow project venv: PASS again. Regression results follow below.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m05_s01.ps1` PASS, exit 0, execution `m05_cb368b78fbb14342878885fe3f4db87d`, good eBay publication `4454813c-6180-4c59-8026-05483034866a`. S01 dbt retained all 20 tests (`PASS=44 ERROR=0` including 22 models/2 hooks); injected-failure batch `52a736cd-922a-40bd-84b6-b3e91de399e5` failed only the intended test (`PASS=43 ERROR=1`) and could not publish. HTTP tests 7/7, SQL/Python fingerprint parity 11 cases plus 2 invalid collections, raw/checkpoint audit, wrong-source rejection, final golden totals and website preservation all passed. This is regression evidence, not scheduler proof. A prior background invocation's final exit was not retained across context handoff, so this command was repeated and its exit observed directly.
-- Final `docker compose --env-file .env --file infra/compose.yaml config --quiet` PASS; Airflow `dags list-import-errors --output json` returned `[]`, and `dags list --output json` confirmed all three polling DAGs paused with `website_orders` unpaused. Final Python compile, UI tests (3), bootstrap/retry-binding tests (3), PowerShell AST parse and local Markdown link scan (43 targets) passed. Git diff/check and empty-index checks passed; CRLF normalization warnings are informational.
-- Final legacy manual regression: piped `tests/m04_probe.py` to the Airflow project venv with `trigger --execution-id m05b_s01_manual_20261028_e18325ae`, then `status` returned success. Default fault flags were false. Batch `53c2e840-b535-57bd-8342-0e3463eb2d36` is PUBLISHED in s01 mode; all 44 artifact nodes passed and durable stage counts were collect=1/freeze=1/build=1/publish=1. Inline read-only assertions verified parent SUCCEEDED, batch/mode, artifact results and zero active FROZEN/BUILDING/TESTED batches. SQL still showed one current order per website/eBay and observed histories 3/2. Final Compose `ps`: PostgreSQL/Airflow/eBay simulator healthy. `git -c core.safecrlf=false diff --check`, empty-index, task-owned new-file trailing-whitespace checks and ignored `.env`/passwords/dbt-artifact checks passed. No source/volume reset, staging, commit or push occurred.
-- Limits/not run: no disposable clean-volume bootstrap, current-clock changing-source driver, M06 Etsy, M07 live dashboard/health views, live vendor certification or scale test. Hard-kill/DAG-timeout recovery without a failure watcher and the full historical M04 fault campaign were not rerun; M05B exercised real restart/retry/clear, with a separate legacy green-DAG regression. Explicit UI password provisioning passed isolated tests; browser login with a changed owner password was not attempted. Google review documents were not edited; sync remains pending in PROVENANCE.
-- From `fixtures/s01/`, `python verify.py` PASS (10 checks) and `python -m unittest -v test_tools.py` PASS (10 tests). New full operating instructions: `orchestration/POLLING.md`.
-
-## Previous documentation and plan review (2026-10-28)
-
-- Scope: owner requested a full local plan/documentation review after identifying the missing eBay scheduled job. Documentation only; no DAG/collector/dbt/Compose/DDL changes, services started, DB writes, stage/commit/push or next-milestone implementation in this task. Preserve all pre-existing M05A work and unrelated `HANDOFF_SHA256SUMS.txt`.
-- Findings: M05 had no assigned automatic orchestration acceptance; M04's website DAG is manual. Etsy inbox/recovery work was not explicitly assigned scheduled execution. Fixed S01 count/timestamp tests are not general runtime quality tests. Per-DAG concurrency does not serialize the shared freeze-to-publish lifecycle. Source-specific publications and stable source_health need per-source report labels and restricted live failure views. Some README/architecture statements still described implemented folders/schema/eBay as future work.
-- Resolution: split M05 into implemented A and pending B without renumbering M06-M08. M05B must provide opt-in configurable periodic polling (planned local default five minutes), durable windows/checkpoints/attempts, explicit initial start and clock/validation modes, global release serialization and at least two real scheduler-created cycles. M06 includes scheduled Etsy inbox/recovery jobs around its always-on receiver. M07 explicitly owns live health views and consistent per-source publication labels. M08 owns the separate current-clock changing-source demo, isolated cold setup and unattended restart evidence.
-- Added `06_AUTOMATION.md` as the operational planning reference and synchronized the plan, business/report contract, architecture, source implementation checkpoint, target-schema follow-ups, documentation map and local operating guides. Existing runtime evidence below remains M05A evidence, not proof of the new B requirements. Approved CSV exports, fixture bytes/S01 meanings and implemented schemas stay unchanged.
-- External synchronization: Google Doc/Sheet and dated CSV exports were not edited or re-exported; the local planning delta is recorded in PROVENANCE.md. The future implementation must finalize needed operational fields before DDL, not infer that this document adds columns or a working schedule.
-- Checks for this docs-only revision: from `fixtures/s01/`, `python verify.py` PASS (10 offline checks) and `python -m unittest -v test_tools.py` PASS (10 tests). PowerShell scanned Markdown targets from `rg --files -g '*.md' -g '!runtime/**' -g '!fixtures/**'` with regex link extraction and `Test-Path`: PASS, 39 local targets across 16 files. Consistency search was rerun successfully with `rg -n --glob '*.md'` after Windows rejected a literal `docs/*.md` path. `git diff --check` and `git diff --cached --quiet` passed; all changes remain unstaged. Runtime scheduler/Docker/database checks are intentionally not rerun; no new runtime behavior is claimed. No Google synchronization was run.
-
-## M05A decisions and review points (original implemented scope)
-
-- Starting checkpoint: `main` at `ca2e23c`, inspected all M04 changes and the unrelated untracked handoff checksum file; Git identity configured. Committed only M04 as authorized, then started M05 from `21b9f44`. M05 is left unstaged and no remote push is performed.
-- Read approved S01, eBay schema/rules, business/report definitions, existing architecture, target dictionary, fixture fingerprints and source payloads. Finalized M05 field/grain/evidence/nullability rules in `05_TARGET_SCHEMA.md` before dependent models. No new target columns/migrations are needed; the four mappings and website source contracts are unchanged.
-- Reuse the existing digest-pinned Python 3.12.12 base and locked Psycopg/dbt dependencies. A small standard-library HTTP server serves the approved fixed eBay GET subset; no new framework dependency. Test controls use a separate listener, localhost-bound by Compose, and read source-state fixtures only inside simulator/test images. The marketplace backing database is not a pipeline interface; this fixed source uses in-memory fixtures, not a new database-backed marketplace application.
-- The collector receives only HTTP token/platform-ingest credentials. It preserves exact response bytes/checksums, status, sanitized response headers, simulated observation time and actual fetch timestamp. Redirects are disabled; resource/paging origins, paths, bounds, offsets and counts are validated. Work is committed from each page before progress. Required detail/fulfillment resources must succeed before a window completes. Default incremental overlap is 120 seconds; each HTTP request has five total attempts with bounded exponential backoff/jitter and Retry-After. Failed cycles keep raw and failed work; explicit replay starts a new acquisition cycle rather than resetting counters or deleting evidence.
-- dbt owns order fingerprint normalization, product/status mapping, observed-version dedupe, current/marts and dated parcel allocation. Order fingerprints match approved known-array sorting, preserving absent/null and unknown-array order. Order identity excludes fulfillment/mapping/batch metadata. Separate fulfillment bytes, timestamps and raw IDs remain evidence. Inconsistent, future or overallocated shipping evidence blocks publication; IN_PROGRESS alone yields UNKNOWN, never an invented partial/delivered claim.
-- Final review preserves the documented list/detail cancellation distinction: acquisition comparisons ignore list-only empty `cancelRequests` and line-array ordering, while retaining the full authoritative detail body. The HTTP suite includes a populated-detail/empty-list case. eBay staging materializes once per frozen manifest to avoid repeated recursive fingerprint evaluation during evidence joins; website staging behavior remains unchanged.
-- Existing batch/publisher commands accept `--source ebay_sim`, defaulting to website. eBay freeze includes successful retained website inputs to run the unchanged website regression models/tests too. Source-specific eBay candidates and `ebay_orders` publication preserve website stable rows. Publisher requires the batch's actual source to match the requested release. All candidate rebuilds retain the existing global active-batch guard. The M03 acceptance SQL's release-isolation checks now explicitly scope website rows, so other legitimate source releases do not produce false failures.
-- M04 DAG remains website-only. M05 adds reusable eBay CLI/release commands and acceptance, not a second orchestration framework. Full operating/review instructions: `simulator/README.md` and `infra/scripts/run_m05_s01.ps1`. Runtime logs/DB data/UI secrets remain ignored.
-
-## M05A exact checks and outcomes (historical runtime evidence)
-
-- Before the M04 commit: `git diff --check`, Python compile of M04 files, Compose `config --quiet` and `ps` (PostgreSQL/Airflow healthy), Git identity, fixture verify (10 checks) and unittest (10 tests) all passed. The owner's approved prior real-scheduler M04 evidence below was not relabeled as a new M04 acceptance run.
-- `docker compose --env-file .env --file infra/compose.yaml --profile m05 build ebay-sim ebay-collector dbt-transform platform-publisher m05-checks` and `... --profile m05 up --detach --wait --wait-timeout 120 postgres ebay-sim` passed. PostgreSQL volume/website/raw were retained; no reset/deletion.
-- `docker compose --env-file .env --file infra/compose.yaml run --rm -T --no-deps --volume "${PWD}:/repo:ro" --entrypoint python ebay-collector /repo/tests/test_m05_http.py` passed all 7 tests: two distinct orders on two pages using an isolated in-memory HTTP server, repeated page/work dedupe, empty window, untrusted next origin, origin guard, invalid limit/shipping envelope, and the documented empty-list/populated-detail cancellation gap. Platform writes in these unit tests use an audit stub; the full runner separately exercises actual PostgreSQL persistence.
-- `docker compose --env-file .env --file infra/compose.yaml run --rm -T --no-deps --volume "${PWD}:/repo:ro" dbt-transform python /repo/tests/test_m05_constraints.py` passed a valid baseline and 6 invalid evidence cases through the actual dbt fulfillment test SQL: excess quantity, foreign line ID, future shipment, conflicting line status, inconsistent same-version shipping resources, and over-allocation across parcels. Literal inputs only; no source/raw/stable mutation.
-- An earlier complete M05 runner passed with execution `m05_0bfbe082e9d947dcb0825ce24e176c8c`, published batch `baf88da0-58e9-4a2d-8d39-57d66316ca3a`, and expected failed batch `6e0874fc-14ef-4b2d-8f25-068978ff1285`. Later stronger audit/source-isolation assertions are verified separately and in the final runner evidence below.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m05_s01.ps1` subsequently passed end-to-end (exit 0), execution `m05_ed16e687dd4f4e27b77e1f8c9f0767a6`, publication `2afadfc1-e09c-44f8-9470-26c4d253b455`, expected failed batch `871e68d4-2689-4e65-a594-1870e3bd5750`. Build: 22 models + 20 tests + 2 hooks (`PASS=44 ERROR=0`); failure injection: only `test.multi_channel_orders.injected_failure` failed (`PASS=43 ERROR=1`), required artifact guard passed and publisher rejected the failed batch. Wrong-source publication also correctly rejected a TESTED eBay batch. Raw failure/checkpoint audit, replay/current/history/parcel checks, stable website signature, and SQL/Python fingerprint parity (11 valid cases + 2 invalid collections) all passed. This precedes the final cancellation-comparison/staging-cache refinement, which is rerun below.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m03_s01.ps1` passed (exit 0) using default website freeze/publisher with the M05 source guard. Good website batch `83bb50e4-b87a-467a-8ab8-fdd6bb4b8500`, expected failed website batch `72431820-f24b-4f0c-b07c-fa35e3cb1005`. Website SQL/report-role/fingerprint tests passed with three versions and original two units/USD40; eBay publication remained independent. No source/volume reset.
-- Final complete `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m05_s01.ps1` after cancellation-comparison/staging refinement: PASS, exit 0, execution `m05_06f4869bd29948c1be77b7392a553cc7`. Published eBay batch `de021bfd-3e0f-4826-9bc1-b746ac0ca37e`; intentionally failed batch `97ca3292-62e1-4501-995c-9fc5384ba77b`. Both froze 102 eligible raw IDs. All 7 HTTP tests, checkpoint/failed-page/interruption/429/replay/older/empty-window audits, raw checksums/header redaction, wrong-source rejection, website signature preservation and fingerprint parity passed. Good dbt invocation passed all 22 models/20 tests/2 hooks (`PASS=44 ERROR=0`); the failed invocation had only the injected test failure and was rejected by publisher. Staging/evidence remained within the local acceptance runtime; no scale benchmark is claimed. Website publication stayed `83bb50e4-b87a-467a-8ab8-fdd6bb4b8500` throughout this final eBay runner.
-- Initial implementation failures, all retained for audit: the first probe used publisher privileges to read extraction checkpoints and was denied. It now uses a separate acceptance-only service and the ingest role for audit, without widening production roles. The first dbt run found an ungrouped JSON allocation reference in the fulfillment test; corrected grouping/line join, and explicitly failed only task-created batch `1f92cd64-b741-416d-b4e8-6bf80989c179` with its artifact before replay. A strengthened audit query then exposed an unescaped literal `%` in Psycopg SQL; fixed to `%%` and the audit probe passed on execution `m05_6a533a11df3845c396e4873e8a4d9a66`. Its good batch `6238bf08-5c71-4aab-9fd0-ea98c157b134` remained published.
-- Collector image boundary assertion passed: no `/fixtures`, `/app/fixtures`, Docker socket or source-writer credentials. Production-source search found no fixture/expected/truth-ledger acquisition interface. `python -m py_compile` on all new/changed Python, PowerShell parser on the new runner, `git diff --check`, and empty-index check passed before final review.
-- `Get-Content tests/m01_acceptance.sql -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T postgres psql --set ON_ERROR_STOP=1 --username postgres --dbname data_platform` passed (`M01 database contract PASS`). SQL showed one website order/line, two units/USD40; one eBay order/two lines, three units/USD62. Combined current output is two orders, three lines, five units/USD102; Etsy is not yet implemented.
-- Final `docker compose --env-file .env --file infra/compose.yaml config --quiet` and `... ps` passed: PostgreSQL, Airflow and eBay simulator healthy. Read-only SQL confirmed website/eBay histories 3/2, lines 1/2, units 2/3 and amounts USD40/USD62; publication pointers matched the final batches above and active FROZEN/BUILDING/TESTED batch count was 0. Final Python compile/PowerShell parse, `git diff --check`, new-file whitespace inspection and `git diff --cached --quiet` passed. `.env`, Airflow passwords and dbt artifacts remain ignored. Only M04 was committed; every M05 change is unstaged and the unrelated handoff file is untouched.
-
-## M05A checks not run / limits
-
-- No live vendor authentication/sandbox test, production HTTP server deployment, scale benchmark, clean-volume rebuild or M06 work. Official reference-page fetch attempts failed (oversized getOrders page and shipping-page timeout); approved local CSV contracts/fixtures remain authoritative. No claim of a newly verified vendor contract or full public API implementation.
-- Source is frozen per S01 observation; two-distinct-order paging is tested separately from the one-order S01 business baseline. Offset scans cannot guarantee same-total moving-page completeness; broader mutable-page reconciliation, host/process hard-kill recovery, raw-only/stale-worker queue draining and generalized missing-mapping/unknown-enum exception remediation remain M08. Unsupported mapping blocks the tested release rather than fabricating a product. Missing optional money stays null.
-- At the original M05A checkpoint no eBay Airflow DAG was implemented; M05B above now supplies it. M04 manual website orchestration is preserved. All transforms share the build schema and must not run concurrently. Source coverage stays UNKNOWN. Intentional failures leave visible failed acquisition/work/batch audit even though the good business release is retained.
-- The full M04 scheduler/restart campaign was not rerun in M05. The owner approved that milestone's recorded runtime evidence; M03 shared-command regression and the final website-preservation signature were run here. The final SQL-negative-evidence suite is a separately executed read-only command, not embedded in the main PowerShell runner.
-
-## M04 decisions and review points
-
-- The current branch, M03 diff, Git identity and existing checks were inspected before committing M03. M04 starts from `ca2e23c`; the only unrelated untracked file was `HANDOFF_SHA256SUMS.txt`. Existing target definitions/constraints were reviewed first. No new business columns, tables, or target migration were needed.
-- Airflow is pinned to `apache/airflow:3.3.2-python3.12` by image digest. One local `standalone` development service starts scheduler/API/DAG processing with LocalExecutor, parallelism 2, one active DAG run/task, task timeout 5 minutes and DAG timeout 20 minutes. dbt/project packages use a separate virtualenv with the existing M03 dependency lock. This is a local portfolio deployment, not a production/scale claim.
-- `website_orders` is manually triggered (`schedule=None`, catchup disabled) with explicit timezone-aware source-clock window/observation params. Defaults read final S01 state at 09:15; earlier M02 observations stay retained. The DAG receives no simulator-writer credentials, fixtures, marketplace database access, or Docker socket. It never rewinds/reset source state to construct earlier snapshots.
-- The DAG calls the reusable stage controller: collect -> freeze -> build_and_test -> publish. It invokes the existing M02 collector, M03 batch commands, dbt build/tests and publisher, with no business transformation SQL in the DAG/controller. The same command supports a normal direct CLI run via `--stage all`.
-- A deterministic RECOVER-stage `ops.pipeline_runs` parent with stream `website_workflow` represents one bounded workflow/replay cycle; child acquisition/transform/publish rows retain their own stages and receive Airflow DAG/run context. The explicit execution ID determines workflow, batch and task-attempt IDs. Parent-row locking plus existing attempt uniqueness allocates at most five durable attempts per stage across Airflow retries/clears. An interrupted RUNNING attempt is consumed, never reset.
-- Successful stages are no-ops on re-entry; freeze reuses the committed manifest, build retries use its same raw IDs/versions, and publish re-entry recognizes a previously committed release. Four Airflow retries plus the initial attempt are allowed. The terminal failure watcher marks an active batch/workflow failed and remains a failing leaf. An exhausted budget exits with code 42, mapped to AirflowFailException, so clearing the task cannot allocate operation attempt 6.
-- Logs, UI credentials and dbt artifacts are ignored runtime data. UI is bound to localhost:8080; username `admin` and generated password in `runtime/airflow/state/passwords.json`. Database/UI credentials are separate. Metadata URL is supplied via Airflow's `_CMD` option with URL-encoded credentials and no trailing newline. Full operating/recovery instructions: `orchestration/README.md`.
-
-## Exact M04 checks and outcomes
-
-- `python -m py_compile orchestration/website_workflow.py orchestration/dags/website_orders.py orchestration/metadata_url.py tests/m04_probe.py` — PASS. PowerShell parser over `infra/scripts/run_m04_s01.ps1` — PASS. `docker compose --env-file .env --file infra/compose.yaml config --quiet` — PASS.
-- From `fixtures/s01/`, `python verify.py` — PASS, 10 offline checks; `python -m unittest -v test_tools.py` — PASS, 10 tests. These are separate from the scheduler/runtime checks.
-- `docker compose --env-file .env --file infra/compose.yaml --profile m04 build airflow` — PASS. Image was pulled/built locally; the first pull/extraction took several minutes. `airflow version` returned `3.3.2`; `/opt/airflow/project-venv/bin/python -m pip check` returned `No broken requirements found.`
-- `docker compose --env-file .env --file infra/compose.yaml --profile m04 up --detach --wait --wait-timeout 300 airflow` — PASS after fixing startup URL formatting. PostgreSQL remained healthy; Airflow initialized its own metadata tables in `airflow_meta`. `airflow dags list-import-errors --output json` returned `[]`.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m04_s01.ps1` — completed its CLI/scheduler/retry/restart/failure phases and exited 0. CLI execution: `m04_cli_376f8571ad694a17a1177624b8039133`, batch `eb57cd2a-b118-544c-bf3f-4d7e36ab5ad4` PUBLISHED. It acquired through read-only source SQL and passed all 11 dbt models/17 tests plus the hook (`PASS=29 ERROR=0`).
-- Real scheduler run `m04_retry_e1676243e58243dab3a449b0aa296d9a` — SUCCESS. One intentional post-raw failure retained its failed acquisition/raw and left the prior checkpoint pointer unchanged. Collection then succeeded. A post-freeze failure left a committed manifest; the runner restarted the Airflow service while freeze waited for retry, waited healthy, and verified the identical manifest and same DAG run resumed to publication. Durable stage attempt counts: collect 2, freeze 2, build_and_test 1, publish 1. Airflow's freeze try number was 3 because one restart interrupted scheduling before another platform attempt was allocated; the two counters serve different purposes.
-- Published DAG batch `22366796-9f6d-5398-b67e-e249ebc83138` — PUBLISHED. A SHA-256 signature over stable business history/current/marts excluding release IDs matched the direct CLI baseline. Final stable figures: 3 order versions, 3 archived line rows, 18 evidence links, 1 current order/line, V001 quantity 2 / USD40; PAID / NOT_STARTED / CANCELED. Raw/evidence acquisition counts may grow without increasing logical versions.
-- Real scheduler run `m04_failed_27a0d63208c9474491a6da1907f5955a` — FAILED by deliberate dbt test injection. Batch `32fff8da-4eac-54c2-af47-12f5b9d3093e` — FAILED. The build had exactly five durable attempts (1-4 RETRYABLE, 5 FAILED), and required publication was never run. The stable business signature and publication pointer remained on the successful DAG batch.
-- Clear-phase review exposed an insufficient assertion in the initial runner: Airflow had not selected any task, so try_number was still 5. Inspection of Airflow 3.3.2's installed `task_clear`/`SerializedDAG.partial_subset` showed the option called `--task-regex` performs substring matching here. The probe now uses `build_and_test --downstream`, a one-second interval verified to contain only the target logical date, asserts actual selection, and waits for task try_number >=6 before accepting the final failed state.
-- Corrected clear phase was rerun separately on the same deliberately failed run: `Get-Content tests/m04_probe.py -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T airflow /opt/airflow/project-venv/bin/python - clear --execution-id m04_failed_27a0d63208c9474491a6da1907f5955a` — PASS. `cleared_status` returned failed only after the new execution. The `budget` probe returned PASS; final metadata confirmed build_and_test failed at Airflow try 6 and the failure watcher at try 2, while platform build attempts remained exactly 5. Publication stayed `22366796-9f6d-5398-b67e-e249ebc83138`. The final failed artifact was checked to contain only the injected dbt test failure, not unrelated model errors.
-- Runtime boundary assertions — PASS: no `/fixtures`, no `/var/run/docker.sock`, no WEBSITE_WRITER_PASSWORD or MARKETPLACE_WRITER_PASSWORD in the Airflow service environment. Production-code search found no source-state/golden/truth-ledger reads.
-- `Get-Content tests/m01_acceptance.sql -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T postgres psql --set ON_ERROR_STOP=1 --username postgres --dbname data_platform` — PASS, `M01 database contract PASS`, after Airflow/recovery checks.
-- Final `git diff --check`, whitespace inspection of new task-owned files, Python compile/PowerShell parse checks, and `git diff --cached --quiet` — PASS. Runtime credentials/logs/dbt outputs remain ignored; all M04 source/docs changes are unstaged.
-- Initial startup failure: metadata URL helper used `print`, causing Airflow to request database `airflow_meta\n`; switched to `sys.stdout.write`. Failed startup did not reset/delete project databases. An initially tightened clear-phase assertion correctly failed when the old regex selected no tasks; the corrected selector then passed.
-
-## M04 checks not run / limits
-
-- No source/volume reset, remote push, marketplace implementation, dashboard, or M05 work was performed. M04 changes are left unstaged for review; the only requested commit was M03.
-- The corrected clear phase and its stronger assertions were rerun directly against the same exhausted run, rather than rerunning the entire multi-minute acceptance script. All modified clear/budget checks passed; the unchanged earlier CLI/retry/restart/failure phases had already run successfully through the real scheduler.
-- Restart evidence covers committed raw/manifest state and scheduler retry resumption. A hard kill during a database transaction/dbt process, host loss, DAG timeout before the failure watcher, or extended database outage was not fault-tested. If the watcher cannot execute, stop concurrent work, inspect the active run, and explicitly invoke the controller's abort stage before a new replay cycle. These broader campaigns remain M08 scope.
-- The source simulator was already at final S01 state 0914 and earlier observations came from retained M02 raw. This is not a clean-volume all-source end-to-end demo or an automatic production schedule. No performance benchmark is claimed.
-
-## M03 decisions and review points
-
-- The M01 target dictionary was reviewed before models; no new target columns or dependent DDL were needed. Candidates use the stable table column order and FK-safe publication order. Business SQL lives exclusively in dbt; Python owns manifest/run metadata, test-artifact verification, and publication copies.
-- Runtime: dbt Core 1.11.16 with dbt-postgres 1.11.0, Python 3.12.12 image pinned by digest; all resolved Python dependencies are pinned in `requirements/m03.txt`. Two dbt threads are used. This is a tested local compatibility choice, not a performance benchmark.
-- `freeze` records eligible committed raw IDs explicitly. Only successful website acquisitions enter the manifest; failed acquisition evidence stays in raw. Successful replays retain their evidence rows but do not add source versions. A lifecycle guard rejects another active FROZEN/BUILDING/TESTED batch before candidate rebuilds; an interrupted batch requires explicit inspection/abort.
-- Website content fingerprints use SHA-256 over the six order/child arrays, excluding catalog/customer/acquisition/mapping metadata. Object keys are sorted and array order is preserved, matching the approved website fixture utility. Snapshot IDs include source/account/order/update/fingerprint, independently of mapping/transformation/batch versions. Latest current state uses source update time; equal-time content conflicts fail a required test before publication.
-- Scoped exact variant mapping and unique SKU fallback preserve source line facts. Ambiguous/conflicting identifiers are not guessed. `s01-v1` is treated as immutable during the run; broader missing-mapping remediation is not claimed by this milestone.
-- dbt builds candidates only in `build` as `platform_transform`. A batch becomes TESTED only when its matching `run_results.json` and `manifest.json` invocation contains successful results for every project model/test. Hooks are excluded from that required node set. Artifacts remain under ignored `runtime/dbt/<batch UUID>/`.
-- `platform_publisher` requires TESTED status and matching candidate batch identity. It copies website rows and updates release metadata in one transaction; failed attempts retain run audit separately. Published tables are read by `platform_report` in a read-only REPEATABLE READ transaction. Normal transform/publish images contain no fixtures; only the parity test mounts fixture files read-only.
-- `mart.source_health.coverage_state` stays UNKNOWN: a recent successful checkpoint alone is not proof of uninterrupted coverage. The model retains available checkpoint, acquisition, backlog, exception-count, and publication fields.
-
-## Exact M03 checks and outcomes
-
-- Starting branch/commit/file inspection: `main` at `6c74517`, only M02 changes plus pre-existing `HANDOFF_SHA256SUMS.txt`. Git identity was configured. `git diff --check` and staged diff inspection passed before the requested M02 local commit. Initial Git index write was sandbox-denied; the authorized retry succeeded. Post-commit state contained only the pre-existing untracked file before M03 edits.
-- `python -m py_compile transformation/batch.py transformation/publish.py tests/test_m03_fingerprint.py` — PASS. PowerShell parser over `infra/scripts/run_m03_s01.ps1` — PASS. Compose configuration validation — PASS. Boundary search found no fixture/expected/source-state/truth-ledger reads in production M03 code.
-- From `fixtures/s01/`, `python verify.py` — PASS, 10 offline checks; `python -m unittest -v test_tools.py` — PASS, 10 tests. These remain offline checks, separate from the runtime results below.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m03_s01.ps1` — PASS, exit 0 on the final pinned build. Published batch: `8db63541-de4c-4f0b-9af9-71679123201f`; failed acceptance batch: `1ba8328e-9fc4-4088-8a27-a9eada995a3c`.
-- The final successful dbt invocation built 11 models and passed all 17 data tests plus its hook: `PASS=29 WARN=0 ERROR=0 SKIP=0`. Both batches froze 16 eligible raw IDs. Publication produced 3 distinct order versions, 3 archived line rows, 16 snapshot evidence links, 1 current order, and 1 current line. Retained acquisition replays did not inflate source-version counts.
-- Runner fingerprint test (`tests/test_m03_fingerprint.py` in a test-only container with read-only fixture mount) — PASS: SQL canonical bytes/SHA-256 equal Python fixture behavior on 8 cases (including the three scheduled website business objects, missing/null, ordered arrays, nested objects, and Unicode), and all 16 retained observations.
-- Failure acceptance — PASS: exactly `test.multi_channel_orders.injected_failure` failed; every other node passed (`PASS=28 ERROR=1 SKIP=0`, including hook). Batch transitioned to FAILED. An actual publisher attempt rejected it with `only a TESTED batch can be published`. The following `tests/m03_acceptance.sql` returned `M03 website dbt/release PASS` and confirmed the successful publication stayed active.
-- `tests/m03_report.sql` was piped through Compose to authenticated TCP psql as `platform_report` — PASS. Stable report results: W1001 PAID / NOT_STARTED / CANCELED; WI1001 maps to V001, quantity 2, USD40 merchandise; order activity 1 / USD40; product activity V001 / 2 / USD40. Publication stayed on batch `8db63541-de4c-4f0b-9af9-71679123201f` after the failed build/publish attempt.
-- Final direct DB query confirmed 3 history rows, 3 line-history rows, 16 evidence links, 1 current order/line, and separate FAILED TRANSFORM/PUBLISH run audits for the rejected batch. `git diff --check`, trailing-whitespace inspection of new task files, and `git diff --cached --quiet` — PASS; M03 changes remain unstaged and no credentials/runtime artifacts are included.
-- `Get-Content tests/m01_acceptance.sql -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T postgres psql --set ON_ERROR_STOP=1 --username postgres --dbname data_platform` — PASS, `M01 database contract PASS`, after M03 materialization.
-- Intermediate failures retained in audit: the first build used unsupported `MIN(uuid)` in three marts; replaced with the frozen batch UUID. A later all-passing build was conservatively rejected by artifact validation because a hook was counted alongside model/test nodes; corrected the node set and explicitly marked that stopped batch FAILED. No failed candidate was published. Earlier accepted run was batch `c01e0fde-ece5-4097-8484-6249364739e9`; final acceptance also exercised repeatable publication from the same raw manifest.
-
-## M03 checks not run / limits
-
-- No volume reset, source playback, or acquisition rerun was required for M03: it used the existing retained M02 raw data. PostgreSQL volume, raw audits and source data were preserved.
-- Runtime checks cover approved website S01, not marketplace fingerprints, general JSON numeric encodings, arbitrary commerce states, invalid-source quarantine/remediation, concurrent manual dbt commands, or multi-writer stress. The shared build schema relies on the documented serial lifecycle; mapping versions must not be edited in place during a run.
-- No full exception-queue remediation or missing-mapping fault campaign was run; the S01 mapping is complete and candidate mapping failures remain explicit. Broader recovery campaigns belong to M08.
-- No Airflow runtime, DAG, dashboard, or performance benchmark was run. Stop before M04; it will orchestrate these reusable acquisition/batch/dbt/publication commands.
-
-## M02 decisions
-
-- The website source physical schema is the approved nine-table v0.1 contract: source IDs are `TEXT`, money is `NUMERIC(18,2)`, timestamps are `TIMESTAMPTZ`, and PK/FK/unique/local enum and amount bounds are database constraints. Cross-row order sums, currency, and shipment allocation are validated by playback before its single transaction commits.
-- Simulator and acquisition boundaries are separate Docker images. Only `website-simulator` contains the allow-listed source-state fixtures and uses `website_writer`. `website-collector` contains no fixture tree, reads with `website_reader` in one `REPEATABLE READ READ ONLY` transaction, and appends platform evidence with `platform_ingest`.
-- A raw record is committed before the checkpoint. A crash or injected failure after that commit leaves the exact raw bytes and a failed run but cannot advance the checkpoint. The checkpoint and successful run transition then commit together. Equal-window replay appends another auditable raw/run and may replace the checkpoint's successful run ID; an older window cannot regress its timestamp.
-- The approved 120-second overlap is explicit in the S01 windows: 08:58–09:03, 09:01–09:11, and 09:09–09:15. Only the observed 09:01, 09:10, and 09:14 source versions are acquired; the unobserved 09:00 state is not fabricated.
-- Python runtime is isolated in containers based on `python:3.12.12-slim-bookworm` pinned by digest. `psycopg`, its binary package, and `typing_extensions` are pinned to 3.3.6/3.3.6/4.16.0. The repository `.dockerignore` excludes `.env`, Git data, caches, runtime data, and build artifacts from Docker contexts.
-
-## Exact M02 checks and outcomes
-
-- Starting inspection: `main` at `6c74517` (`origin/main` at the same commit); only pre-existing `HANDOFF_SHA256SUMS.txt` was untracked. PostgreSQL was already running on host port 5433; raw/core/mart were initially empty and the four M01 mapping rows existed.
-- `python -m py_compile simulator/website_playback.py ingestion/website.py` — PASS.
-- PowerShell parser checks for `infra/scripts/migrate.ps1` and `infra/scripts/run_m02_s01.ps1` — PASS.
-- `docker compose --env-file .env --file infra/compose.yaml config --quiet` — PASS, exit 0. The sandboxed attempt emitted an unreadable user Docker-config warning but configuration validation itself succeeded.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/migrate.ps1` — PASS after correcting the source migration's initial overly broad `REVOKE`; the failing transaction rolled back before the corrected rerun. A later full rerun also passed with existing objects and data unchanged.
-- From `fixtures/s01/`, `python verify.py` — PASS, all 10 offline checks; `python -m unittest -v test_tools.py` — PASS, 10 tests.
-- `Get-Content tests/m01_acceptance.sql -Raw | docker compose --env-file .env --file infra/compose.yaml exec -T postgres psql --set ON_ERROR_STOP=1 --username postgres --dbname data_platform` — PASS, `M01 database contract PASS`.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/run_m02_s01.ps1` — PASS on the final pinned build, execution ID `cfee55cf-703a-446a-ba40-0f12162efb08`. It built both images, applied states 0901/0910/0914, injected the expected post-raw failure, acquired all three scheduled windows, replayed the final window, checked role boundaries, and verified the collector image has neither `/fixtures` nor `/app/fixtures`.
-- Final execution evidence query — PASS: `failure-test|FAILED|1`, `scheduled|SUCCEEDED|3`, and `replay|SUCCEEDED|1`. The successful scheduled payload states are exactly `NOT_REQUESTED`, `REQUESTED`, `CANCELED`; the checkpoint is `2026-10-17 09:15:00+00`, points to the successful replay run, and never points to the failed run.
-- The first full runner attempt exposed a psql-variable substitution error inside a dollar-quoted acceptance block after runtime acquisition had completed. Passing the execution ID through a session setting fixed the assertion; subsequent isolated execution IDs passed. Earlier acquisition rows remain intentionally retained as append-only audit evidence.
-
-## M02 checks not run / limits
-
-- No clean-volume bootstrap was run during M02 because the task preserved the owner's existing local volume/data. The source migration was exercised through the documented idempotent migration path and the bootstrap script was updated for future empty-volume initialization.
-- No dbt model/publication or Airflow DAG check was run; those begin in M03 and M04. Therefore M02 raw rows do not claim warehouse history/current/mart output, and core/mart remain empty.
-- No invalid-source exception flow, concurrent source mutation stress test, or non-S01 shipment playback was added; M02 acceptance covers the approved fixed S01 states, interruption durability, replay audit, consistent read transaction, and enforced access boundaries.
-
-## M01 decisions
-
-- PostgreSQL is pinned to `postgres:16.15-bookworm`; host port defaults to 55432 because Windows rejected binding 5432 in the local check.
-- UUIDs are supplied by writers; source IDs remain TEXT and account-scoped. Amounts use `NUMERIC(20,6)` plus currency, timestamps use `TIMESTAMPTZ`, and SHA-256 values require 32 bytes.
-- Raw rows are append-only for `platform_ingest`. dbt's future `platform_transform` role can create candidate relations only in `build`; it cannot mutate stable core/marts. `platform_publisher` owns the later tested-release write path; `platform_report` can select only report views.
-- The migration rerun policy is explicit and idempotent. Initial bootstrap scripts run only for an empty official-image volume; later runs use `infra/scripts/migrate.ps1`. No database reset is an upgrade mechanism.
-- The four S01 mapping rows are seeded from `fixtures/s01/config/product_mapping.json`, not from golden warehouse outputs. Exact active listing/variant identities are unique; ambiguous SKU fallback remains a visible transformation exception rather than a guessed match.
-
-## Exact M01 checks and outcomes
-
-- Tool inspection: Python 3.12.7, Docker CLI/Engine 29.7.2, Docker Compose 5.5.0, Git available; host `psql`, dbt, and Airflow not on PATH. Docker access required running outside the filesystem sandbox.
-- `docker compose --file infra/compose.yaml config --quiet` with process-only test variables — PASS.
-- `C:\Program Files\Git\bin\bash.exe -n infra/postgres/bootstrap/00-bootstrap.sh` — PASS. The initial generic `bash -n` attempt selected WSL and failed with `E_ACCESSDENIED`; Git Bash provided the applicable syntax check.
-- PowerShell parser over `infra/scripts/migrate.ps1` — PASS.
-- From `fixtures/s01/`, `python verify.py` — PASS, all 10 offline fixture checks; `runtime_pipeline_tested` remains false.
-- From `fixtures/s01/`, `python -m unittest -v test_tools.py` — PASS, 10 tests.
-- Clean bootstrap: `docker compose --file infra/compose.yaml down --volumes`, then `docker compose --file infra/compose.yaml up --detach --wait`, using process-only test passwords — PASS; PostgreSQL 16.15 became healthy and all bootstrap migrations completed. The removed volume was the disposable task-created `multi-channel-order-platform_postgres_data`, verified by its Compose labels and empty business tables.
-- `Get-Content tests/m01_acceptance.sql -Raw | docker compose --file infra/compose.yaml exec -T postgres psql --username postgres --dbname data_platform` — PASS, `M01 database contract PASS`. It verifies four databases, required relations/views, three migration ledger entries, four mappings, validated constraints, append-only raw, transform/publisher separation, report isolation, and marketplace/platform database isolation.
-- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/migrate.ps1` after bootstrap — PASS, exit 0; existing objects/seeds were unchanged. A first attempt without process-scoped bypass was blocked by the machine's script execution policy before running; documentation now gives the working command without changing machine policy.
-- `docker compose --file infra/compose.yaml restart postgres`, wait healthy, then rerun `tests/m01_acceptance.sql` — PASS, proving named-volume restart persistence. The container was stopped afterward; the final local test volume remains and contains no runtime source/order data.
-- Live TCP login as `platform_report` selected `report.orders_current` successfully (0 rows) and `SELECT` from `raw.raw_records` failed with `permission denied for schema raw` as required.
-
-## Checks not run / limits
-
-- No dbt or Airflow runtime check: neither tool is installed and their projects belong to later milestones.
-- No source HTTP/database integration or pipeline behavior check: M02+ scope. PostgreSQL M01 storage/bootstrap did run; empty target tables do not claim transformation behavior.
-- No external PostgreSQL client check because host `psql` is absent; all SQL checks ran with the pinned container's `psql` over both local socket and authenticated TCP where relevant.
-
-## M01 follow-up — Compose environment resolution
-
-- On 2026-10-25, an owner-run `infra/scripts/migrate.ps1` exposed that nested
-  Compose calls did not automatically load the repository-root `.env` because
-  the Compose file lives under `infra/`.
-- The runner now resolves the root `.env` explicitly and passes it with
-  `docker compose --env-file`; `-EnvFile` can override the path. The README uses
-  the same explicit option for every direct Compose command.
-- `docker compose --env-file .env --file infra/compose.yaml config --quiet` —
-  PASS, exit 0.
+Updated: 2026-11-01 (Asia/Bangkok).
+
+## Current checkpoint
+
+Owner paused further M08C campaigns on 2026-11-01 and requested a reviewed local
+checkpoint commit followed by M09 CV/demo packaging. M08C remains INCOMPLETE;
+M08D is deferred, not implicitly passed. M09 packaging may proceed with explicit
+limitations; the full release-certification gate is not waived.
+
+No M08C host process or isolated container remained running at the pause check.
+The current test loop had already exited after failed_gate, with cleanup PASS;
+subsequent cases did not start. Main services/data were not stopped or reset.
+Main Airflow is running but currently unhealthy; this availability issue is OPEN.
+
+Fresh disposable baseline `563f55c17bab` passed61 steps. The authorized owner
+maintenance window restored the exact owner Airflow container healthy, restored
+the original DAG pause states, and verified unchanged protected data signature
+and PostgreSQL system identity. The overall window FAILED its first C probe;
+restoration PASS is not a complete campaign PASS. Evidence:
+`runtime/isolated/c-window-69859f6f01af4c7f9c11a3d19856e819`.
+
+- Branch `main`, HEAD `7f459aba8ac2b545ac14b82259a6579bcd25f91b` (M07).
+  This is the pre-checkpoint HEAD. The owner now explicitly authorizes a local
+  checkpoint commit, not a remote push. Preserve unrelated `HANDOFF_SHA256SUMS.txt`.
+- M01-M07 accepted previously; M08A baseline/guards passed locally. M08B daily
+  live finite correctness passed; owner requested cleanup and M08C implementation.
+- M08C **paused, NOT accepted**. M08D deferred; M09 packaging requested. Component checks
+  and a selected runtime case cannot certify the complete required matrix.
+- Previous detailed results, failures and intermediate checkpoints are retained
+  unchanged in [the historical log](history/STATUS_2026-11-01.md). Older PASS
+  evidence is not proof of current health or a new code revision.
+
+## Primary workflow / documentation cleanup
+
+Only one daily operator path: `python -m tools.s02_data live-up`, then manual
+`generate --config PATH` any number of times. One existing PostgreSQL/Airflow
+stack, retained data and ordinary `.env` ports/credentials. No dataset/campaign
+selection, source reset or per-cycle shell trigger. See
+[operator guide](../tools/s02_data/README.md), [config](../tools/s02_data/CONFIG.md)
+and [current architecture](16_M08_LIVE_LOCAL.md).
+
+The documentation map now separates current live guidance from historical
+RAM/temporal/replay regression references. The replay section of the operator
+guide is collapsed. Historical implementations/tests are retained because they
+are regression dependencies, not removed based solely on file count. The owner's
+temporary Vietnamese audit is retained. No application DDL, source contract,
+fingerprint, mapping selection or business SQL change in this cleanup.
+
+## M08B review
+
+Retained strict evidence: `runtime/m08b-live-check-20261101T050453Z.json`, exit0:
+`python -m test_support.m08b_live_check --wait-seconds 1200
+--verify-reread-seconds 600 --require-observed-changes`.
+Four batches/72 new orders plus3 retained S01; three source paths reconcile;
+observed changed orders Website5/eBay6/Etsy10; history105 raw-linked; omitted1
+notification recovered; duplicate2 IDs preserve audits; extra scheduled cycles
+raw950->954 with stable logical signatures. Current-checker follow-up051153Z PASS.
+These are finite correctness results, not load/latency or M08C certification.
+
+Fresh read-only review during this task:
+
+- Docker Compose/Engine and Python3.12.7 available; host lacks `psycopg`.
+- PostgreSQL, both APIs, receiver, live-source and report healthy; observer running.
+  Airflow running but healthcheck reported **unhealthy**; scheduler/processor/
+  triggerer have recent heartbeats. Four periodic DAGs unpaused, three manual/
+  replay DAGs paused. Last2h contained an Etsy recovery failure and successes
+  across all four paths. No automatic restart/pause/reset performed.
+- Earlier owner query investigation: Website order `12-398751100019-10001`
+  has three prepared transitions13:17:31/13:17:59/13:18:15 +07, but only one raw
+  observation13:33:27.874 +07 (CANCELED), so history correctly contains one
+  observed snapshot. Collect gap13:03..13:33 needs availability investigation;
+  missing history must not be fabricated. `source_order_id` collisions across
+  source/account scopes are valid; identity is the source/account/order triple.
+- Prior measured eBay convergence19m37s and current build/slot delays are known
+  performance limits. M08D must measure/fix bottlenecks, not claim capacity from
+  generated order counts. Current availability failure is not declared resolved.
+
+## M08C implementation and verification
+
+Contract/runbook: [17_M08C_RECOVERY.md](17_M08C_RECOVERY.md).
+Machine-readable required inventory: `test_support/m08c_cases.json`.
+Host CLI: `python -m test_support.m08c plan|offline|run`.
+
+Implemented selected-case runner: accepted disposable M08A/S01 target only;
+checks marker/config/resources/DB identity and no active test schedules/batches;
+memory preflight before starting PostgreSQL/APIs/receiver; CLI-only one-shot tests,
+not a second scheduler. Per-case latch, hashes, private logs, JSON outcome and
+finally stop of only services it started; volume/evidence retained. Main is never
+a fault target. The owner authorized temporary owner-Airflow stop/restore only
+when idle; that is not permission to stop producers or PostgreSQL.
+
+Implemented probes: durable raw/freeze hook interruption with same-manifest retry,
+actual dbt failure retaining last-good publication, existing real SQL/HTTP lease
+fencing/budget replay, receiver security/duplicate audit and graceful test-PG
+persistence. New offline HTTP tests exercise transient429/500, five-attempt
+exhaustion, mid-page retained audits/replay and malformed200 byte retention.
+Mock audit connections are explicitly NOT PostgreSQL checkpoint proof.
+
+Earlier checks (continuation/pause results below supersede outdated progress):
+
+- `python -m test_support.m08c offline`: FAIL, host missing psycopg for five
+  suites; three stdlib suites passed. One script also lacked PYTHONPATH; runner
+  now explicitly supplies repository root. Evidence
+  `runtime/m08c-offline-adeb50dc7e7945db9ed59dbced793498.json` retained.
+- Same offline command in a network-disabled256MiB CLI container: initial FAIL
+  due to omitted read-only migration mounts in test_s02_live (3 errors), while
+  the other7 suites passed. Corrected full-input rerun is recorded below; no
+  pipeline DB writes, second scheduler or main-service changes for either run.
+
+NOT RUN: full M08C fault matrix, abrupt process-loss/commit-ACK/pause-resume and
+service-outage campaigns, remote CI, fresh full S01 runtime rebuild. Missing
+required cases remain visible as NOT_RUN; they are not silently moved to M08D.
+Next: validate the available probes, establish a current safe disposable baseline
+and execute the remaining deterministic lifecycle cases before M08C sign-off.
+
+### Final checks for cleanup / initial M08C code
+
 - `powershell -NoProfile -ExecutionPolicy Bypass -File
-  infra/scripts/migrate.ps1` without process-exported variables — PASS, exit 0.
-- Piping `tests/m01_acceptance.sql` through Compose with the root env file —
-  PASS, `M01 database contract PASS`. Existing volume/data was not deleted or
-  reset.
+  infra/scripts/check_m08c_offline.ps1`: PASS, exit0, final evidence
+  `runtime/m08c-offline-f24b362754034a11bf28942bbc603c64.json`.
+  Eight suites/69 tests: live27, C guards11, C HTTP4, M05 HTTP7, M06 unit7,
+  draining5, cycle4, scheduling4. Container image
+  `sha256:579a2c4a4f1cbd4d895e3af15cf2f93d43f7296b1628515baafe5f6e55338d5f`;
+  no warehouse network, `.env`, second scheduler or Docker socket. Inputs RO,
+  ignored evidence directory RW, memory256MiB/CPU0.5. Earlier corrected
+  bac9fe7ace704a25b824c886ddc773c4 and fdd6c561b0b04044bd45832eade6f452
+  offline results also PASS; the latter preceded the fixed test config change.
+- Eight additional host suites, each `python tests/NAME.py`: PASS77 tests:
+  test_s02_diverse4, test_s02_temporal10, test_s02_local19, test_s02_clock3,
+  test_s02_local_scheduled8, test_m08a_guards18, test_m08b_sources12,
+  test_m08b_window3. Combined146 component/unit tests, not runtime certification.
+- First additional-host regression loop FAIL: test_s02_local expected18 orders
+  but read the owner's edited quick config (76). Fixed TEST dependency, not
+  generator behavior: new `tests/fixtures/s02_quick.json` is deterministic and
+  used by local/live tests. Owner quick/local_now/observe configs left untouched.
+- From fixtures/s01: `python verify.py` PASS10 checks;
+  `python -m unittest -v test_tools.py` PASS10 tests. One attempted C guard command
+  accidentally used this cwd and failed to find tests/test_m08c.py; root rerun
+  PASS11 tests. No command failure counted as acceptance.
+- `python -m test_support.m08c plan`: exit0,18 required entries, five selected-case
+  runners available,13 required entries without a runtime runner still explicit.
+- `python -m test_support.m08c run --id 49a6b80472b1 --case lease_fencing
+  --confirm-disposable`: expected refusal, exit1 (`Config/env/base hash mismatch`)
+  BEFORE service/case mutation. All retained accepted A IDs inspected use an
+  older base hash. They are not adopted by editing their marker; fresh current
+  A baseline is needed. This is a negative safety check, not lease runtime PASS.
+- Conditional owner stop permission received, but not exercised: subsequent
+  read-only check still found four running owner DAGs and unhealthy Airflow
+  (failing streak46). Docker total3.827GiB, Airflow1.553GiB at sample. No producer,
+  receiver, PostgreSQL or owner Airflow stop/restart/pause, no dataset reset.
+- `python -m compileall -q tools ingestion simulator transformation orchestration
+  reports test_support tests`: PASS. `git diff --check`: PASS; explicit21-file
+  task whitespace scan and current documentation local-link scan PASS. Index
+  empty. No stage/commit/push, no M08D work.
 
-## Next task
+### Continuation results and owner pause (2026-11-01)
 
-Owner review of unstaged M07 via `reports/README.md` and localhost:8501, including
-Order Operations review rules/charts/worklist/details and Data Quality & Pipeline.
-M06 is committed as
-`dfd8d58a6f2b0c5a696a4ac830233f988bc6395a`; no push or M07 commit. After review,
-the owner normally stages/commits. Start M08 only on explicit selection, keeping
-cold-setup/destructive checks isolated to approved disposable storage.
+The following runtime commands used `python -m test_support.m08c run
+--id 563f55c17bab --case CASE --confirm-disposable`. Evidence filenames below
+are under `runtime/isolated/m08a-563f55c17bab/evidence/` (ignored/private).
 
-## Session update template
+| Case | Actual result | Evidence JSON |
+| --- | --- | --- |
+| lease_fencing | PASS, rollback-only SQL/HTTP fencing/budget test; not killed-worker proof | m08c-lease_fencing-e46e20ab6dea4d3b9776173372d6ecba.json |
+| receiver_audit | PASS, actual signed HTTP and physical duplicate audits | m08c-receiver_audit-d14e54fbc29046b999fec8058ffcbf3b.json |
+| stage_resume | PASS, durable raw/freeze hooks, retry, dbt/publication; not process kill | m08c-stage_resume-a8c79c209c7a4c498d1aa6e13dad0c78.json |
+| failed_gate | FAIL before injected dbt test: probe read uses a role lacking SELECT on core.orders_current | m08c-failed_gate-0992d03b40964011b6e8d60abf8025c2.json |
 
-- Selected milestone / scope:
-- Starting branch / commit:
-- Files and behavior changed:
-- Technical decisions and draft/approved status:
-- Exact checks / results / not-run checks:
-- Remaining issues and next task:
-- Suggested owner commit message and files to review; Codex leaves changes unstaged unless explicitly asked otherwise.
+Initial failed attempts are retained: nested RO/RW mount (790511...), missing
+private controller signing key (4cc72d...), controller mount ordering (95f005...).
+Those harness issues were corrected before the three selected PASS results.
+The failed_gate privilege problem is NOT fixed or waived. Do not widen production
+roles merely to make an assertion pass; a future probe must use an appropriate
+read-only report connection. Cleanup PASS retained volumes/audits, stopped only
+the started test services, and prevented later cases from starting.
+
+All18 inventory entries now have runner code, but the remaining15 do NOT have
+passing continuation runtime evidence. Abrupt process/commit-ACK, source-worker,
+task-clear, lifecycle/outage and real scheduled C tests remain unverified code.
+No test-only C DAG was installed in the owner Airflow. No M08D load/soak campaign
+or remote CI ran. No fresh runtime campaign is authorized by this pause request.
+
+Review checks after pause: `python -m compileall -q tools ingestion simulator
+transformation orchestration reports test_support tests` PASS;
+`python tests/test_m08c.py` PASS12 tests; `git diff --check` PASS.
+Only offline review checks may run during packaging; no new fault campaigns.
+
+- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/check_m08c_offline.ps1`:
+  PASS, exit0, eight suites/72 tests (27+12+6+7+7+5+4+4). Evidence:
+  `runtime/m08c-offline-db3eaac38cdb4df49eeaab43570b4e72.json`.
+- Additional host loop `python tests/NAME.py` for test_s02_diverse,
+  test_s02_temporal, test_s02_local, test_s02_clock, test_s02_local_scheduled,
+  test_m08a_guards, test_m08b_sources, test_m08b_window: PASS77 tests.
+  Combined149 component tests, not a runtime certification; the standalone
+ 12 guard rerun overlaps that total and is not added again.
+- From fixtures/s01: `python verify.py` PASS10 checks and
+  `python -m unittest -v test_tools.py` PASS10 tests.
+- Candidate-file scan found no local `.env` password values or private-key/token
+  patterns. Git identity is configured. Runtime, `.env`, caches and unrelated
+  HANDOFF_SHA256SUMS.txt are excluded from the checkpoint commit.

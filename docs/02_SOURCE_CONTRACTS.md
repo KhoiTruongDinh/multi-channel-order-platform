@@ -1,5 +1,11 @@
 # B. Source contracts and S01 acceptance
 
+Daily local live source revision2026-11-01: [16_M08_LIVE_LOCAL.md](16_M08_LIVE_LOCAL.md).
+Pre-generated source timelines are admitted append-only and shifted to actual
+live time; collector SQL/HTTP contracts and fingerprint semantics stay unchanged.
+No campaign selector or scenario truth access is added to production ingestion.
+Existing fixed S01 contracts/tests remain regression-only, not a live data filter.
+
 ## B1. Intended sources and API discovery
 
 The agreed topology is a simulated internal website database, an eBay-style polling API, and an Etsy-style webhook plus receipt API, all running locally. eBay and Etsy are the selected public-contract references. Shopee and Tiki were examples, not selected sources.
@@ -32,7 +38,11 @@ The environment is simulated and inspired by selected public eBay/Etsy contracts
 it is not a certified replica. Approved detailed fields/rules are in workbook
 tabs 13–18. Fixed website playback, the eBay HTTP subset and the M06 Etsy
 webhook/receipt/recovery subset are implemented; see STATUS for runtime evidence.
-An opt-in current-clock source generator remains M08 work.
+An opt-in finite current-clock source generator is implemented in M08B,
+after M08A environment isolation; M08C/D add fault recovery/load tests. The S02 strategy is
+in [10_S02_TEST_STRATEGY.md](10_S02_TEST_STRATEGY.md), not a revision of source v0.1.
+Finite B source/paging/reconciliation limits are in
+[12_M08B_CONTINUOUS.md](12_M08B_CONTINUOUS.md); S01 stays the default simulator mode.
 Scheduling does not advance frozen fixture state. The operational clock/mode
 plan in [06_AUTOMATION.md](06_AUTOMATION.md) does not change S01 or these contracts.
 

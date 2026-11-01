@@ -1,5 +1,35 @@
 # Specification provenance and synchronization
 
+## Daily local live source revision:2026-11-01
+
+Owner requested start-once sources/pipelines, then manual append generation,
+without per-batch campaign selection. Contract16_M08_LIVE_LOCAL.md precedes
+additive003_live_batches DDL. Existing S01 bytes/contracts remain regression
+inputs; runtime S01 data is not an activation blocker. Mapping local-live-v1 is
+an explicit composite of s01-v1/s02-catalog-v1, not a source identity change.
+M08A isolation, M08C boundary faults and M08D measured-load gates remain distinct.
+Actual current-code runtime results, failures and unrun gates are only in STATUS;
+prior isolated PASS is not automatically reused for this source-worker path.
+
+## Local temporal implementation:2026-10-31
+
+Owner approved coding document14. Physical fields/constraints and per-source
+branch boundaries preceded opt-in PG migration/readers, prepare/seal/as-of HTTP,
+catalog-aware oracle and isolated temporal runners. Existing S01/source/fingerprint
+semantics and v1 RAM mode preserved. DAGs accept explicit polling mapping version
+with default s01-v1 unchanged. New offline/CI gates and runtime storage/CLI evidence
+are recorded in STATUS; do not infer scheduled/fault/load acceptance. No owner DB
+schema changes, Git writes, remote Actions or Google synchronization performed.
+
+## Local S02 temporal-source proposal:2026-10-31
+
+Owner requested pre-generated time-indexed source changes and component joins.
+[Document14](14_S02_TEMPORAL_SOURCE.md) proposes immutable PostgreSQL source
+versions selected as of time behind unchanged marketplace HTTP, instead of a
+runtime current-state materializer. Documentation only; physical fields, schema,
+clock and lifecycle branch implementation/acceptance remain pending. S01/CSV/
+fingerprint/business contracts unchanged. Google exports were not synchronized.
+
 Snapshot date: 2026-10-24 (Asia/Bangkok).
 
 - Google Doc: https://docs.google.com/document/d/13HWKCL8ZnG7ILXDkbBxpQvIyLuVcHpqPGnoPXsVCaJE
@@ -15,12 +45,51 @@ The Google Doc is organized as A Business, B Source contracts/S01, C Architectur
 
 ## Change workflow
 
+Current local delivery roadmap extends through M09; see the 2026-10-30 revision
+below. Earlier M00-M08 references describe the dated export/planning baseline.
+
 1. Review a material change and record whether it is approved or a draft.
 2. Update the relevant Markdown and executable contract/tests in the same change.
 3. Synchronize accepted design changes to the Google review references, or explicitly record a pending synchronization task if access is unavailable.
 4. Update STATUS and leave the verified diff unstaged for owner review. The owner stages, commits, and pushes when ready. Keep source revision/date when refreshing an export.
 
 There is no automatic two-way synchronization. Do not blindly overwrite newer local implementation decisions with an older Google export or treat a historical status cell as current runtime evidence. If the sources disagree, identify the conflict instead of guessing.
+
+## Local stabilization planning revision: 2026-10-30
+
+M08B follow-up: owner reports A complete and authorized B only. Finalized source/
+control/ledger/oracle/profile constraints in `12_M08B_CONTINUOUS.md`; no warehouse
+DDL/business/fingerprint/S01 change. Added opt-in stores/source writer, host-only
+driver, bounded profiles and integration CI. Local data baseline/continuous and
+supplemental final-code in-flight drain/narrow-mount regression passed; initial
+runner inbox-drain omission was recorded/fixed with regression, not hidden. Small-
+VM owner-Airflow stop/restore explicitly authorized again and restored healthy,
+with original data/system identity/pause states unchanged. No C/D/M09 or remote
+Actions/Google sync implied; STATUS is the current evidence record.
+
+Subsequent M08A implementation: finalized host marker/model/resource/evidence
+definitions in `11_M08A_ISOLATION.md` before coding. Added host-only guarded test
+harness, finite existing-command S01 baseline, offline safety tests and SHA-pinned
+offline CI. No warehouse DDL, source/S01/fingerprint or production pipeline change.
+Initial local runs exposed a bootstrap health race and Airflow/Engine failure.
+After test-only health/resource/guard refinements and an explicitly authorized
+owner-Airflow stop/restore window, fresh M08A acceptance passed61 steps; owner
+Airflow restored healthy, protected data/pause states unchanged. A logging-only
+preservation fix was checked separately after the full run; exact commands/hashes/
+limits are in STATUS. Owner review, B-D/M09 and external Google sync remain pending;
+no remote CI or load/recovery campaign is implied.
+
+Owner requested updating the proposal into repository docs: split the combined
+M08 into A isolated environment/safety, B S02 generation/correctness, C recovery/
+lifecycle, D measured load/stability; move portfolio packaging to M09. Add basic
+CI in A and bounded integration CI in B, not only at final packaging. Contract
+`10_S02_TEST_STRATEGY.md` defines profile/oracle boundaries, isolation, fault matrix,
+measurement limits, evidence and review gates. This is documentation only: no
+generator, fault/load runner, physical schema, runtime or resource changes.
+Approved source v0.1/CSV/S01/fixture bytes and canonical semantics unchanged.
+Local plan/automation/architecture/source-overview/map/README/STATUS synchronized;
+Google review surfaces and dated exports NOT updated. Their synchronization
+remains pending; no external revision or new runtime PASS is implied.
 
 ## Local planning revision: 2026-10-28
 

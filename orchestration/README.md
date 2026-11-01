@@ -1,5 +1,10 @@
 # M04 bounded website workflow
 
+For daily M08B live sources use [the live setup](../tools/s02_data/README.md):
+live-up starts SIMs/source worker and the four periodic DAGs once, then generate
+appends source data without manual DAG triggers. The M04/S01 commands below are
+retained regression/manual tools, not the daily S02 startup procedure.
+
 M06 Etsy receiver, independent inbox/recovery schedules and acceptance commands:
 [ETSY.md](ETSY.md). The receiver remains outside all DAGs.
 
