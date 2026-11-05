@@ -7,7 +7,10 @@ $runtimePath = Join-Path $repoRoot 'runtime'
 if (-not (Test-Path -LiteralPath $runtimePath)) {
     New-Item -ItemType Directory -Path $runtimePath | Out-Null
 }
-$dockerArgs = @('run', '--rm', '--network', 'none', '--memory', '256m', '--cpus', '0.5')
+$dockerArgs = @('run', '--rm', '--network', 'none', '--memory', '256m', '--cpus', '0.5',
+    '--label', 'com.docker.compose.project=m08c-offline',
+    '--label', 'com.docker.compose.service=offline-checks')
+# Compose-built images carry owner labels. This CLI is not an owner scheduler.
 # No .env, Docker socket, warehouse network or extra scheduler in this container.
 foreach ($relative in @('test_support', 'tests', 'tools', 'simulator', 'ingestion',
     'orchestration', 'transformation', 'transformations', 'fixtures', 'migrations', 'infra', '.env.example')) {

@@ -68,12 +68,17 @@ def require_live_storage(db):
 
 def drain(db,timeout=600):
     """Keep retries runnable; pause only after that DAG has no active runs."""
+    return _drain_schedules(db, timeout, DAGS)
+
+
+def _drain_schedules(db, timeout, dags):
+    """Shared algorithm; disposable controllers supply only their test DAG IDs."""
     deadline=time.monotonic()+timeout
     states={r['dag_id']:r.get('is_paused',True) for r in query(db,'SELECT dag_id,is_paused FROM dag','airflow_meta')}
     known=set(states)
     active=query(db,"SELECT DISTINCT dag_id FROM dag_run WHERE state IN ('running','queued')",'airflow_meta')
     active_ids={r['dag_id'] for r in active}
-    if active_ids-set(DAGS):
+    if active_ids-set(dags):
         raise ValueError('manual/replay DAG active; finish it before live-up')
     # Upgrade the small parse-time helper in older running images as a one-time
     # deployment step, without restarting active workers or altering run state.
@@ -82,7 +87,7 @@ def drain(db,timeout=600):
     db.command(['exec','-T','airflow','python','-c',
                 'from pathlib import Path; Path("/opt/airflow/state/polling-drain").touch()'])
     paused=set()
-    for dag in DAGS:
+    for dag in dags:
         if dag not in known: continue
         action='unpause' if dag in active_ids else 'pause'
         if states[dag] != (action=='pause'):
@@ -90,14 +95,14 @@ def drain(db,timeout=600):
         if action=='pause': paused.add(dag)
     while True:
         active={r['dag_id'] for r in query(db,"SELECT DISTINCT dag_id FROM dag_run WHERE state IN ('running','queued')",'airflow_meta')}
-        if active-set(DAGS): raise ValueError('manual/replay DAG became active during drain')
+        if active-set(dags): raise ValueError('manual/replay DAG became active during drain')
         # A run may have been created between the idle read and pause command.
         # Let that run finish too, rather than stranding it behind the pause flag.
         for dag in active&paused:
             db.command(['exec','-T','airflow','airflow','dags','unpause',dag]); paused.remove(dag)
-        for dag in set(DAGS)&known-paused-active:
+        for dag in set(dags)&known-paused-active:
             db.command(['exec','-T','airflow','airflow','dags','pause',dag]); paused.add(dag)
-        if not active and set(DAGS)&known<=paused: return
+        if not active and set(dags)&known<=paused: return
         if time.monotonic()>deadline:
             raise RuntimeError('Drain timeout; no source switch. Active DAGs remain runnable for retries; inspect before retrying')
         time.sleep(2)

@@ -128,10 +128,11 @@ remain visible in STATUS. Older RAM/temporal/replay revisions are regression
 references, not additional daily setup or empty-owner-dataset requirements.
 Owner authorized M08C on 2026-11-01, then explicitly paused further campaigns and
 requested a checkpoint commit and M09 CV/demo packaging. Recovery inventory:
-[17_M08C_RECOVERY.md](17_M08C_RECOVERY.md). M08C is paused/incomplete, not certified
-by B or by component tests. M08D is deferred. M09 packaging is now authorized,
-but full release certification still requires the original C/D gates. Generated
-code is not runtime evidence; see STATUS.
+[17_M08C_RECOVERY.md](17_M08C_RECOVERY.md). Owner resumed C on2026-11-05; its18
+declared runtime cases and affected local regressions now PASS (see STATUS for
+exact evidence and scope). M08D is deferred pending owner review/authorization.
+M09 packaging is implemented; full release certification still requires the
+remaining D/reproducibility gates. Generated code alone is not runtime evidence.
 
 - **M08A — Isolated test environment and safety harness.** Separate Compose project,
   named volumes, ports, credentials, Airflow/dbt/log/artifact bind paths and explicit
@@ -179,6 +180,12 @@ code is not runtime evidence; see STATUS.
   the implemented opt-in backend. STATUS distinguishes storage/CLI/scheduled
   evidence and remaining gates; this is not a certified load profile.
 - **M08C — Recovery, restart and pause/resume.** Execute the fault/lifecycle matrix:
+  Resumed by owner2026-11-05 after M09 presentation checkpoint21075d3. Work only
+  in validated disposable storage; preserve the owner's currently stopped stack.
+  Runtime evidence, not runner availability, determines completion.
+  Local acceptance2026-11-05: all18 runtime cases PASS, final offline88 tests
+  and post-recovery read-only S01/report14 tests PASS; no owner-stack changes,
+  no load/remote-CI/independent-machine certification. Review and stop before D.
   API/page failures, duplicate/out-of-order/omitted webhooks, interrupted raw/work,
   lease fencing, frozen batch/dbt/publish faults, bounded retry exhaustion, service
   restart and abrupt process loss. Pause while sources advance, resume and verify
@@ -187,6 +194,14 @@ code is not runtime evidence; see STATUS.
   recovery outcome; failed gates retain last-good publication and all audits.
   Fix discovered correctness bugs and rerun affected regression before advancing.
 - **M08D — Load, burst, soak and bottleneck stabilization.** Opt-in isolated tests
+  Owner-approved observable campaign direction2026-11-05: reuse the M08B data
+  config with an optional campaign section and a dedicated campaign entrypoint;
+  generate-only commands never inject faults. Support a stable explicitly opted-in
+  synthetic local stack, seeded bounded fault timing, visible UI/DB access and
+  retained inspection after recovery. Prepare data before measurement; separate
+  correctness, recovery and performance verdicts. C regressions remain separate.
+  Prerequisite: investigate the newest C scheduled catch-up rerun failure recorded
+  in STATUS; historical18-case PASS does not supersede newer failing evidence.
   with declared source mix, initial history/line cardinality, offered rate, bounded
   duration, resource ceilings and stop conditions. Measure actual generation vs
   logical processing, publication latency, backlog/drain, errors/retries and laptop
@@ -273,7 +288,8 @@ passed and the owner approved the result. M06 owner sign-off, final checks and
 commit are recorded in STATUS. M07 local report/SQL/AppTest acceptance passed and
 the owner approved its local commit. M08A is locally implemented/verified and
 owner confirmed completion; M08B passed local case-based acceptance and awaits review.
-M08C has partial implementation/runtime evidence and is paused; M08D is deferred.
+M08C declared local recovery matrix passed2026-11-05; owner review pending.
+M08D is deferred.
 M09 documentation packaging is authorized; full release certification is pending.
 The fixed fixture pack
 passes 10 offline checks and 10 utility unit tests. M05 additionally passes 7 HTTP

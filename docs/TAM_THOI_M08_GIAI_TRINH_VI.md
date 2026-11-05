@@ -1,5 +1,353 @@
 # TẠM THỜI — Giải trình M08 để chủ dự án kiểm tra
 
+## M08C — Bản giải thích và hướng dẫn kiểm tra hiện hành, 2026-11-05
+
+**Cập nhật khi review để commit:** phát hiện lượt bạn chạy lại
+`scheduled_pause_resume` bị timeout ở bước catch-up, cleanup PASS; evidence có
+đuôi `d6dc5866662a4db38d588943b4a48cf3`. Report mới nhất là **17 PASS / 1 FAIL**.
+Kết quả18/18 bên dưới là lượt trước, không được dùng để che lần FAIL mới. Commit
+lần này là checkpoint có ghi rõ vấn đề, không phải chứng nhận mọi rerun đều đạt.
+Cần chẩn đoán và chạy lại case này trước khi kết luận campaign tiếp theo PASS.
+
+Hướng M08D bạn đã chốt: dùng chung config M08B (như `local_now.json`), một lệnh
+campaign chuẩn bị dữ liệu, bật môi trường quan sát ổn định, gây lỗi/khôi phục theo
+timeline có seed, cho xem Airflow/DB và xuất kết quả correctness/recovery/performance
+riêng. Các bài regression M08C vẫn giữ. Đây là kế hoạch tiếp theo, chưa có lệnh
+campaign mới; lệnh generate cũ không tự nhiên được quyền gây lỗi hay dừng service.
+
+**Đọc phần này trước.** Những mục từ ngày 2026-11-01 phía dưới được giữ để bạn
+đối chiếu lịch sử, không phải trạng thái hiện tại. M08C đã đạt **18/18 case runtime
+local**, **88 test component** và **14 test report/UI sau recovery**. M08D chưa làm.
+Các câu cũ như “M08C đang dừng”, “chỉ ba case PASS” hay “failed_gate thiếu quyền”
+đã được thay thế bởi kết quả mới, nhưng log lỗi cũ không bị xoá.
+
+### 1. M08C giải quyết việc gì? Có thay M08B không?
+
+M08B chứng minh đường đi bình thường: sinh dữ liệu nguồn, pipeline tự thu thập,
+dbt xử lý, publish và dashboard đọc được. M08C hỏi tiếp: **nếu lỗi xảy ra ở giữa
+đường thì hệ thống có giữ dữ liệu/audit, không publish dở dang, retry đúng và biết
+khi nào phải nhờ người vận hành không?** Đây là kiểm thử đúng/sai khi có lỗi,
+không phải đo được bao nhiêu đơn/giây; tải/burst/soak thuộc M08D.
+
+Không yêu cầu bạn chọn campaign mỗi lần chạy pipeline hằng ngày. Luồng sử dụng
+thường vẫn là `live-up` rồi tự chạy `generate --config ...`; pipeline tự xử lý dữ
+liệu đến hạn. Riêng **test có chủ đích kill/restart/inject lỗi** phải chọn case và
+scope disposable để tránh phá stack đang demo. S01 ở đây chỉ là bộ dữ liệu đối
+chiếu cố định cho regression, không phải bộ lọc bắt pipeline thật chỉ nhận S01.
+
+```mermaid
+flowchart TB
+    A["Dùng hằng ngày: stack chính"] --> B["SIM + source worker + Airflow"]
+    B --> C["Generate thủ công → có dữ liệu đến hạn → pipeline tự lấy"]
+    D["Kiểm tra M08C: runner chọn case"] --> E["Guard xác nhận đúng scope test / config / PG identity / RAM"]
+    E --> F["Khởi động dịch vụ test cần thiết"]
+    F --> G["Gây lỗi tại ranh giới được kiểm soát"]
+    G --> H["Retry tự động hoặc thao tác operator được quy định"]
+    H --> I["Đối chiếu audit / budget / dữ liệu / last-good"]
+    I --> J["Ghi JSON + log rồi dừng dịch vụ test, giữ dữ liệu"]
+```
+
+Stack test không phải môi trường thứ hai phải chạy suốt ngày. Nó dùng cùng
+Docker Engine nhưng có project/volume/database riêng, chỉ bật khi kiểm tra.
+Test không chuyển dữ liệu test sang DB chính sau khi chạy. **DBeaver đang nối
+DB chính không tự thấy dữ liệu của scope test.** Việc tách này là để có thể kill
+PostgreSQL, Airflow hay receiver mà không làm mất buổi demo/dữ liệu của bạn.
+
+### 2. Những gì đã làm và đã sửa
+
+Phần M08C gồm runner, inventory, safety guards, các probe HTTP/SQL/process/lifecycle,
+DAG test riêng và regression. Những code có từ checkpoint trước vẫn được dùng;
+lượt tiếp tục này hoàn thiện bằng chứng và sửa các vấn đề phát hiện lúc chạy.
+
+| Phần | File nên đọc | Ý nghĩa / thay đổi |
+| --- | --- | --- |
+| Inventory 18 case | `test_support/m08c_cases.json` | ID, runner và phạm vi từng case; không suy ra PASS chỉ vì có code |
+| Điều phối và evidence | `test_support/m08c.py` | Xác nhận scope, kiểm tra RAM đúng topology, chọn probe, ghi kết quả và dừng dịch vụ trong finally |
+| Guard môi trường | `test_support/m08a.py` | Kiểm tra marker/config/labels/mounts/PG identity; không nhận stack chính làm test target |
+| Chữ ký publication | `test_support/m08c_pipeline_probe.py` | Dùng quyền publisher sẵn có trong transaction read-only, repeatable-read; không cấp thêm SELECT cho transform role |
+| HTTP | `test_support/m08c_http_probe.py`, `simulator/http_faults.py` | Lỗi timeout/JSON/page/retry có số lần và phạm vi cụ thể |
+| Process loss / atomicity | `test_support/m08c_loss_probe.py` | Chết sau raw commit, khi dbt đang chạy, trong transaction publish và sau commit trước ACK |
+| Worker / notification / chất lượng | `test_support/m08c_worker_probe.py`, `test_support/m08c_webhook_probe.py`, `test_support/m08c_quality_probe.py` | Fencing owner cũ, thông báo sai thứ tự/bị bỏ sót, policy dữ liệu |
+| Lifecycle thật | `test_support/m08c_lifecycle.py`, `test_support/airflow/m08c_recovery.py` | Lịch thật, pause/resume, drain, clear task, service restart và outage |
+| Source worker | `simulator/live_worker.py`, `test_support/m08c_source_worker_probe.py` | Worker hỗ trợ kết thúc tick khi SIGTERM; probe chờ heartbeat thật trước khi gửi signal, tránh lỗi do giết interpreter quá sớm |
+| Drain dùng chung | `tools/s02_data/live.py` | Test gọi cùng thuật toán drain thật, nhưng chỉ chọn DAG test; mặc định live vẫn là bốn DAG periodic ban đầu |
+| Offline regression | `tests/test_m08c.py`, `tests/test_m08c_probes.py`, `tests/test_m08c_http.py`, `infra/scripts/check_m08c_offline.ps1` | Guards/assertion/HTTP local; CLI container không bị nhầm là Airflow chính do label kế thừa từ image |
+
+Các sửa quan trọng khi chạy Airflow 3:
+
+- Copy DAG test vào container đang dừng **trước** khi start. Copy sau startup có
+  thể lỡ lần scan đầu và đợi refresh 300 giây, vượt deadline discovery 180 giây.
+- Kiểm tra bản serialized DAG mới nhất, không đòi metadata chỉ được có một row.
+- CLI task-clear ban đầu exit0 nhưng không chọn được task do cách xử lý
+  `--task-regex` ở bản cài đặt này. Bản sửa kiểm tra đúng run đã failed, đúng hai
+  task test và logical date duy nhất rồi mới clear bằng CLI thật. Không viết SQL
+  ép task thành success, không reset durable retry budget. Đã chạy lại tự động PASS.
+- Drain trước đây dùng chờ giả để tạo timeout trong prototype; nay kiểm tra timeout
+  của thuật toán drain thật, giải phóng barrier rõ ràng rồi để retry chạy hết.
+
+**Không thay source contract, fingerprint, schema core/marts hay business SQL**
+trong lượt hoàn thiện này. Không dựng history từ lịch generator; không đưa quyền
+admin vào collector; marketplace vẫn chỉ đi HTTP, website ingestion vẫn read-only.
+
+### 3. Đầy đủ 18 test case: gây lỗi gì, mong đợi gì?
+
+Mỗi hàng dưới đã có evidence runtime PASS trong scope `563f55c17bab`. PASS có
+nghĩa là assertion của hàng đó đạt, không đồng nghĩa mọi kiểu sự cố đều được thử.
+
+| Case | Tình huống mô phỏng / mong đợi PASS |
+| --- | --- |
+| `api_failures` | API trả 429/500, timeout, HTTP200 nhưng JSON hỏng, lỗi giữa các trang, next URL không an toàn hoặc lặp trang. Giữ audit, không đẩy checkpoint vượt phần chưa thu thập an toàn; hồi phục đúng khi nguồn hết lỗi. Không phải test tải API. |
+| `receiver_audit` | Gửi HTTP chữ ký sai/cũ và delivery trùng. Từ chối request không hợp lệ; delivery hợp lệ trùng vẫn giữ audit vật lý nhưng không tạo nhiều logical work cho cùng thông báo. |
+| `late_reordered_webhooks` | Gửi shipped trước rồi thông báo paid đến trễ, gửi trùng, và bỏ một notification. Inbox/audit/work/raw đúng; polling receipt API tìm được phần bị bỏ sót. Không khẳng định mọi trạng thái đó đã được publish thành history. |
+| `stage_resume` | Ngắt có kiểm soát sau raw và sau freeze rồi chạy lại cùng identity/config. Giữ raw/manifest đã commit, chạy tiếp đúng stage, không nhân đôi kết quả; dbt/test/publish thật đạt và rerun idempotent. Đây là hook interruption, không phải SIGKILL. |
+| `abrupt_raw_inbox` | Process chết sau raw commit; receiver chết sau DB commit trước ACK. Chạy lại không mất raw/inbox; retry delivery vẫn một inbox logical và giữ đủ delivery audits. |
+| `lease_fencing` | Probe SQL/HTTP kiểm tra token hết hạn, budget năm lần và replay được liên kết rõ ràng. Owner/token cũ không được ghi thành công. Probe rollback-only; không thay thế case process owner độc lập dưới đây. |
+| `abrupt_lease_owner` | Owner cũ quay lại sau khi lease đã được owner mới reclaim và commit. Token cũ bị fence; không ghi đè kết quả owner mới. |
+| `failed_gate` | Cố ý làm dbt test fail. Không đổi core/marts/publication pointer last-good; batch lỗi không tự thành TESTED. Abort lỗi rõ ràng rồi execution mới có thể recovery thành công. |
+| `data_quality` | Chạy compiled SQL thật với input literal: thiếu product mapping, status lạ, hai version cùng timestamp nhưng xung đột. Áp dụng đúng UNMAPPED/reject/conflict, không đoán mapping. Đây không phải campaign dữ liệu lỗi đi toàn bộ từ source đến warehouse. |
+| `abrupt_freeze_dbt` | Process mất sau freeze hoặc dbt bị SIGKILL. Manifest không mất; batch orphan cần thao tác operator có kiểm soát, không giả vờ tự recovery mọi trường hợp. Sau xử lý được quy định, pipeline chạy lại đúng. |
+| `publish_atomicity` | Kill giữa transaction thay stable tables phải rollback, không thấy nửa dữ liệu mới. Nếu commit đã xong nhưng ACK mất, retry phải idempotent; đối chiếu đầy đủ core/marts/pointer. |
+| `task_clear_budget` | Làm collect hết năm durable attempts, rồi clear task bằng Airflow CLI thật. Task thử lại có thể lên try6 nhưng durable budget vẫn5; DAG tiếp tục failed đúng thiết kế. Test PASS dù DAG đỏ vì nó chứng minh không bypass budget bằng clear. |
+| `postgres_restart` | Restart PostgreSQL test nhẹ nhàng. PG system identity và chữ ký dữ liệu bền vững giữ nguyên; không chứng minh phục hồi mất ổ cứng/host. |
+| `other_service_restarts` | Restart nhẹ nhàng API/receiver/Airflow; kiểm tra source-worker commit/progress recovery và SIGTERM sau tick. Dữ liệu bền vững giữ đúng, worker không nhân đôi order. |
+| `abrupt_service_loss` | SIGKILL API/receiver/Airflow/PostgreSQL test và source worker rồi khởi động lại. Kiểm tra persistence/recovery theo assertion. Đây là mất service ở trạng thái kiểm soát; các điểm raw/dbt/publish đang bận có case riêng. |
+| `scheduled_pause_resume` | Pause consumer trong khi nguồn đi qua các trạng thái rồi resume. Có ít nhất hai run scheduled thành công thật và bắt kịp snapshot quan sát được; lần đã chạy chỉ thêm một history version được quan sát, không bịa ba transition. |
+| `maintenance_drain` | Giữ một task thật ở barrier, drain hết timeout phải báo lỗi rõ ràng và để retry còn chạy được. Operator release barrier, drain hoàn tất rồi mới idle; không clear task/reset budget để ép PASS. |
+| `outage_visibility` | Làm source/observer/scheduler không sẵn sàng. Giữ last-good; checkpoint không chạy vượt lỗi nguồn; monitoring chuyển Unknown/stale đúng lý do. Đợi tuổi sample/heartbeat thật, không sửa timestamp để giả outage. |
+
+### 4. Hiểu recovery trong thực tế
+
+```mermaid
+sequenceDiagram
+    participant S as Source API / Website
+    participant C as Collector
+    participant R as Raw + operational DB
+    participant D as dbt + tests
+    participant P as Publisher
+    participant U as Dashboard
+    C->>S: Lấy dữ liệu
+    C->>R: Commit raw + thông tin acquisition
+    Note over C,R: Nếu chết sau commit, retry dùng trạng thái bền vững
+    R->>D: Manifest input đã freeze
+    alt Test dữ liệu fail
+        D-->>P: Không đủ điều kiện publish
+        Note over P,U: Giữ bản last-good; operator xem lỗi / abort đúng quy trình
+    else Test đạt
+        D->>P: Artifacts hợp lệ
+        P->>R: Transaction đổi stable data + pointer
+        Note over P,R: Chết giữa transaction: rollback; mất ACK sau commit: retry idempotent
+        U->>R: Đọc publication đã commit
+    end
+```
+
+Trong vận hành, API có thể chập chờn nên retry; webhook có thể gửi trùng/đến trễ
+nên giữ audit và dedupe; scheduler có thể dừng nên resume rồi thu thập tiếp.
+Không phải lỗi nào cũng tự chữa: hết budget, dữ liệu không hợp lệ hay batch orphan
+cần người xem evidence và xử lý theo quy trình. Dashboard không nên hiển thị
+“healthy” chỉ vì vẫn còn số liệu cũ; khi thiếu bằng chứng mới phải Unknown/stale.
+
+Ví dụ nguồn đổi paid → shipped → cancelled giữa hai lần polling: pipeline có thể
+chỉ thấy cancelled. Đó không tự động là mất raw. Nó không được quan sát hai trạng
+thái đầu nên không được tạo history cho chúng. Muốn đủ mọi transition cần interface
+event/change-log phù hợp, không thể lấy lịch giả lập để vá history production.
+
+### 5. Bạn tự check local: từ nhẹ đến đầy đủ
+
+Các lệnh PowerShell chạy tại thư mục gốc repository. Không cần generate thêm đơn
+để xem lại evidence M08C. **Không bật live-up hay tự kill stack chính để chạy C.**
+
+#### Bước A — Xem inventory và bằng chứng đã có, không bật dịch vụ
+
+```powershell
+git status --short
+python --version
+docker version
+docker compose version
+docker ps
+python -m test_support.m08c plan
+
+# ID này là scope đã chạy trên máy hiện tại, không phải ID mẫu dùng ở mọi máy.
+$testId = '563f55c17bab'
+Test-Path "runtime/isolated/m08a-$testId/evidence"
+python -m test_support.m08c report --id $testId
+if ($LASTEXITCODE -ne 0) { throw 'Cannot read M08C evidence' }
+```
+
+Mong đợi report: đủ18 case, mỗi case `status: PASS`,
+`all_required_cases_passed: true`. `plan` chỉ liệt kê khả năng chạy, luôn có
+`evidence_status: NOT_RUN`; nó không đọc kết quả cũ, nên **không dùng plan để chấm
+PASS**. `milestone_complete: false` trong từng evidence/plan là nhãn không tự
+sign-off milestone; phải xem report, cleanup, regression và giới hạn nữa.
+
+Nếu đường dẫn không tồn tại, runtime bị xoá hoặc bạn clone trên máy khác thì chưa
+có evidence local này. Đọc STATUS không tương đương đã chạy test trên máy mới.
+Không tạo thủ công marker hay đổi ID trong identity.json để bỏ qua guard.
+
+#### Bước B — Chạy bộ component không đụng DB chính
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/check_m08c_offline.ps1
+if ($LASTEXITCODE -ne 0) { throw 'Offline regression failed' }
+
+Push-Location fixtures/s01
+try {
+    python verify.py
+    if ($LASTEXITCODE -ne 0) { throw 'Fixture checks failed' }
+    python -m unittest -v test_tools.py
+    if ($LASTEXITCODE -ne 0) { throw 'Fixture utility tests failed' }
+} finally { Pop-Location }
+```
+
+Wrapper cần Airflow image đã build theo repo; nó chạy CLI container giới hạn
+256MiB/0.5 CPU, không bật scheduler, không mount `.env` hay Docker socket,
+không nối warehouse network. Mong đợi88 test PASS; S01 có10 checks +10 tests PASS.
+Nếu thiếu image/dependencies thì sửa prerequisite, không gọi đó là runtime PASS.
+Host chỉ có Python cơ bản vẫn chạy được `python tests/test_m08c.py` (19 guard tests),
+nhưng19 test đó **không thay thế** suite88 hay18 runtime case.
+
+#### Bước C — Chạy lại một case thật đơn giản
+
+Chỉ dùng scope **M08A S01 đã accept thành công**, còn nguyên config/volume/marker.
+Lệnh có `--confirm-disposable` vì ghi dữ liệu và gây lỗi trên target test.
+
+```powershell
+$testId = '563f55c17bab'  # chỉ khi scope này vẫn còn và guard chấp nhận
+python -m test_support.m08c run --id $testId --case postgres_restart --confirm-disposable
+if ($LASTEXITCODE -ne 0) { throw 'PostgreSQL restart case failed or was refused' }
+python -m test_support.m08c report --id $testId
+```
+
+Mong đợi dòng cuối case `M08C case PASS; evidence=...`, exit0, JSON có
+`status: PASS`, `cleanup: PASS`; dữ liệu/PG identity trước-sau khớp. Đây là restart
+DB **test**, không phải DB chính của bạn. Sau case dịch vụ được runner bật sẽ dừng;
+volume/log/evidence vẫn còn. Một case PASS chỉ xác nhận một case, không đủ ký M08C.
+
+Nếu scope bị từ chối do config hash, engine, RAM, marker hay identity khác:
+**dừng và đọc lỗi**, không xoá volume hoặc sửa guard. Nếu cần baseline mới, đi theo
+[M08A prerequisites và init/check/accept](../test_support/README.md#prerequisites--safety).
+Baseline mới cần stack chính running/idle để kiểm tra bảo vệ dữ liệu, khác với
+việc tái sử dụng baseline đã accept khi stack chính đang dừng. Máy4GB không nên
+tự bật hai Airflow; tăng tài nguyên hoặc sắp maintenance window được đồng ý trước.
+Runner không tự dừng Airflow chính giúp bạn.
+
+#### Bước D — Chạy case có Airflow thật, rồi mới chạy toàn bộ
+
+```powershell
+python -m test_support.m08c run --id $testId --case scheduled_pause_resume --confirm-disposable
+if ($LASTEXITCODE -ne 0) { throw 'Scheduled case failed or was refused' }
+```
+
+Case lifecycle tự bật Airflow test và cài DAG `m08c_recovery`; bạn không phải bật
+SIM/source generator thủ công. Các case HTTP/CLI khác có thể không bật scheduler.
+Case có thể mất nhiều phút vì phải đợi schedule/retry/service health thật, không
+phải lúc nào thấy lâu cũng là treo. `outage_visibility` còn cố ý đợi freshness hết hạn.
+
+Muốn xem web trong lúc lifecycle đang chạy, mở terminal khác và chỉ đọc binding:
+
+```powershell
+docker ps --filter "label=com.docker.compose.project=m08a-$testId" --format 'table {{.Names}}\t{{.Ports}}\t{{.Status}}'
+```
+
+Dùng địa chỉ localhost/port published của Airflow **test** nếu có, không mặc định
+8080 (có thể là stack chính). Credential test nằm trong file runtime riêng của
+scope; không gửi file đó lên chat/Git. Chỉ quan sát, không trigger/pause/clear tay
+trong khi runner đang chạy. UI không phải điều kiện bắt buộc để case PASS và có
+thể không kịp mở trước khi cleanup dừng container. DAG đỏ trong case budget hoặc
+gate lỗi có thể đúng kỳ vọng; kết luận từ assertion/evidence, không chỉ màu UI.
+
+Để chạy đủ18 case theo inventory, **tuần tự, dừng ngay nếu có lỗi**:
+
+```powershell
+$cases = Get-Content test_support/m08c_cases.json -Raw | ConvertFrom-Json
+foreach ($case in $cases) {
+    python -m test_support.m08c run --id $testId --case $case.id --confirm-disposable
+    if ($LASTEXITCODE -ne 0) { throw "M08C stopped at $($case.id); inspect evidence before retry" }
+}
+python -m test_support.m08c report --id $testId
+```
+
+Không chạy hai case cùng target song song. Không clear budget hoặc reset DB giữa
+các case để làm số đẹp. Các case tự chuẩn bị input/identity cần thiết trong scope.
+Nếu host bị Ctrl+C/crash, finally có thể không chạy; kiểm tra đúng project/log rồi
+dùng `python -m test_support.m08a stop --id $testId` khi không còn runner đang làm
+việc. Không dùng `down -v`, prune hoặc xoá latch khi chưa xác minh tiến trình cũ.
+
+#### Bước E — Đọc JSON và kiểm tra DB ở đâu?
+
+File chính nằm tại `runtime/isolated/m08a-ID/evidence/m08c-CASE-UUID.json`.
+Report in đường dẫn evidence mới nhất cho từng case. Ví dụ:
+
+```powershell
+$file = Get-ChildItem "runtime/isolated/m08a-$testId/evidence/m08c-postgres_restart-*.json" |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$result = Get-Content -LiteralPath $file.FullName -Raw | ConvertFrom-Json
+$result | Select-Object case,status,cleanup,started_at,finished_at,id,db_system_id,failure
+$result.steps | Select-Object -Last 5
+```
+
+Xem status/cleanup, scope, hashes, probe summary và các command log được tham chiếu.
+Log/raw có thể chứa secret hoặc dữ liệu chi tiết nên không publish nguyên file.
+Evidence là file ignored, không mất đi khi container dừng; commit code không kèm
+runtime credentials hay JSON private. Lỗi cũ được giữ, không xoá để che FAIL.
+
+Trong test PostgreSQL, `data_platform` giữ raw/ops/core/marts; `website_source`
+giữ nguồn website; `airflow_meta` giữ DAG/run/task metadata; `marketplace_sim`
+phục vụ các probe dùng nguồn PG-backed. Không phải mọi case đều cần/generate
+dữ liệu vào marketplace_sim: nhiều case dùng fixture HTTP hoặc input SQL nhỏ để
+kiểm tra đúng một ranh giới. Xem cả ba DB không tự chứng minh mọi case đã PASS.
+
+Các bảng hữu ích ở `data_platform`: `ops.pipeline_runs`, `ops.task_attempts`,
+`ops.publication_state`, `core.orders_current`, `core.order_snapshot_history`.
+Chỉ SELECT khi tự inspect. Đừng kỳ vọng các tổng count luôn trở về đúng baseline
+vì case mới giữ thêm audits/test orders; cần đối chiếu identity/cohort của case.
+Nếu muốn DBeaver vào scope test đang dừng, cần một phiên inspection riêng được
+chuẩn bị đúng target/credential/port, không vừa sửa hoặc bật dịch vụ vừa chạy runner.
+Hướng dẫn ở đây ưu tiên evidence để không vô tình restart sai stack.
+
+### 6. Khi nào được coi là PASS M08C?
+
+1. Đúng scope disposable, guards hợp lệ, không tác động trái phép stack chính.
+2. Đủ18 case hiện hành, mỗi case có evidence runtime mới nhất PASS, cleanup PASS;
+   lỗi được inject đúng ranh giới chứ không phải “bất kỳ exception nào cũng đạt”.
+3. Raw/audits không bị bỏ; logical retry không nhân đôi; lease và budget vẫn đúng.
+4. Gate fail không đổi last-good; publish không tạo stable data/pointer nửa cũ nửa mới.
+5. Resume/recovery có kết quả tự động hoặc operator outcome được quy định, không
+   reset budget, ép success, hay tự dựng history để đạt assertion.
+6. Regression liên quan đạt: component, S01 utilities và report/publication bị ảnh
+   hưởng; giữ bằng chứng lệnh/kết quả/phạm vi, không chỉ ảnh UI màu xanh.
+7. Dịch vụ test được dừng, dữ liệu/evidence giữ lại; nếu có maintenance trên main
+   thì phải xác minh restore theo trạng thái ban đầu. Lượt Nov5 không cần đụng main.
+
+**Bằng chứng lượt đã làm:** scope563f55c17bab, PG identity7703125723137740838,
+18/18 runtime PASS; offline88 PASS; thêm52 host regression tests PASS;
+S01 utilities10 checks +10 tests PASS; sau recovery10 SQL/report UI tests +4 mocked
+layout tests PASS. Không cộng19 guard tests vào88 lần nữa vì đã nằm trong suite.
+S01 cohort giữ3 orders/4 lines/6 units/USD124 và6 observed versions; không áp tổng
+này cho tất cả test orders phát sinh thêm. Exact command, filename từng case và
+các lần FAIL đã sửa nằm ở [STATUS — final acceptance](STATUS.md#final-m08c-local-acceptance--2026-11-05).
+
+Lượt này không khởi động/dừng main vì main đã dừng sẵn; các container chính giữ
+nguyên ID. Không có so sánh SQL signature main mới hay xác nhận health main mới.
+Chưa test tải/soak M08D, chưa chạy CI remote/fresh machine, chưa chứng minh mất
+disk/host hay API vendor thật. **PASS local M08C không đồng nghĩa production-ready.**
+
+### 7. Trình tự đọc code và bước tiếp theo
+
+Đọc `m08c_cases.json` → `m08c.py` → chọn đúng probe theo case → xem command/log
+runtime → đọc DAG test/lifecycle nếu có scheduler → đối chiếu STATUS. Đọc
+`transformation/publish.py`, `transformation/batch.py`, `orchestration/polling.py`
+khi muốn hiểu cơ chế production được probe gọi, thay vì chỉ đọc assertion test.
+
+Bạn có thể bắt đầu bằng report → offline → postgres_restart; không cần chạy lại
+18 case chỉ để hiểu project. Muốn tự xác nhận toàn milestone trên revision/máy
+mới thì chạy đủ runtime và regression tương ứng. Sau bạn review mới quyết định
+commit hoặc sang M08D. Phần cập nhật tài liệu này không chạy lại các fault test,
+không stage/commit/push và không xoá nội dung lịch sử bên dưới.
+
+---
+
+## Các checkpoint lịch sử — không dùng làm trạng thái hiện tại
+
 ## Tạm dừng M08C và chuyển ưu tiên — 2026-11-01
 
 Theo yêu cầu mới của bạn, không chạy thêm campaign lỗi/load. Các container test

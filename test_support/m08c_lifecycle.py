@@ -1,6 +1,7 @@
 """Host-side lifecycle cases on a validated disposable scope, never owner services."""
 from datetime import datetime, timedelta, timezone
 import json
+import re
 import time
 import uuid
 
@@ -23,12 +24,16 @@ def start_airflow(h):
 
 
 def install_dag(h):
-    start_airflow(h)
+    # Initial discovery scans before startup health passes; copying afterward
+    # can miss the 300s directory-refresh interval. Install into the stopped
+    # disposable container so its first scan sees the current test DAG.
+    h.dc(['create', '--no-recreate', 'airflow'])
     h.dc(['cp', str(guard.ROOT / 'test_support/airflow/m08c_recovery.py'),
           'airflow:/opt/airflow/dags/m08c_recovery.py'])
+    start_airflow(h)
     wait(lambda: bool(rows(h, "SELECT dag_id FROM dag WHERE dag_id='m08c_recovery'", 'airflow_meta')),
          'test DAG discovery', 180)
-    wait(lambda: h.sql("SELECT count(*) FROM serialized_dag WHERE dag_id='m08c_recovery' AND data::text LIKE '%exhaust_stage%' AND data::text LIKE '%barrier%';", 'airflow_meta') == '1',
+    wait(lambda: h.sql("SELECT count(*) FROM (SELECT data FROM serialized_dag WHERE dag_id='m08c_recovery' ORDER BY last_updated DESC LIMIT 1) current_dag WHERE data::text LIKE '%exhaust_stage%' AND data::text LIKE '%barrier%';", 'airflow_meta') == '1',
          'current test DAG parameters serialized', 180)
 
 
@@ -140,6 +145,15 @@ def scheduled_pause_resume(h):
 
 
 def maintenance_drain(h):
+    from tools.s02_data.live import _drain_schedules
+
+    class DB:
+        def sql(self, text, db='marketplace_sim'):
+            return h.sql(text, db)
+
+        def command(self, args):
+            return h.dc(args)
+
     install_dag(h)
     signal(h, 'm08c-drain')
     signal(h, 'm08c-ready', remove=True)
@@ -154,12 +168,13 @@ def maintenance_drain(h):
     # Deterministic timeout while an acknowledged live task is held. Do not kill
     # or clear it; leave it runnable and demonstrate the explicit release path.
     try:
-        wait(lambda: False, 'declared zero drain budget', timeout=0)
-    except guard.SafetyError:
-        pass
+        _drain_schedules(DB(), timeout=0, dags=('m08c_recovery',))
+    except RuntimeError as error:
+        guard.require('Drain timeout' in str(error), 'Unexpected failure instead of production drain timeout')
     else:
         raise AssertionError('bounded drain timeout was ignored')
     signal(h, 'm08c-release')
+    _drain_schedules(DB(), timeout=900, dags=('m08c_recovery',))
     wait(lambda: h.sql("SELECT count(*) FROM dag_run WHERE dag_id='m08c_recovery' AND run_id='" + identity +
                       "' AND state='success';", 'airflow_meta') == '1', 'in-flight retry completes under drain')
     wait(lambda: h.sql("SELECT count(*) FROM dag_run WHERE dag_id='m08c_recovery' AND state IN ('running','queued');", 'airflow_meta') == '0', 'idle after drain')
@@ -169,6 +184,25 @@ def maintenance_drain(h):
     guard.require(any(r['task_name']=='collect' and r['attempts']==2 for r in attempts), 'raw retry not exercised')
     guard.require(any(r['task_name']=='freeze' and r['attempts']==2 for r in attempts), 'freeze retry not exercised')
     return dict(status='PASS', airflow_run_id=identity, timeout_outcome='operator releases barrier, no task clear', attempts=attempts)
+
+
+def clear_failed_test_run(h, identity):
+    """Clear the two tasks of exactly one failed disposable run via real CLI."""
+    guard.require(re.fullmatch(r'm08c-budget-[a-f0-9]{32}', identity), 'Invalid budget-test run identity')
+    h.test_db()
+    runs = rows(h, "SELECT logical_date,state FROM dag_run WHERE dag_id='m08c_recovery' AND run_id='" + identity + "'", 'airflow_meta')
+    guard.require(len(runs) == 1 and runs[0]['state'] == 'failed', 'Budget-test run is not terminal failed')
+    tasks = rows(h, "SELECT task_id,state FROM task_instance WHERE dag_id='m08c_recovery' AND run_id='" + identity + "'", 'airflow_meta')
+    guard.require({r['task_id'] for r in tasks} == {'cycle','failed_workflow'}
+                  and all(r['state'] == 'failed' for r in tasks), 'Unexpected task set/state for budget clear')
+    logical = runs[0]['logical_date']
+    guard.require(h.sql("SELECT count(*) FROM dag_run WHERE dag_id='m08c_recovery' AND logical_date='" + logical + "';", 'airflow_meta') == '1',
+                  'Logical-date clear would select another run')
+    # Airflow3.3.2 passes --task-regex to substring-based partial_subset; a regex
+    # alternation silently matches nothing. This dedicated DAG has only these
+    # two verified tasks, so clear its exact run without a task-name filter.
+    h.dc(['exec','-T','airflow','airflow','tasks','clear','m08c_recovery',
+          '--start-date',logical,'--end-date',logical,'--yes'])
 
 
 def task_clear_budget(h):
@@ -184,9 +218,7 @@ def task_clear_budget(h):
     wait(failed, 'five-attempt terminal failure')
     count_sql = "SELECT count(*) FROM ops.task_attempts t JOIN ops.pipeline_runs p USING(run_id) WHERE p.airflow_run_id='" + identity + "' AND t.task_name='collect';"
     guard.require(h.sql(count_sql) == '5', 'durable five-attempt budget missing')
-    logical = rows(h, "SELECT logical_date FROM dag_run WHERE dag_id='m08c_recovery' AND run_id='" + identity + "'", 'airflow_meta')[0]['logical_date']
-    h.dc(['exec','-T','airflow','airflow','tasks','clear','m08c_recovery','--task-regex','^(cycle|failed_workflow)$',
-          '--start-date',logical,'--end-date',logical,'--yes'])
+    clear_failed_test_run(h, identity)
     wait(lambda: h.sql("SELECT count(*) FROM task_instance WHERE dag_id='m08c_recovery' AND run_id='" + identity +
                        "' AND task_id='cycle' AND state='failed' AND try_number>=6;", 'airflow_meta') == '1', 'cleared task refuses exhausted budget')
     guard.require(h.sql(count_sql) == '5', 'task clear reset durable budget')

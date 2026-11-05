@@ -1,8 +1,97 @@
 # Actual project status
 
-Updated: 2026-11-01 (Asia/Bangkok).
+Updated: 2026-11-05 (Asia/Bangkok).
 
 ## Current checkpoint
+
+**Commit-review update2026-11-05:** owner authorized a local M08C commit and
+wants an observable M08D campaign next. A newer owner-side rerun supersedes the
+earlier all-green matrix: scheduled_pause_resume/d6dc5866662a4db38d588943b4a48cf3
+FAIL at `M08C deadline: scheduled current-state catch-up` (12:57:27–13:15:45 UTC),
+cleanup PASS. Latest report is therefore17 PASS/1 FAIL, not18/18 current PASS.
+postgres_restart/add3bd6d7a21416aa1fe525d6f5641dd is a newer PASS. The earlier
+18-case evidence below remains historical and is not erased. This commit is a
+reviewed recovery checkpoint, NOT fresh all-green certification. No fault rerun
+or owner-service mutation during this commit review; catch-up failure needs
+diagnosis and affected rerun before a renewed complete-C claim.
+
+Next: M08D campaign design uses the existing M08B config (including owner-local
+`tools/s02_data/config/local_now.json`) with optional campaign settings, a stable
+observable local stack, prepared source data and seeded bounded fault timeline.
+Keep generate-only semantics unchanged; controller owns faults, SIM owns source
+behavior. Print UI/DB access, record actual fault/recovery events, allow inspection
+afterward and report correctness/recovery/performance separately. Existing C
+regressions stay separate. This is accepted direction, not implemented support.
+Resolve the latest scheduled catch-up failure as a prerequisite; do not silently
+carry it into a claimed passing campaign. Owner config files remain unmodified.
+
+Pre-commit checks this task: `python tests/test_m08c.py`19 PASS;
+`python tests/test_m08a_guards.py`18 PASS; from fixtures/s01 `python verify.py`
+10 checks PASS and `python -m unittest -v test_tools.py`10 tests PASS;
+`python -m compileall -q test_support tools tests/test_m08c.py tests/test_m08c_probes.py`
+PASS. `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/check_m08c_offline.ps1`
+exit0,88 tests PASS, evidence runtime/m08c-offline-b8778e9c88044deebde8c0526670cb5e.json.
+`python -m test_support.m08c report --id 563f55c17bab` reads17 PASS/1 FAIL
+(report CLI exit0 only means it rendered successfully). No runtime suite or
+post-recovery report SQL/UI rerun merely to commit. Existing14 report/UI results
+remain historical. Diff reviewed; whitespace/credential-scope checks required
+before explicit task-file staging; exclude owner configs, runtime and HANDOFF.
+
+Read-only diagnosis candidate: the retained test airflow-state contains
+`polling-drain`; the test DAG disables scheduling when that marker exists, while
+scheduled_pause_resume removes only `m08c-drain`. Earlier maintenance_drain creates
+the shared marker. This suggests retained-state repeatability, not proof of a
+production acquisition bug. No marker removed or fix declared verified here;
+confirm with scoped regression/runtime rerun as the next prerequisite.
+
+Owner resumed M08C on2026-11-05. Current branch main, HEAD21075d3 (M09).
+**M08C local acceptance PASS:** all18 declared runtime cases have passing evidence,
+including clean reruns of task clear, lease fencing, receiver audit and stage
+resume. Post-recovery read-only S01/report regressions PASS14; final offline
+component suite PASS88. Full per-case evidence and limits appear in the final
+M08C acceptance section below. M08D has NOT started; owner review is next.
+Initial read-only Docker check: Engine29.9.2, total4109402112 bytes, no running
+containers. Owner stack remains stopped; do not start/stop it merely for tests.
+Retained disposable baseline563f55c17bab was validated and reused. No Git
+stage/commit/push was authorized during that execution task; owner configs/unrelated files remained
+untouched. The execution notes below are historical progress, not current health.
+
+## Historical execution notes (before final M08C acceptance)
+
+Owner-requested explanation update2026-11-05: expanded
+`TAM_THOI_M08_GIAI_TRINH_VI.md` in Vietnamese with current M08C scope, implementation
+map, all18 case expectations, practical failure semantics, safe local commands,
+evidence interpretation and acceptance limits. Historical sections are retained
+and explicitly superseded. Documentation-only task: no runtime faults/services
+rerun, no Git staging/commit/push. Diff whitespace and local document links checked.
+
+Resumed execution evidence (disposable563f55c17bab only): failed_gate PASS
+`m08c-failed_gate-4b6b86f9f4c2445aaa8ac3d69e85d851.json`; data_quality PASS
+`m08c-data_quality-caa24d5cf01f47f591b1ca0c0edb892a.json`; api_failures PASS
+`m08c-api_failures-bf35941dec204b1bb6262f1d0e27a737.json`; late_reordered_webhooks
+PASS `m08c-late_reordered_webhooks-36dfc3e4974d485896d7956200400e81.json`.
+Files live under runtime/isolated/m08a-563f55c17bab/evidence. The first validates
+the exact injected dbt failure, explicit abort and unchanged full core/mart/pointer
+signature. Quality uses actual compiled SQL with literal bad inputs, not a full
+source-to-publication bad-data campaign. HTTP/webhook cases assert real API/raw/
+work/checkpoints within their declared scopes; they are not load certification.
+Further abrupt/lifecycle cases are executing; do not treat the whole matrix as PASS.
+
+Lifecycle setup failures retained: scheduled_pause_resume/e56f5ff3... exceeded
+the180s discovery bound after copying its DAG into already-running Airflow;
+read-only config confirmed dag_processor.refresh_interval=300, with no import
+errors. Fixed install order to create stopped test container, copy DAG, then
+start scheduler. Intermediate70a4d693... failed on unsupported Compose create
+--no-deps; local create --help confirmed --no-recreate, now used. Both cleanups
+PASS; no owner service started/stopped. A new lifecycle attempt is running.
+
+The maintenance prototype's dummy wait(False) timeout has been replaced by the
+actual live drain algorithm against the test DAG. Public drain defaults remain
+unchanged. Added signature/readonly tests, selected-DAG drain/timeout/foreign-run
+guards and install-before-start regression. Offline wrapper PASS80 tests in
+runtime/m08c-offline-d408a1accf284303a59bd3535e31c91a.json (before install-order
+guard addition); current host C guards PASS14. Shared-algorithm/source hashes are
+included in subsequent case reports. Full updated regression will be rerun.
 
 Owner paused further M08C campaigns on 2026-11-01 and requested a reviewed local
 checkpoint commit followed by M09 CV/demo packaging. M08C remains INCOMPLETE;
@@ -341,3 +430,142 @@ tools/s02_data/config/local_now.json and tools/s02_data/config/quick_6min.json.
 Full release-certification gates remain as recorded; this commit packages M09
 presentation/demo scope, not completion of the paused C/D work. Read Git log for
 the resulting SHA; a commit's own SHA is not embedded in its files.
+
+## Final M08C local acceptance — 2026-11-05
+
+Result: **18/18 declared runtime cases PASS**, final component suite88 PASS and
+post-recovery report/layout14 PASS. This supersedes the historical in-progress
+and paused C notes above. M08D is not started. Changes remain unstaged for owner
+review; no commit or push. HEAD remains21075d35d997872b504ab7784715e2aec9adce17.
+
+### Scope, decisions and protected state
+
+Reused accepted disposable M08A S01 scope563f55c17bab after config, ownership,
+mount, baseline and PostgreSQL identity guards. Its PG system identifier is
+7703125723137740838. The retained61-step baseline was not freshly bootstrapped.
+Docker Engine29.9.2 reported4109402112 bytes RAM; cases ran sequentially with
+resource preflight before service creation, including the stricter scheduled
+topology gate. Test services stopped after each case; evidence/data retained.
+
+Owner containers were already stopped at task start and remained stopped with
+their original identities. No owner service restart, DAG pause-state write,
+database reset, volume deletion or source-profile switch was performed. Owner
+SQL signatures/current service health were not rechecked by starting its DB.
+No source contract, target schema, fingerprint or business transformation change.
+
+Corrections: business signatures use existing publisher read permissions inside
+a repeatable-read, read-only transaction, not new grants. The real maintenance
+drain algorithm is shared with the scoped test; public default DAGs are unchanged.
+Test DAG installation precedes scheduler startup; discovery checks the latest
+serialized version. Real task clear is constrained to one verified failed test
+run, with durable budgets unchanged. Signal tests await actual worker heartbeat.
+Offline containers override inherited owner labels; resource guards are not
+weakened. See recovery runbook for the installed Airflow CLI selection quirk.
+
+### Runtime commands and retained evidence
+
+For every row below, executed from repository root, exit0 and cleanup PASS:
+
+```powershell
+python -m test_support.m08c run --id 563f55c17bab --case CASE --confirm-disposable
+python -m test_support.m08c report --id 563f55c17bab
+```
+
+Replace CASE with the first column. Report returned
+`all_required_cases_passed: true`; its generic `milestone_complete: false` is
+deliberately not an automatic human sign-off. Evidence directory:
+`runtime/isolated/m08a-563f55c17bab/evidence/` (private ignored local artifacts).
+
+| Case | Latest passing evidence filename |
+| --- | --- |
+| api_failures | m08c-api_failures-bf35941dec204b1bb6262f1d0e27a737.json |
+| receiver_audit | m08c-receiver_audit-3041d13e79b1415d96aaa7e2c37515d4.json |
+| late_reordered_webhooks | m08c-late_reordered_webhooks-36dfc3e4974d485896d7956200400e81.json |
+| stage_resume | m08c-stage_resume-65e4e1152e1a4e97b9dabac840d8f95c.json |
+| abrupt_raw_inbox | m08c-abrupt_raw_inbox-51df28ef31b74a938d2f515de7793936.json |
+| lease_fencing | m08c-lease_fencing-23644b7611f34a379665778f8197a9d8.json |
+| abrupt_lease_owner | m08c-abrupt_lease_owner-ea045c4fff8748b69705146dd69156a8.json |
+| failed_gate | m08c-failed_gate-4b6b86f9f4c2445aaa8ac3d69e85d851.json |
+| data_quality | m08c-data_quality-caa24d5cf01f47f591b1ca0c0edb892a.json |
+| abrupt_freeze_dbt | m08c-abrupt_freeze_dbt-2beba48d036747ddaabbefbcf61bd7e4.json |
+| publish_atomicity | m08c-publish_atomicity-2519135e96d44e23af3b625ad4210c4b.json |
+| task_clear_budget | m08c-task_clear_budget-bd0698e98b4c4a97af4c51538705f067.json |
+| postgres_restart | m08c-postgres_restart-13126ee38458469abd4566bfb743bf13.json |
+| other_service_restarts | m08c-other_service_restarts-367d159b29ce41058dd7bfc4761f64b3.json |
+| abrupt_service_loss | m08c-abrupt_service_loss-6794446a94d249bbb434f6a670cad6eb.json |
+| scheduled_pause_resume | m08c-scheduled_pause_resume-36ad921736244ecd8bcd44ce01c4c368.json |
+| maintenance_drain | m08c-maintenance_drain-2bd67e8066f44d85b8cea1a5696158b1.json |
+| outage_visibility | m08c-outage_visibility-28523e1d971445b78f6ae3774e059757.json |
+
+Boundaries: HTTP failures exercise actual collector raw/checkpoint behavior;
+late/reordered notifications assert inbox/work/raw, not every published transition.
+Lease fencing is rollback-only SQL/HTTP; abrupt owner loss has a separate case.
+Quality uses compiled SQL with literal invalid inputs, not a full bad-source E2E
+campaign. Idle service persistence is separate from busy raw/dbt/publisher kills.
+Publisher checks full core/marts/pointer rollback and commit-before-ACK recovery.
+Scheduled pause/resume has two real scheduled successes and one newly observed
+history version, never reconstructed missed transitions. Task-clear's expected
+failed DAG preserves five durable attempts despite Airflow try six. Outage checks
+waited actual91-second sample age and121-second heartbeat expiry; no timestamp
+rewrites. Source-worker coverage includes PG-backed HTTP/RLS/faults and signals.
+
+### Regression commands and results
+
+- `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/check_m08c_offline.ps1`:
+  exit0,88 tests PASS. `runtime/m08c-offline-402e015534ff4d859b5dc2ff85a93ec8.json`.
+  Network-isolated CLI container, no scheduler, env file or Docker socket.
+- `python tests/test_m08c.py`:19 PASS, also included in the88 above.
+- `python tests/test_s02_temporal.py`:10 PASS;
+  `python tests/test_m08a_guards.py`:18 PASS;
+  `python tests/test_m08b_sources.py`:12 PASS;
+  `python tests/test_m08b_window.py`:3 PASS;
+  `python tests/test_m07_operations.py`:9 PASS (52 additional host tests).
+- From `fixtures/s01/`: `python verify.py`:10 checks PASS;
+  `python -m unittest -v test_tools.py`:10 tests PASS.
+- `$env:PYTHONPATH=(Get-Location).Path; python runtime/m08c_report_regression.py`:
+  exit0, ten actual SQL/report UI tests plus four mocked layout tests PASS.
+  Ignored guarded local helper used only disposable PG and a one-shot report CLI,
+  checked PG identity and stopped PG in finally; no seeding/reset/warehouse writes.
+  Evidence `m08c-report-regression-79dfa78d1d0f4929a1f1aba4ec0abb7c.json` in the
+  same case evidence directory. Retained S01 Oct17 cohort:3 orders,4 lines,6 units,
+  USD124 original merchandise and6 observed versions; Nov5 test orders excluded.
+- `python -m compileall -q test_support tools tests/test_m08c.py tests/test_m08c_probes.py`:
+  PASS; `git diff --check`: PASS. Final PowerShell checks:71 local documentation
+  links resolve; latest runtime JSON per case18 PASS; offline JSON totals88 PASS;
+  task-file scan against local credential values PASS (no values printed).
+  `docker ps` empty; `docker ps -a --filter label=com.docker.compose.project=multi-channel-order-platform`
+  confirms the same eight original owner container IDs, all stopped from before
+  this task. Diff reviewed; `git diff --cached --name-only` empty. Owner configs
+  and unrelated HANDOFF_SHA256SUMS.txt remain untouched.
+
+### Failed attempts retained and repaired
+
+- scheduled_pause_resume/e56f5ff3231948f680df4b3e21a9ef87:180s discovery deadline
+  missed the actual300s directory refresh; install before startup fixes it.
+  Intermediate70a4d693ad3c4962b5ad938a99bd46d2 used unsupported Compose
+  `create --no-deps`; local help confirmed `--no-recreate`. Both cleanup PASS.
+- maintenance_drain/45df9a7ce9cb454d8d5c89e811124b6c: assertion wrongly required
+  exactly one serialized DAG row; latest-version query preserves metadata history.
+- task_clear_budget/7b9164399e7240a0af057eeae1098f4b passed with explicit scoped
+  operator clear, companion operator-task-clear-5fadcab7167440d9be5af075416cb8ff.json,
+  after regex selection silently cleared nothing. The latest bd0698 clean run
+  above is fully automatic and supersedes this operator-assisted evidence.
+- other_service_restarts/eea74cc9a593494db9ea56eba2b5fea7: SIGTERM raced handler
+  installation in the test child. Actual-tick readiness barrier fixed the harness;
+  the full case reran PASS, without relaxing expected signal outcomes.
+- Scheduled preflight correctly refused a topology while an offline CLI inherited
+  owner Compose labels. No case services were created. Explicit CLI labels fixed
+  classification; RAM thresholds unchanged and subsequent full preflight PASS.
+- Report helper initially refused an old A marker without an explicit profile;
+  corrected to the existing guard's legacy `m08a` default before any service start.
+  A fixture verification first invoked in the wrong directory could not find its
+  script; correct fixture-directory checks above PASS. Diagnostic import/SQL/rg
+  errors were read-only and are not acceptance evidence.
+
+### Not run / next task
+
+No M08D load/burst/soak or throughput claim, remote GitHub Actions run, fresh
+independent-machine reproduction, fresh A bootstrap, owner-stack health check or
+new owner SQL signature comparison. This is bounded local recovery acceptance,
+not production certification. Review this diff and the case boundaries; only
+after owner approval proceed to M08D. No Git action is authorized in this task.

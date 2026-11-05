@@ -43,7 +43,7 @@ Original source snapshot: 2026-10-24; local documentation review: 2026-10-30
 | [11_M08A_ISOLATION.md](11_M08A_ISOLATION.md) | Finalized M08A identity/config/mount/resource guards and bounded cold-baseline contract | Before running the M08A harness; acceptance status remains in STATUS |
 | [12_M08B_CONTINUOUS.md](12_M08B_CONTINUOUS.md) | Historical finite source/control/ledger regression contract | Reproducing older B campaigns, not daily setup |
 | [16_M08_LIVE_LOCAL.md](16_M08_LIVE_LOCAL.md) | Current single-stack live admission, APIs, source worker and scheduling | Current M08B architecture |
-| [17_M08C_RECOVERY.md](17_M08C_RECOVERY.md) | Scoped fault runner, case evidence and operator outcomes | Current M08C implementation; remaining required cases explicit |
+| [17_M08C_RECOVERY.md](17_M08C_RECOVERY.md) | Scoped fault runner, case evidence and operator outcomes | Declared local matrix verified; assertion boundaries and rerun requirements |
 | [STATUS.md](STATUS.md) | Actual completed work, checks, blockers, next task | Every coding session |
 | [CODEX_VSCODE.md](CODEX_VSCODE.md) | Setup, first task prompt, review and Git workflow | Initial IDE setup and resuming work |
 | [PROVENANCE.md](PROVENANCE.md) | Source links/revision and synchronization rules | Refreshing the coding contract |

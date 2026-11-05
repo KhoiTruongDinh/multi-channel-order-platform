@@ -7,6 +7,7 @@ import uuid
 
 from orchestration import polling, website_workflow as workflow
 from transformation.batch import connect
+from transformation.publish import connect as publication_connect
 
 
 def value(sql, params=()):
@@ -36,7 +37,10 @@ def publication():
 def business_signature(tables):
     # Internal allowlisted relations only; unlike psql, fetchone cannot consume a
     # multi-statement BEGIN/SELECT/COMMIT script as a scalar result.
-    with connect() as conn:
+    # The transform role intentionally cannot read published core/mart tables.
+    # Use the publisher's existing privileges, restricted to a read-only snapshot;
+    # no production grant changes or admin credentials are needed for assertions.
+    with publication_connect() as conn:
         conn.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY')
         return tuple(conn.execute(
             "SELECT count(*),md5(coalesce(string_agg(md5(to_jsonb(t)::text),'' ORDER BY md5(to_jsonb(t)::text)),'')) FROM "

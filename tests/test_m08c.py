@@ -12,6 +12,11 @@ from test_support import m08c as c
 
 
 class GuardTests(unittest.TestCase):
+    def test_offline_wrapper_does_not_inherit_owner_airflow_labels(self):
+        wrapper = (c.ROOT / 'infra/scripts/check_m08c_offline.ps1').read_text()
+        self.assertIn('com.docker.compose.project=m08c-offline', wrapper)
+        self.assertIn('com.docker.compose.service=offline-checks', wrapper)
+
     def execute_case(self, fail_probe=False, fail_cleanup=False, case='lease_fencing'):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -140,6 +145,64 @@ class GuardTests(unittest.TestCase):
             with self.assertRaises(c.guard.SafetyError):
                 c.main()
         harness.assert_not_called()
+
+    def test_lifecycle_uses_scheduler_memory_gate_before_starting_services(self):
+        h = Mock()
+        with patch.object(c, 'target', return_value=set()), \
+                patch.object(c.guard, 'resource_preflight', side_effect=c.guard.SafetyError('memory')) as check:
+            with self.assertRaisesRegex(c.guard.SafetyError, 'memory'):
+                c.run_case(h, 'scheduled_pause_resume')
+        check.assert_called_once_with(h.marker, scheduled=True)
+        h.dc.assert_not_called()
+
+    def test_test_dag_is_installed_before_scheduler_start(self):
+        from test_support import m08c_lifecycle as lifecycle
+        h = Mock()
+        events = []
+        h.dc.side_effect = lambda args: events.append(args[0])
+        with patch.object(lifecycle, 'start_airflow', side_effect=lambda _: events.append('start')), \
+                patch.object(lifecycle, 'wait'):
+            lifecycle.install_dag(h)
+        self.assertEqual(events, ['create', 'cp', 'start'])
+
+    def test_discovery_checks_latest_serialized_version_not_total_row_count(self):
+        from test_support import m08c_lifecycle as lifecycle
+        h = Mock()
+        h.sql.return_value = '1'
+        with patch.object(lifecycle, 'start_airflow'), \
+                patch.object(lifecycle, 'rows', return_value=[dict(dag_id='m08c_recovery')]), \
+                patch.object(lifecycle, 'wait', side_effect=lambda probe, *args: self.assertTrue(probe())):
+            lifecycle.install_dag(h)
+        self.assertIn('ORDER BY last_updated DESC LIMIT 1', h.sql.call_args.args[0])
+
+    def test_budget_clear_targets_exact_failed_test_run_without_regex(self):
+        from test_support import m08c_lifecycle as lifecycle
+        h = Mock()
+        h.sql.return_value = '1'
+        logical = '2026-11-05T03:00:00+00:00'
+        with patch.object(lifecycle, 'rows', side_effect=[
+            [dict(logical_date=logical, state='failed')],
+            [dict(task_id='cycle', state='failed'), dict(task_id='failed_workflow', state='failed')]]):
+            lifecycle.clear_failed_test_run(h, 'm08c-budget-' + 'a' * 32)
+        command = h.dc.call_args.args[0]
+        self.assertNotIn('--task-regex', command)
+        self.assertEqual(command[-5:], ['--start-date', logical, '--end-date', logical, '--yes'])
+
+    def test_budget_clear_rejects_unexpected_task_before_mutation(self):
+        from test_support import m08c_lifecycle as lifecycle
+        h = Mock()
+        with patch.object(lifecycle, 'rows', side_effect=[
+            [dict(logical_date='2026-11-05', state='failed')], [dict(task_id='unexpected', state='failed')]]):
+            with self.assertRaisesRegex(c.guard.SafetyError, 'Unexpected task'):
+                lifecycle.clear_failed_test_run(h, 'm08c-budget-' + 'a' * 32)
+        h.dc.assert_not_called()
+
+    def test_budget_clear_rejects_foreign_run_before_db_access(self):
+        from test_support import m08c_lifecycle as lifecycle
+        h = Mock()
+        with self.assertRaisesRegex(c.guard.SafetyError, 'Invalid budget-test run identity'):
+            lifecycle.clear_failed_test_run(h, 'owner-live-run')
+        h.test_db.assert_not_called()
 
     def test_run_refuses_unimplemented_before_loading_target(self):
         with patch.object(sys, 'argv', ['m08c', 'run', '--id', 'abcdef123456', '--case',

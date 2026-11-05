@@ -5,7 +5,11 @@ Packaged: 2026-11-01. Reviewed implementation checkpoint:
 
 This is a local Data Engineering portfolio, not a production-ready release.
 M01-M07 were accepted; M08A and finite M08B have local runtime evidence.
-M08C is partially verified and paused by the owner; M08D load/soak is deferred.
+Verification update2026-11-05: all18 declared M08C local recovery cases PASS;
+M08D load/soak remains deferred. The packaging checkpoint above is historical.
+Subsequent commit-review update: a later scheduled pause/resume rerun timed out
+with successful cleanup. Latest inventory is17 PASS/1 FAIL; the earlier18-case
+result is retained evidence, not current all-green certification. See STATUS.
 M09 documentation packaging proceeds at the owner's request without waiving
 the original recovery/load/fresh-reproduction release gates. See [STATUS](STATUS.md).
 
@@ -211,16 +215,18 @@ Historical results are not proof of today's service health or later code changes
 
 | Scope | Recorded result / evidence |
 | --- | --- |
-| Current offline regression | 149 component tests PASS; 72 in network-isolated CLI container plus77 host tests. `runtime/m08c-offline-db3eaac38cdb4df49eeaab43570b4e72.json`; exact commands in STATUS |
+| Current recovery component regression | 88 tests PASS in network-isolated CLI container; `runtime/m08c-offline-402e015534ff4d859b5dc2ff85a93ec8.json`; additional host checks and exact commands in STATUS |
 | S01 fixture utilities | Ten checks + ten tests PASS; offline only |
 | Fresh disposable baseline | ID563f55c17bab,61 steps PASS: three-source acquisition/dbt/publication, PG persistence and report checks; owner signature unchanged |
 | Daily live finite correctness | `runtime/m08b-live-check-20261101T050453Z.json`: four batches/72 new orders plus3 retained S01,105 raw-linked history snapshots; changing observations on all channels, omitted notification recovered, duplicate delivery audit retained, reread logical signatures stable |
-| Selected recovery | lease_fencing, receiver_audit, stage_resume PASS within their declared boundaries; exact evidence filenames in STATUS |
-| Incomplete recovery | failed_gate probe FAIL: insufficient read privilege before dbt injection; remaining15 cases lack passing continuation runtime evidence |
+| Declared recovery matrix | All18 cases PASS on2026-11-05 in retained disposable scope563f55c17bab; per-case filenames, repaired harness failures and scope limits in STATUS |
+| Post-recovery regression | Ten actual SQL/report UI tests plus four mocked layout tests PASS; retained S01 cohort remains3 orders/4 lines/6 units/USD124 and6 observed versions |
 | Owner restoration | Window result overall FAIL, but restoration PASS: exact Airflow container, original DAG pause states, protected data and PG identity verified |
 
-Open limits: Airflow healthcheck currently unhealthy, a recorded Website acquisition
-gap, and previously measured eBay convergence19m37s under local workload. Full
+Open limits: historical owner Airflow healthcheck failure, a recorded Website acquisition
+gap, and previously measured eBay convergence19m37s under local workload. Owner
+services remained stopped throughout the Nov5 recovery campaign; their current
+health was not revalidated. Full
 history rebuild/shared publication serialization are scaling constraints. M08D
 load/burst/soak, remote GitHub Actions execution, independent-machine reproduction
 and browser visual review are NOT verified. No throughput/latency guarantee,
@@ -243,7 +249,8 @@ Read [business](01_BUSINESS.md) and [source contracts](02_SOURCE_CONTRACTS.md), 
    reporting, business review rules and multi-channel presentation.
 6. `tools/s02_data/`, `simulator/`, `tests/`, `test_support/`: source generation
    separated from expected outputs, protected disposable test scopes and explicit
-   case evidence. M08C probes without PASS remain experimental.
+   case evidence. Review each M08C case's bounded assertions before generalizing
+   its PASS result to other failure timings or workloads.
 
 For ordinary deployment/restart retain the live Compose overlay; base-only
 recreation can remove live configuration. Follow the [live runbook](../tools/s02_data/README.md)

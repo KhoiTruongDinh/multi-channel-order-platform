@@ -28,7 +28,8 @@ def invoke(abort=False):
 
 
 @dag(dag_id='m08c_recovery',
-     schedule=None if Path('/opt/airflow/state/m08c-drain').is_file() else timedelta(seconds=30),
+     schedule=None if any(Path('/opt/airflow/state/' + name).is_file()
+                          for name in ('m08c-drain', 'polling-drain')) else timedelta(seconds=30),
      start_date=pendulum.datetime(2026, 10, 17, tz='UTC'), catchup=False,
      is_paused_upon_creation=True, max_active_runs=1, max_active_tasks=1,
      dagrun_timeout=timedelta(minutes=25),

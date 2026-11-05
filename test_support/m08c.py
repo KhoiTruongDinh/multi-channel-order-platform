@@ -12,7 +12,7 @@ import uuid
 from test_support import m08a as guard
 
 ROOT = guard.ROOT
-OFFLINE = ('test_s02_live.py', 'test_m08c.py', 'test_m08c_http.py',
+OFFLINE = ('test_s02_live.py', 'test_m08c.py', 'test_m08c_http.py', 'test_m08c_probes.py',
            'test_m05_http.py', 'test_m06_unit.py', 'test_m06_draining.py',
            'test_m06_cycle.py', 'test_m06_scheduling.py')
 RUNTIME_SERVICES = ('postgres', 'ebay-sim', 'etsy-sim', 'etsy-receiver')
@@ -68,7 +68,9 @@ def run_case(h, case):
     entries = {entry['id']: entry for entry in inventory()}
     guard.require(case in entries and entries[case]['runner'], 'Case is not implemented; retain NOT_RUN, not PASS')
     initially_running = target(h)
-    guard.resource_preflight(h.marker, scheduled=False)
+    # Lifecycle probes start a real scheduler: use its full memory gate BEFORE
+    # creating any case services, not the lighter CLI-only allowance.
+    guard.resource_preflight(h.marker, scheduled=entries[case]['runner'] == 'lifecycle')
     report = dict(milestone='M08C', case=case, scope=entries[case]['scope'], status='FAIL',
         milestone_complete=False, started_at=guard.utc(), id=h.marker['id'],
         project=h.marker['project'], db_system_id=h.marker['db_system_id'],
@@ -82,6 +84,7 @@ def run_case(h, case):
             'test_support/m08c_worker_probe.py', 'test_support/m08c_webhook_probe.py',
             'test_support/m08c_quality_probe.py', 'test_support/m08c_source_worker_probe.py',
             'test_support/m08c_lifecycle.py', 'test_support/airflow/m08c_recovery.py',
+            'tools/s02_data/live.py', 'orchestration/scheduling.py', 'tests/test_m08c_probes.py',
             'simulator/http_faults.py', 'simulator/live_worker.py', 'simulator/ebay_api.py', 'simulator/etsy_api.py')})
     # One case per target at a time; a crashed process leaves an explicit latch.
     latch = h.root / 'evidence/m08c.running'

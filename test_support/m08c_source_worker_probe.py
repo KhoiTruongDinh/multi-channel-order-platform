@@ -6,6 +6,7 @@ import subprocess
 import sys
 import threading
 import time
+import uuid
 from http.server import ThreadingHTTPServer
 from urllib.error import HTTPError
 from urllib.parse import urlencode
@@ -24,8 +25,12 @@ def environment():
                 WEBSITE_DB_HOST='postgres', S02_DB_HOST='postgres')
 
 
-def worker(crash):
+def worker(crash, ready=None):
     from simulator import live_worker as source
+    if ready:
+        # A heartbeat from a completed real tick proves signal handlers were
+        # installed. Do not terminate a just-spawned interpreter at import time.
+        source.HEARTBEAT = Path('/tmp/m08c-worker-ready-' + ready)
     if crash:
         real = source.apply
 
@@ -117,9 +122,14 @@ def main(campaign):
     order = rows('SELECT DISTINCT order_id FROM s02.website_versions WHERE campaign_id=%s', (campaign,))[0][0]
     assert rows('SELECT count(*) FROM public.orders WHERE order_id=%s', (order,), 'website_source')[0][0] == 1
     for abrupt in (False, True, False):
-        process = subprocess.Popen(command + ['normal'], env=env)
+        token = uuid.uuid4().hex
+        ready = Path('/tmp/m08c-worker-ready-' + token)
+        process = subprocess.Popen(command + ['normal', token], env=env)
         try:
             deadline = time.monotonic() + 100
+            while not ready.is_file():
+                assert process.poll() is None and time.monotonic() < deadline, 'worker did not finish a ready tick'
+                time.sleep(.2)
             while True:
                 due = rows('''SELECT count(*) FROM s02.website_versions v
                     JOIN s02.live_batches b USING(campaign_id)
@@ -130,11 +140,13 @@ def main(campaign):
                 assert process.poll() is None and time.monotonic() < deadline, 'worker did not recover progress'
                 time.sleep(.5)
             process.kill() if abrupt else process.terminate()
-            assert process.wait(timeout=30) == (-9 if abrupt else 0)
+            code = process.wait(timeout=30)
+            assert code == (-9 if abrupt else 0), 'unexpected worker signal exit: ' + str(code)
         finally:
             if process.poll() is None:
                 process.kill()
                 process.wait()
+            ready.unlink(missing_ok=True)
     assert rows('SELECT count(*) FROM public.orders WHERE order_id=%s', (order,), 'website_source')[0][0] == 1
     deadline = time.monotonic() + 90
     while rows('''SELECT count(*) FROM s02.versions v JOIN s02.live_batches b USING(campaign_id)
@@ -148,6 +160,6 @@ def main(campaign):
 
 if __name__ == '__main__':
     if sys.argv[1] == 'worker':
-        worker(sys.argv[2] == 'crash')
+        worker(sys.argv[2] == 'crash', sys.argv[3] if len(sys.argv) > 3 else None)
     else:
         main(sys.argv[1])

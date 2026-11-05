@@ -1,5 +1,12 @@
 # S02 test environment, recovery and load strategy
 
+Latest commit-review update2026-11-05: retained C scheduled_pause_resume rerun
+timed out at catch-up; latest inventory17 PASS/1 FAIL, cleanup PASS. Earlier18-case
+PASS remains historical. See STATUS before treating C as currently all-green.
+Owner next wants one observable D campaign using B config, prepared source data
+and seeded bounded recovery events; generate-only behavior stays unchanged.
+Campaign correctness/recovery/performance verdicts must remain separate.
+
 Daily local workflow revision2026-11-01: [16_M08_LIVE_LOCAL.md](16_M08_LIVE_LOCAL.md).
 M08B must additionally verify start-once/manual-append via public CLI on the same
 stack, including a second batch without restart and retained earlier facts.
@@ -14,11 +21,12 @@ guards passed local acceptance (see STATUS and
 authorized M08B. B passed local case-based checks under
 [12_M08B_CONTINUOUS.md](12_M08B_CONTINUOUS.md); owner review pending.
 C implementation is tracked in [17_M08C_RECOVERY.md](17_M08C_RECOVERY.md);
-all required rows still need evidence. Owner paused C on 2026-11-01 and deferred
-D, requesting M09 CV/demo documentation now. This priority exception does not
-waive the C/D/full-release runtime acceptance gates below.
+the declared18-case runtime matrix and affected local regressions passed on
+2026-11-05 after owner resumption. Prior pause2026-11-01 allowed M09 CV/demo
+packaging first, without waiving evidence gates. D remains deferred; current
+case scopes/limits and exact evidence are in STATUS.
 M07 checkpoint: `7f459aba8ac2b545ac14b82259a6579bcd25f91b`.
-Current task is M09 packaging from a partial checkpoint; STATUS decides runtime PASS.
+Current checkpoint is M08C local recovery acceptance; review before authorizing D.
 The existing S01/source contracts, dbt/Airflow requirement and fingerprint rules
 remain unchanged. This document takes precedence over older combined M08 scope.
 

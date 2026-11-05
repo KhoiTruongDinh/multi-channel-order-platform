@@ -2,12 +2,40 @@
 
 ## Scope and entry review (2026-11-01)
 
-**Paused by the owner on 2026-11-01.** Three selected continuation cases passed:
+**Latest commit-review update2026-11-05:** a subsequent local rerun of
+scheduled_pause_resume failed at the scheduled current-state catch-up deadline;
+cleanup PASS. Latest inventory is17 PASS/1 FAIL. Evidence suffix
+`d6dc5866662a4db38d588943b4a48cf3`; see STATUS. The18/18 result below is historical,
+not the latest all-green state. Keep this unresolved case visible and diagnose/
+rerun it before renewed C sign-off or successful integrated D campaign claims.
+
+**Local acceptance2026-11-05: PASS18/18 declared runtime cases.** Post-recovery
+read-only S01/report14 tests and final offline88 component tests passed. Exact
+case evidence, failed attempts and cleanup are in STATUS. Owner stack remained
+stopped; all test services were stopped afterward, with data/evidence retained.
+This is bounded local recovery verification, not load, live-vendor, disk-loss,
+remote-CI or independent-machine certification. Stop before M08D owner review.
+
+Resumed by owner2026-11-05. The pause/results below are historical evidence.
+failed_gate signature assertions now use existing publisher privileges inside
+an explicitly read-only repeatable-read transaction; transform-role grants stay
+unchanged. This also covers shared signatures in abrupt-loss probes. New runtime
+results are recorded in STATUS, not inferred from this code fix.
+
+Lifecycle startup installs the test DAG into its stopped disposable container
+before starting Airflow: the installed directory refresh interval is300s, longer
+than the180s discovery deadline if copying after startup. The runner uses Compose
+`create --no-recreate` (not unsupported create --no-deps). Scheduler cases use the
+full memory preflight. Maintenance tests call the same drain algorithm as live-up,
+with only their test DAG selected; the public live-up entrypoint still targets
+the original four periodic DAGs. Test-only barriers and a real zero-budget drain
+timeout leave the active task runnable, followed by explicit release and drain.
+
+**Historical pause by the owner on 2026-11-01.** Three selected cases had passed:
 lease_fencing, receiver_audit and stage_resume. failed_gate failed before injection
 because its assertion connection lacks core.orders_current read permission.
-The other cases have runner code but no passing continuation runtime evidence.
-Do not execute this runbook as part of M09 packaging or call M08C complete.
-STATUS records the exact evidence and successful owner restoration.
+At that checkpoint the other cases had no passing continuation runtime evidence.
+The resumed results above supersede that pause, not its retained failure logs.
 
 The owner accepted the M08B daily-live direction and requested cleanup followed
 by M08C. The current workflow is **live-up once, then generate manually**. See
@@ -148,21 +176,48 @@ the isolated `m08a stop --id ID` after inspecting the recorded target, never
 - `postgres_restart`: compare durable data signature and PostgreSQL identity
   before/after a graceful restart. Not host/disk-loss durability certification.
 
-## Remaining required matrix
+## Verified matrix and boundaries
 
 API timeout/malformed/mid-page failure and checkpoint assertions, live-PG fault
 controls, late/reordered arrivals, abrupt raw/freeze/dbt/publish loss, commit/ack
 ambiguity, mapping/status/version conflicts, retry exhaustion after task clear,
 receiver/worker/Airflow abrupt/graceful restart, real scheduled pause/resume and
 maintenance drain, scheduler/observer/source outage must have independent
-runtime evidence. See [strategy matrix](10_S02_TEST_STRATEGY.md#4-faultlifecycle-matrix-m08c).
-The inventory does not reduce these requirements or silently defer them to D.
+runtime evidence; all declared rows now have it in STATUS. See
+[strategy matrix](10_S02_TEST_STRATEGY.md#4-faultlifecycle-matrix-m08c).
+Idle service persistence is separate from busy raw/dbt/publish process-loss probes.
+Quality uses actual compiled SQL with literal bad inputs, not a full source-to-
+warehouse bad-data campaign. Live-PG HTTP/RLS/429/repeated-page assertions are
+included in source-worker lifecycle probes; fixture HTTP failures have their own
+raw/checkpoint case. These bounded scopes do not claim all possible interleavings.
 
 ## Completion rule
+
+### Runtime harness corrections verified on2026-11-05
+
+- Airflow discovery validates the latest serialized DAG version, not a count of
+  all retained versions. No serialized history is deleted.
+- Task-clear acceptance checks a terminal failed, uniquely dated disposable run
+  containing exactly the two expected failed test tasks before invoking the real
+  `airflow tasks clear` CLI. The installed Airflow3.3.2 implementation treated
+  `--task-regex` as a substring in this path, silently selecting no tasks with the
+  original regex. The guarded whole-run clear avoids that no-op. A clean automatic
+  rerun passed; durable collection attempts remain bounded at five even when the
+  Airflow task reaches try six. The intentionally failed DAG is an expected case
+  outcome, not an acceptance failure.
+- Source-worker signal tests wait for a unique heartbeat written by a completed
+  real tick after handlers are installed. This fixes a test startup race without
+  changing the production worker or relaxing expected signal exit codes.
+- The offline CLI container explicitly overrides inherited Compose labels to
+  project `m08c-offline`, service `offline-checks`. It is not an owner scheduler;
+  resource thresholds and owner protection are unchanged.
+
+### Acceptance boundary
 
 Every required inventory row needs reproducible runtime evidence and its declared
 automatic or operator outcome, affected S01 regressions and retained last-good
 publication. Until then STATUS must say **M08C in progress**, even when all
-available component tests pass (currently paused/incomplete by owner request).
-M08D is deferred. M09 may package the partial, evidence-backed portfolio without
-claiming recovery/load certification; it does not change this acceptance rule.
+available component tests pass. The declared local matrix and affected regressions
+met that gate2026-11-05; changes to those paths require affected-case reruns.
+M08D remains deferred. No load/soak, fresh independent-machine reproduction or
+remote CI execution is implied by the local C sign-off.
