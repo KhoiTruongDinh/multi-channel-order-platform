@@ -47,6 +47,13 @@ def main():
         if args.action=='generate':
             from tools.s02_data.live import require_live_storage
             require_live_storage(db)
+            if config['channels']['etsy_sim'].get('delivery_plan'):
+                try:
+                    supported=db.command(['exec','-T','live-source','python','-c',
+                        'from simulator.delivery_sender import dispatch; print("delivery-plan-v1")'])
+                except RuntimeError:
+                    raise ValueError('delivery_plan needs the updated live-source worker; rebuild/start it before generate') from None
+                if supported!='delivery-plan-v1': raise ValueError('live-source delivery plan version mismatch')
             # The configured dataset is a readable prefix, not a source selector.
             # Repeated manual executions append new orders without JSON edits.
             config['dataset']=config['dataset'][:48]+'-'+uuid.uuid4().hex[:12]

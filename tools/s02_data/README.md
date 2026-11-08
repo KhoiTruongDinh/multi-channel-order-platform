@@ -1,5 +1,9 @@
 # Manual S02 source data
 
+Prepared webhook delay/reorder/repeat/omission: [SIM delivery guide](DELIVERY.md),
+[config fields](CONFIG.md#prepared-live-webhook-delivery-plan-sim-extension) and
+[DBeaver SQL](inspect_delivery.sql). This is source simulation, not load certification.
+
 ## Daily live workflow (M08B revision, 2026-11-01)
 
 Primary local path: one existing stack/ports/passwords, no reset or campaign

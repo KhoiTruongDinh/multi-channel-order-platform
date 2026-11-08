@@ -64,6 +64,7 @@ def tick(conn):
           FROM s02.deliveries d JOIN s02.live_batches b USING(campaign_id)
           JOIN s02.local_datasets l USING(campaign_id)
           WHERE d.due_at+make_interval(secs=>b.shift_seconds::double precision)<=statement_timestamp()
+            AND coalesce((l.coverage#>>'{delivery_plan,version}')::integer,0)=0
             AND NOT d.omitted AND d.delivered_at IS NULL ORDER BY d.due_at,d.message_id LIMIT 100''').fetchall()
     sent=0
     for row in deliveries:
@@ -96,6 +97,8 @@ def tick(conn):
             conn.execute('UPDATE s02.deliveries SET delivered_at=clock_timestamp(),last_status=%s WHERE campaign_id=%s AND message_id=%s',
                          (status,row['campaign_id'],identity))
         sent+=1
+    from simulator.delivery_sender import dispatch
+    sent+=dispatch(conn,STOP)
     return dict(website_updates=written,notifications=sent)
 
 

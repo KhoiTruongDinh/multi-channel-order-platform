@@ -1,5 +1,51 @@
 # S02 generator configuration reference
 
+## Prepared live webhook delivery plan (SIM extension)
+
+Any JSON profile may opt in with `channels.etsy_sim.delivery_plan`; the filename
+is not hardcoded. See [sim_delivery_demo.json](config/sim_delivery_demo.json) and
+[read-only SQL inspection](inspect_delivery.sql). This is a SIM feature, not the
+M08D campaign controller. New plans use live generate/live-source only; explicit
+legacy playback refuses them before activation. Profiles without this object
+retain existing behavior and require no JSON edits.
+
+| Field inside `delivery_plan` | Default | Meaning |
+| --- | --- | --- |
+| `seed` | Resolved event_seed | Integer0..2147483647; independent delivery RNG |
+| `reorder` | 0 | Non-omitted orders with a paid/shipped pair to reorder; nonzero requires faults profile |
+| `delay_seconds` | `[0,0]` | Initial notification delay range; inclusive integers0..86400 |
+| `repeat_count` | 2 | Total planned sends per message on duplicate-order quota; integer2..10 |
+| `repeat_gap_seconds` | `[5,10]` | Inclusive repeat gap range,0..86400 |
+| `late_gap_seconds` | `[5,10]` | Paid first-send delay after shipped first-send;1..86400 |
+
+Existing notifications.omit/duplicate remain disjoint **order** quotas, not
+message counts. Reorder selects eligible order keys with the delivery seed and
+can overlap duplicate, never omission. Infeasible quotas fail before DB writes.
+Source versions and updated timestamps are not altered to fake delivery order.
+Source time and actual UTC send/ACK/retry time are stored separately; live
+admission applies the same shift as source versions. Sends can extend beyond
+source end_at: inspect manifest.delivery_plan.last_due_at.
+
+Plan version1 lives in local_datasets.coverage.delivery_plan. Logical messages
+reference source versions; child s02.delivery_schedule rows hold planned sends
+without copying payloads. Plans are sealed; progress is mutable. Lost ACKs or
+sender crashes can cause extra physical retries, not extra logical messages.
+generate checks that the running live-source image supports the extension;
+rebuild that image first. Missing capability fails before dataset preparation.
+No negative-data or transport/controller faults are enabled by these fields.
+
+Configuration describes manually prepared source data, not Airflow scheduling.
+Daily: start live-up once, then run `python -m tools.s02_data generate --config <path.json>`
+manually to append live data. prepare only stores data for explicit replay;
+it does not publish to live APIs. There is no generation
+on Docker startup, API GET or DAG execution. Secrets belong in `.env`, not JSON.
+See [workflow commands](README.md) and [storage/clock contract](../../docs/15_S02_LOCAL_WORKFLOW.md).
+
+Live mode translates the persisted source timeline to admission time, keeping
+relative intervals; dates below describe the prepared timeline. Exact historical
+business dates require replay, not generate. Both original config and live shift
+remain visible in DB. See [live contract](../../docs/16_M08_LIVE_LOCAL.md).
+
 Configuration describes manually prepared source data, not Airflow scheduling.
 Daily: start live-up once, then run `python -m tools.s02_data generate --config <path.json>`
 manually to append live data. prepare only stores data for explicit replay;

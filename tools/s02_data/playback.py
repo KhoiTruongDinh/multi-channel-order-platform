@@ -37,6 +37,8 @@ def activate(db,name,mode,at,confirmed):
     rows=query(db,"SELECT d.campaign_id,d.state,c.config FROM s02.local_datasets d JOIN s02.campaigns c ON c.id=d.campaign_id WHERE d.name="+literal(name))
     if not rows or rows[0]['state']!='READY': raise ValueError('prepared READY dataset required')
     row=rows[0]; campaign=row['campaign_id']
+    if row['config'].get('channels',{}).get('etsy_sim',{}).get('delivery_plan'):
+        raise ValueError('delivery_plan v1 uses live generate/live-source; legacy playback is unchanged')
     existing=query(db,'SELECT * FROM s02.playback')
     if existing: raise ValueError('playback already initialized; no implicit restart/rewind or dataset replacement')
     counts=query(db,'SELECT count(*) AS n FROM public.orders','website_source')

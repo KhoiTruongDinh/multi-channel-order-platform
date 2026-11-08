@@ -5,7 +5,8 @@ from pathlib import Path
 import subprocess
 
 from tools.s02_data.generate import campaign_id, events
-from tools.s02_data.config import parse_time
+from tools.s02_data.config import parse_time, stream
+from tools.s02_data import delivery
 from tools.s02_data.references import references
 from test_support.s02_plan import checksum, literal, mapping_sql, prepare_sql
 
@@ -39,7 +40,7 @@ def query(db,sql,name='marketplace_sim'):
 
 
 def migrations(db):
-    for name in ('001_s02_temporal.sql','002_local_playback.sql'):
+    for name in ('001_s02_temporal.sql','002_local_playback.sql','004_delivery_schedule.sql'):
         db.sql((ROOT/'migrations/marketplace_sim'/name).read_text())
 
 
@@ -97,16 +98,35 @@ def prepare(db,config):
     identity=campaign_id(config['dataset']); ref=references()
     # Validate generation fully before the first write, without retaining the dataset in RAM.
     digest=hashlib.sha256(); totals={s:0 for s in config['channels']}; coverage={s:{} for s in config['channels']}
+    eligible=[]
+    settings=config['channels']['etsy_sim'].get('delivery_plan')
     for batch in events(config):
         validate_order(batch,config)
         digest.update(json.dumps(batch,sort_keys=True,separators=(',',':')).encode())
         source=batch[0]['source']; branch=batch[0]['case']
         totals[source]=totals.get(source,0)+len(batch)
         coverage.setdefault(source,{})[branch]=coverage.setdefault(source,{}).get(branch,0)+1
+        if settings and source=='etsy_sim' and len(batch)>1 and batch[-1]['payload']['is_shipped'] and batch[0]['notify']:
+            eligible.append(batch[0]['order_id'])
+    selected=set()
+    schedule_summary=None
+    if settings:
+        if len(eligible)<settings['reorder']: raise ValueError('not enough non-omitted shipped orders for reorder quota')
+        selected=set(stream(settings['seed'],'etsy_sim',0,'reorder-selection').sample(eligible,settings['reorder']))
+        schedule_digest=hashlib.sha256(); sends=0; tail=None
+        for batch in events(config):
+            if batch[0]['source']!='etsy_sim': continue
+            rows=delivery.plan(batch,config,batch[0]['order_id'] in selected)
+            schedule_digest.update(json.dumps(rows,sort_keys=True).encode())
+            sends+=len(rows)
+            for row in rows: tail=max(tail or row['due_at'],row['due_at'])
+        schedule_summary=dict(version=1,planned_sends=sends,last_due_at=tail,
+                              reordered_orders=sorted(selected),checksum=schedule_digest.hexdigest())
     manifest=dict(config=config,source_versions=totals,cases=coverage,reference_checksum=checksum(ref),
         event_checksum=digest.hexdigest(),status='PLANNED_NOT_EXECUTED',
         excluded_faults=['API429/500/timeout/malformed','invalid_signature','crash/restart','missing_mapping'],
         excluded_reason='Not executed by this generator; explicit M08C hooks/cases required')
+    if settings: manifest['delivery_plan']=schedule_summary
     migrations(db)
     if query(db,'SELECT id FROM s02.campaigns WHERE id='+literal(identity)):
         raise ValueError('dataset ID already exists; no automatic overwrite/reset')
@@ -118,6 +138,8 @@ def prepare(db,config):
     for batch in events(config):
         value=dict(id=identity,seed=config['order_seed'],events=batch)
         pending.extend(prepare_sql(value).splitlines()[2:-2])
+        if settings and batch[0]['source']=='etsy_sim':
+            pending.extend(delivery.sql(identity,batch,delivery.plan(batch,config,batch[0]['order_id'] in selected)))
         for e in batch:
             if e['source']=='internal_web':
                 pending.append('INSERT INTO s02.website_versions VALUES ('+','.join((literal(identity),literal(e['order_id']),

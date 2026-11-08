@@ -95,7 +95,10 @@ def sample_time(parts,rng):
 
 def validate(value):
     value=json.loads(json.dumps(value))
-    exact_keys(value,('dataset','timezone','start_at','end_at','duration_minutes','order_seed','event_seed','profile','channels'),'workload')
+    exact_keys(value,('dataset','timezone','start_at','end_at','duration_minutes','order_seed','event_seed','profile','channels','campaign'),'workload')
+    if 'campaign' in value:
+        from tools.s02_data.campaign_config import validate_campaign
+        value['campaign']=validate_campaign(value['campaign'])
     if not re.fullmatch('[a-z][a-z0-9-]{2,60}',value['dataset']):
         raise ValueError('dataset must be a lowercase name, 3..61 characters')
     value.setdefault('profile','normal')
@@ -110,7 +113,7 @@ def validate(value):
         value[key]=integer(value.get(key,secrets.randbelow(2147483648)),0,2147483647)
     if set(value['channels'])!=set(SOURCES): raise ValueError('declare all three channels explicitly')
     for source,c in value['channels'].items():
-        exact_keys(c,('orders','start_at','end_at','timezone','peak_hours','basket','branches','delay_seconds','required','notifications'),'channel '+source)
+        exact_keys(c,('orders','start_at','end_at','timezone','peak_hours','basket','branches','delay_seconds','required','notifications','delivery_plan'),'channel '+source)
         integer(c['orders'],0,100000)
         c.setdefault('start_at',value['start_at']); c.setdefault('end_at',value['end_at'])
         c.setdefault('timezone',value.get('timezone','UTC')); c.setdefault('peak_hours',[])
@@ -148,4 +151,16 @@ def validate(value):
         if any(c['notifications'].values()) and (source!='etsy_sim' or value['profile']!='faults'):
             raise ValueError('notification faults require Etsy and explicit faults profile')
         if sum(c['notifications'].values())>c['orders']: raise ValueError('delivery quotas exceed orders')
+        if 'delivery_plan' in c:
+            if source!='etsy_sim': raise ValueError('delivery_plan is Etsy-only')
+            d=c['delivery_plan']
+            exact_keys(d,('seed','reorder','delay_seconds','repeat_count','repeat_gap_seconds','late_gap_seconds'),'delivery_plan')
+            d.setdefault('seed',value['event_seed']); integer(d['seed'],0,2147483647)
+            d.setdefault('reorder',0); integer(d['reorder'],0,c['orders']-c['notifications']['omit'])
+            if d['reorder'] and value['profile']!='faults': raise ValueError('reorder requires faults profile')
+            d.setdefault('repeat_count',2); integer(d['repeat_count'],2,10)
+            for key,default,minimum in (('delay_seconds',[0,0],0),('repeat_gap_seconds',[5,10],0),('late_gap_seconds',[5,10],1)):
+                d.setdefault(key,default)
+                if not isinstance(d[key],list) or len(d[key])!=2: raise ValueError('invalid '+key)
+                integer(d[key][0],minimum,86400); integer(d[key][1],d[key][0],86400)
     return value

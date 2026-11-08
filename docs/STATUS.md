@@ -1,8 +1,33 @@
 # Actual project status
 
-Updated: 2026-11-05 (Asia/Bangkok).
+Updated: 2026-11-08 (Asia/Bangkok).
 
 ## Current checkpoint
+
+<!-- stable-delivery-checkpoint:start -->
+### Stable SIM delivery partial checkpoint (2026-11-08)
+
+Owner requested selective commits, not M08D completion. Selected only prepared
+Etsy delay/reorder/repeat/omission schedules: schema004, generator/loader,
+durable sender, live-worker hook, legacy replay refusal, inspection/runbook/tests.
+Logical notifications/source versions stay separate from physical sends; old
+profiles are unchanged. See tools/s02_data/DELIVERY.md for fields and boundaries.
+Campaign/load tuning, Etsy reconciliation/paging, local configs and runtime
+artifacts are intentionally outside this checkpoint.
+
+Verified the INDEX snapshot at runtime/staged-review-sim-1e1cbe48, not the broader
+working tree: `python tests/test_s02_delivery.py` PASS9;
+`python -m tools.s02_data --help` PASS (no campaign command in this slice);
+`python -m compileall -q tools/s02_data simulator tests/test_s02_delivery.py tests/sim_delivery_probe.py`
+PASS; `powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/check_sim_delivery.ps1`
+exit0/PASS, cleanup PASS. Evidence under that snapshot's
+runtime/sim-delivery-a486198e7e4c.json:8logical planned messages,2omitted,
+10planned sends,12actual sends including500/lost-ACK retries,6logical messages
+received,10completed sends. Loader/reapply/legacy/API/signature/RLS/seal/FK and
+completed-no-resend checks pass. Only unique disposable test containers/network
+removed; no owner data/ports/credentials/scheduler changes. This is NOT full
+warehouse/Airflow/load acceptance or certification of the remaining M08C/D work.
+<!-- stable-delivery-checkpoint:end -->
 
 **Commit-review update2026-11-05:** owner authorized a local M08C commit and
 wants an observable M08D campaign next. A newer owner-side rerun supersedes the

@@ -1,0 +1,25 @@
+{
+  "dataset": "sim-delivery-demo",
+  "timezone": "Asia/Bangkok",
+  "duration_minutes": 2,
+  "order_seed": 17,
+  "event_seed": 91,
+  "profile": "faults",
+  "channels": {
+    "internal_web": {"orders": 2, "delay_seconds": [5, 10], "required": {"cancel": 1}},
+    "ebay_sim": {"orders": 2, "delay_seconds": [5, 10], "required": {"ship": 1}},
+    "etsy_sim": {
+      "orders": 4,
+      "delay_seconds": [5, 10],
+      "required": {"ship": 4},
+      "notifications": {"omit": 1, "duplicate": 1},
+      "delivery_plan": {
+        "seed": 42, "reorder": 2,
+        "delay_seconds": [0, 2],
+        "repeat_count": 3,
+        "repeat_gap_seconds": [5, 8],
+        "late_gap_seconds": [5, 8]
+      }
+    }
+  }
+}
