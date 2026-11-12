@@ -1,11 +1,54 @@
 # S02 test environment, recovery and load strategy
 
-Latest commit-review update2026-11-05: retained C scheduled_pause_resume rerun
+Latest owner decision2026-11-06: both observable demos reviewed; begin the finite
+warm-history correctness/resource baseline in [19_M08D_MEASUREMENT.md](19_M08D_MEASUREMENT.md).
+This authorizes bounded measurement, not an automatic full-D completion claim.
+Exact commit/publication latency, sustained/burst/soak and optimization gates
+remain pending. The earlier review sequence below is retained as history.
+
+Owner sequence2026-11-06: C retained-marker/startup-race correction, observable
+normal campaign, then one opt-in eBay pause with guaranteed finally restoration
+attempt. Host journal and existing UI/DB support review. Load/soak measurements,
+thresholds and performance sign-off wait for owner approval after these demos.
+READY_FOR_REVIEW means only final source timestamp coverage/no pending source
+sends for the admitted batch, not full business or M08D certification.
+The C prerequisite now has two clean sequential reruns and latest18-case PASS;
+see STATUS and17_M08C_RECOVERY.md for exact evidence. Observable campaign runner:
+[CAMPAIGN.md](../tools/s02_data/CAMPAIGN.md); runtime results remain in STATUS.
+
+Historical SIM-first implementation2026-11-05: see tools/s02_data/DELIVERY.md. Prepared
+delivery schedule v1 is opt-in/live-only; legacy configs/replay remain separate.
+SIM PostgreSQL/HTTP checks are not warehouse receiver/Airflow/load acceptance.
+Campaign controller and negative profiles have not been implemented in this slice.
+
+Historical commit-review update2026-11-05: retained C scheduled_pause_resume rerun
 timed out at catch-up; latest inventory17 PASS/1 FAIL, cleanup PASS. Earlier18-case
-PASS remains historical. See STATUS before treating C as currently all-green.
+PASS was historical at that checkpoint. The06/11 repair above supersedes it.
 Owner next wants one observable D campaign using B config, prepared source data
 and seeded bounded recovery events; generate-only behavior stays unchanged.
 Campaign correctness/recovery/performance verdicts must remain separate.
+
+Pre-D review2026-11-05: prefer prepared notification delivery plans for delay,
+reorder, repeat and omission rather than per-campaign source rewrites. Keep source
+state/visibility, logical notification and physical attempt timing distinct;
+late notifications still fetch current visible receipts. Existing generation
+supports Etsy omission/duplicate order quotas, not configurable delayed/reordered
+attempt schedules. Transport faults, signature faults and service/process loss
+need their respective runtime mechanisms; prepared rows alone cannot prove them.
+Config/schema details and first-profile scope remain proposals for owner review
+in TAM_THOI_M08_GIAI_TRINH_VI.md; no runtime/campaign verification in this doc task.
+Clarification: local_now.json is only an example; any compatible profile path
+under tools/s02_data/config/ is allowed. Proposed child delivery schedule stores
+planned attempts for one logical notification, not duplicate orders/versions.
+Current source visible_at selects latest eligible state and may coalesce rows;
+attempt due_at must remain distinct. Negative UNMAPPED and unknown-status profiles
+require explicit policy/provenance and must not silently change normal validation.
+Concrete schema/algorithm review: deliveries gains source/account/source_sequence
+provenance; one delivery_schedule child stores planned sends and actual retry/ACK
+progress. Existing source/version/clock tables remain unchanged. Prepared schedule
+covers late/reordered/duplicate/omitted webhook inputs, not all18 C outcomes.
+HTTP/signature/process faults need runtime mechanisms; exact target SQL, seal/
+FK/progress rules and all18 case mappings are in the temporary Vietnamese doc.
 
 Daily local workflow revision2026-11-01: [16_M08_LIVE_LOCAL.md](16_M08_LIVE_LOCAL.md).
 M08B must additionally verify start-once/manual-append via public CLI on the same
@@ -23,10 +66,11 @@ authorized M08B. B passed local case-based checks under
 C implementation is tracked in [17_M08C_RECOVERY.md](17_M08C_RECOVERY.md);
 the declared18-case runtime matrix and affected local regressions passed on
 2026-11-05 after owner resumption. Prior pause2026-11-01 allowed M09 CV/demo
-packaging first, without waiving evidence gates. D remains deferred; current
+packaging first, without waiving evidence gates. Full D certification remains pending; current
 case scopes/limits and exact evidence are in STATUS.
 M07 checkpoint: `7f459aba8ac2b545ac14b82259a6579bcd25f91b`.
-Current checkpoint is M08C local recovery acceptance; review before authorizing D.
+Current checkpoint includes owner review of C and both demos; bounded D baseline
+is authorized. See STATUS for actual outcomes, not this strategy's planned checks.
 The existing S01/source contracts, dbt/Airflow requirement and fingerprint rules
 remain unchanged. This document takes precedence over older combined M08 scope.
 

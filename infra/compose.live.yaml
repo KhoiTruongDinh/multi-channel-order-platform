@@ -13,13 +13,20 @@ services:
       S02_DB_PASSWORD: ${S02_ETSY_READER_PASSWORD:?set S02_ETSY_READER_PASSWORD in .env}
   airflow:
     profiles: ["live"]
+    # Importing the full CLI can exceed15s under live dbt load on a small VM.
+    # Check actual DB/scheduler/parser health; HTTP200 alone is insufficient.
+    healthcheck:
+      test: ["CMD", "python", "-m", "orchestration.airflow_health"]
     environment:
       S02_LOCAL_PLAYBACK: "false"
       POLLING_LIVE_CURRENT_TIME: "true"
       POLLING_DRAIN_FILE: /opt/airflow/state/polling-drain
       POLLING_MAPPING_VERSION: local-live-v1
+      AIRFLOW__CORE__PARALLELISM: "${LIVE_AIRFLOW_PARALLELISM:-2}"
       WEBSITE_POLL_INTERVAL_SECONDS: ${LIVE_POLL_INTERVAL_SECONDS:-60}
       EBAY_POLL_INTERVAL_SECONDS: ${LIVE_POLL_INTERVAL_SECONDS:-60}
+      EBAY_PAGE_SIZE: ${LIVE_EBAY_PAGE_SIZE:-50}
+      ETSY_RECOVERY_PAGE_SIZE: ${LIVE_ETSY_RECOVERY_PAGE_SIZE:-50}
       ETSY_INBOX_INTERVAL_SECONDS: ${LIVE_POLL_INTERVAL_SECONDS:-60}
       ETSY_RECOVERY_INTERVAL_SECONDS: ${LIVE_POLL_INTERVAL_SECONDS:-60}
       POLLING_SLOT_WAIT_SECONDS: ${LIVE_SLOT_WAIT_SECONDS:-300}

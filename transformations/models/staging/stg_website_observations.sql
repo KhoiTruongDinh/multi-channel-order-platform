@@ -1,4 +1,6 @@
-WITH input_raw AS (
+-- Expand child arrays once per acquisition, not once per order. Preserve source
+-- array order: the unchanged business payload defines source-version identity.
+WITH input_raw AS MATERIALIZED (
     SELECT r.raw_record_id,
            r.source_system,
            r.source_account_id,
@@ -11,46 +13,81 @@ WITH input_raw AS (
        AND r.source_system = 'internal_web'
        AND r.resource_type = 'website_order_window'
 ), expanded AS (
-    SELECT r.*,
-           order_value AS order_json
+    SELECT r.raw_record_id, r.source_system, r.source_account_id,
+           r.acquired_at, r.byte_sha256, order_value AS order_json
       FROM input_raw r
       CROSS JOIN LATERAL jsonb_array_elements(r.parsed_payload->'orders') AS orders(order_value)
+), order_items AS (
+    SELECT r.raw_record_id, x.value->>'order_id' AS order_id,
+           jsonb_agg(x.value ORDER BY x.position) AS children
+      FROM input_raw r
+      CROSS JOIN LATERAL jsonb_array_elements(r.parsed_payload->'order_items')
+           WITH ORDINALITY AS x(value, position)
+     GROUP BY r.raw_record_id, x.value->>'order_id'
+), payments AS (
+    SELECT r.raw_record_id, x.value->>'order_id' AS order_id,
+           jsonb_agg(x.value ORDER BY x.position) AS children
+      FROM input_raw r
+      CROSS JOIN LATERAL jsonb_array_elements(r.parsed_payload->'payment_transactions')
+           WITH ORDINALITY AS x(value, position)
+     GROUP BY r.raw_record_id, x.value->>'order_id'
+), cancellations AS (
+    SELECT r.raw_record_id, x.value->>'order_id' AS order_id,
+           jsonb_agg(x.value ORDER BY x.position) AS children
+      FROM input_raw r
+      CROSS JOIN LATERAL jsonb_array_elements(r.parsed_payload->'cancellation_requests')
+           WITH ORDINALITY AS x(value, position)
+     GROUP BY r.raw_record_id, x.value->>'order_id'
+), shipment_rows AS MATERIALIZED (
+    SELECT r.raw_record_id, x.value, x.position,
+           x.value->>'order_id' AS order_id,
+           x.value->>'shipment_id' AS shipment_id
+      FROM input_raw r
+      CROSS JOIN LATERAL jsonb_array_elements(r.parsed_payload->'shipments')
+           WITH ORDINALITY AS x(value, position)
+), shipments AS (
+    SELECT raw_record_id, order_id,
+           jsonb_agg(value ORDER BY position) AS children
+      FROM shipment_rows
+     GROUP BY raw_record_id, order_id
+), shipment_orders AS (
+    -- Match the old EXISTS semantics even if invalid raw repeats a shipment.
+    SELECT DISTINCT raw_record_id, order_id, shipment_id FROM shipment_rows
+), shipment_item_rows AS MATERIALIZED (
+    -- Prevent a planner-selected join from expanding this array per shipment.
+    SELECT r.raw_record_id, x.value, x.position,
+           x.value->>'shipment_id' AS shipment_id
+      FROM input_raw r
+      CROSS JOIN LATERAL jsonb_array_elements(r.parsed_payload->'shipment_items')
+           WITH ORDINALITY AS x(value, position)
+), shipment_items AS (
+    SELECT r.raw_record_id, s.order_id,
+           jsonb_agg(r.value ORDER BY r.position) AS children
+      FROM shipment_item_rows r
+      JOIN shipment_orders s ON s.raw_record_id = r.raw_record_id
+                            AND s.shipment_id = r.shipment_id
+     GROUP BY r.raw_record_id, s.order_id
 ), shaped AS (
     SELECT e.*,
            jsonb_build_object(
                'orders', jsonb_build_array(e.order_json),
-               'order_items', COALESCE((
-                   SELECT jsonb_agg(x.value ORDER BY x.position)
-                     FROM jsonb_array_elements(e.parsed_payload->'order_items') WITH ORDINALITY AS x(value, position)
-                    WHERE x.value->>'order_id' = e.order_json->>'order_id'
-               ), '[]'::JSONB),
-               'payment_transactions', COALESCE((
-                   SELECT jsonb_agg(x.value ORDER BY x.position)
-                     FROM jsonb_array_elements(e.parsed_payload->'payment_transactions') WITH ORDINALITY AS x(value, position)
-                    WHERE x.value->>'order_id' = e.order_json->>'order_id'
-               ), '[]'::JSONB),
-               'cancellation_requests', COALESCE((
-                   SELECT jsonb_agg(x.value ORDER BY x.position)
-                     FROM jsonb_array_elements(e.parsed_payload->'cancellation_requests') WITH ORDINALITY AS x(value, position)
-                    WHERE x.value->>'order_id' = e.order_json->>'order_id'
-               ), '[]'::JSONB),
-               'shipments', COALESCE((
-                   SELECT jsonb_agg(x.value ORDER BY x.position)
-                     FROM jsonb_array_elements(e.parsed_payload->'shipments') WITH ORDINALITY AS x(value, position)
-                    WHERE x.value->>'order_id' = e.order_json->>'order_id'
-               ), '[]'::JSONB),
-               'shipment_items', COALESCE((
-                   SELECT jsonb_agg(x.value ORDER BY x.position)
-                     FROM jsonb_array_elements(e.parsed_payload->'shipment_items') WITH ORDINALITY AS x(value, position)
-                    WHERE EXISTS (
-                        SELECT 1
-                          FROM jsonb_array_elements(e.parsed_payload->'shipments') AS s(value)
-                         WHERE s.value->>'order_id' = e.order_json->>'order_id'
-                           AND s.value->>'shipment_id' = x.value->>'shipment_id'
-                    )
-               ), '[]'::JSONB)
+               'order_items', COALESCE(i.children, '[]'::JSONB),
+               'payment_transactions', COALESCE(p.children, '[]'::JSONB),
+               'cancellation_requests', COALESCE(c.children, '[]'::JSONB),
+               'shipments', COALESCE(s.children, '[]'::JSONB),
+               'shipment_items', COALESCE(si.children, '[]'::JSONB)
            ) AS business_payload
       FROM expanded e
+      LEFT JOIN order_items i ON i.raw_record_id = e.raw_record_id
+                            AND i.order_id = e.order_json->>'order_id'
+      LEFT JOIN payments p ON p.raw_record_id = e.raw_record_id
+                         AND p.order_id = e.order_json->>'order_id'
+      LEFT JOIN cancellations c ON c.raw_record_id = e.raw_record_id
+                              AND c.order_id = e.order_json->>'order_id'
+      LEFT JOIN shipments s ON s.raw_record_id = e.raw_record_id
+                          AND s.order_id = e.order_json->>'order_id'
+      LEFT JOIN shipment_items si ON si.raw_record_id = e.raw_record_id
+                                 AND si.order_id = e.order_json->>'order_id'
 )
 SELECT raw_record_id,
        source_system,

@@ -40,6 +40,12 @@ jobs:
               db.sql(path.read_text(),'data_platform')
           PY
           docker compose --env-file .env --file infra/compose.yaml --profile m04 up --detach --build --wait --wait-timeout 420 airflow
+      - name: Etsy drain scope and rollback-only HTTP/SQL regression
+        run: |
+          docker compose --env-file .env --file infra/compose.yaml run --rm -T --no-deps --volume "$PWD:/repo:ro" --env PYTHONPATH=/repo --entrypoint /opt/airflow/project-venv/bin/python airflow /repo/tests/test_marketplace_pagination.py
+          docker compose --env-file .env --file infra/compose.yaml run --rm -T --no-deps --volume "$PWD:/repo:ro" --env PYTHONPATH=/repo --entrypoint /opt/airflow/project-venv/bin/python airflow /repo/tests/test_m06_cycle.py
+          docker compose --env-file .env --file infra/compose.yaml run --rm -T --no-deps --volume "$PWD:/repo:ro" --env PYTHONPATH=/repo --entrypoint /opt/airflow/project-venv/bin/python airflow /repo/tests/test_etsy_drain.py
+          docker compose --env-file .env --file infra/compose.yaml run --rm -T --no-deps --volume "$PWD:/repo:ro" --env PYTHONPATH=/repo --entrypoint /opt/airflow/project-venv/bin/python airflow /repo/tests/etsy_recovery_probe.py
       - name: Same public live workflow as local operators
         run: |
           python tests/test_s02_live.py

@@ -19,13 +19,25 @@ def main():
     sub.add_parser('status'); sub.add_parser('stop'); sub.add_parser('resume')
     sub.add_parser('live-up')
     sub.add_parser('live-status')
+    campaign=sub.add_parser('campaign'); campaign.add_argument('--config',type=Path,required=True)
+    campaign.add_argument('--confirm-local',action='store_true'); campaign.add_argument('--allow-faults',action='store_true')
+    repair=sub.add_parser('campaign-restore'); repair.add_argument('--report',type=Path,required=True)
+    repair.add_argument('--confirm-local',action='store_true')
     start=sub.add_parser('start'); start.add_argument('--dataset',required=True)
     start.add_argument('--mode',choices=('realtime','replay'),required=True)
     start.add_argument('--at'); start.add_argument('--confirm-local',action='store_true')
     sub.add_parser('tick')
     play=sub.add_parser('play'); play.add_argument('--interval-seconds',type=int,default=5)
     args=p.parse_args(); db=LocalDB()
-    if args.action=='live-up':
+    if args.action=='campaign':
+        from tools.s02_data.campaign import run
+        config=validate(json.loads(args.config.read_text(encoding='utf-8')))
+        report=run(db,config,args.confirm_local,args.allow_faults)
+        result={k:report[k] for k in ('id','status','dataset','performance_assessment','fault_cleanup')}
+    elif args.action=='campaign-restore':
+        from tools.s02_data.campaign import restore
+        result=restore(db,args.report,args.confirm_local)
+    elif args.action=='live-up':
         from tools.s02_data.live import up,startup_lock
         with startup_lock(): result=up(db)
     elif args.action=='live-status':

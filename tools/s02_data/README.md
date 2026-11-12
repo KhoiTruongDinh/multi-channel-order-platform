@@ -1,8 +1,13 @@
 # Manual S02 source data
 
+Observable normal/recovery campaign: [CAMPAIGN.md](CAMPAIGN.md). This review-stage
+runner retains the local stack for inspection; load/SLA scoring is deferred.
+
 Prepared webhook delay/reorder/repeat/omission: [SIM delivery guide](DELIVERY.md),
 [config fields](CONFIG.md#prepared-live-webhook-delivery-plan-sim-extension) and
-[DBeaver SQL](inspect_delivery.sql). This is source simulation, not load certification.
+[DBeaver SQL](inspect_delivery.sql). This SIM-only guide does not start a campaign
+controller or generate negative business data; use the campaign guide above for
+the opt-in review runner.
 
 ## Daily live workflow (M08B revision, 2026-11-01)
 

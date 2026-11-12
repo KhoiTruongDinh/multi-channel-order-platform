@@ -2,12 +2,21 @@
 
 ## Scope and entry review (2026-11-01)
 
-**Latest commit-review update2026-11-05:** a subsequent local rerun of
+**Repeatability repair2026-11-06:** scheduled_pause_resume passed two clean
+sequential reruns; latest inventory is18 PASS. The retained test drain marker
+prevented scheduling, then removing it exposed an unpaused-startup race. Pause
+the validated test DAG with the real one-shot Airflow CLI BEFORE scheduler
+startup, remove both scoped markers, require two NEW scheduled successes and
+drain runnable work at cleanup. Both reruns verify current-state catch-up,
+observed-only history and cleanup PASS. Offline regression90 PASS. Exact evidence
+and failed attempts are retained in STATUS. No production task/budget reset.
+
+**Historical commit-review update2026-11-05:** a subsequent local rerun of
 scheduled_pause_resume failed at the scheduled current-state catch-up deadline;
 cleanup PASS. Latest inventory is17 PASS/1 FAIL. Evidence suffix
 `d6dc5866662a4db38d588943b4a48cf3`; see STATUS. The18/18 result below is historical,
-not the latest all-green state. Keep this unresolved case visible and diagnose/
-rerun it before renewed C sign-off or successful integrated D campaign claims.
+not the latest all-green state at that checkpoint. The repair above supersedes
+this failure; it does not erase its evidence.
 
 **Local acceptance2026-11-05: PASS18/18 declared runtime cases.** Post-recovery
 read-only S01/report14 tests and final offline88 component tests passed. Exact

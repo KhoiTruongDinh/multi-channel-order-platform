@@ -12,6 +12,27 @@ from test_support import m08c as c
 
 
 class GuardTests(unittest.TestCase):
+    def test_scheduled_rerun_removes_both_retained_test_markers_idempotently(self):
+        from test_support import m08c_lifecycle as lifecycle
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory).resolve(); state=root/'binds/airflow-state'; state.mkdir(parents=True)
+            h=Mock(root=root,marker=dict(id='abcdef123456',project='m08a-abcdef123456'))
+            owner_marker=root/'owner-polling-drain'; owner_marker.touch()
+            with patch.object(lifecycle.guard,'root_for',return_value=root):
+                for _ in range(2):
+                    for name in ('m08c-drain','polling-drain'): (state/name).touch()
+                    lifecycle.resume_disposable_schedule(h)
+                    self.assertFalse((state/'m08c-drain').exists())
+                    self.assertFalse((state/'polling-drain').exists())
+                    self.assertTrue(owner_marker.exists())
+                lifecycle.resume_disposable_schedule(h)
+
+    def test_schedule_resume_refuses_owner_before_db_or_file_access(self):
+        from test_support import m08c_lifecycle as lifecycle
+        h=Mock(marker=dict(id='abcdef123456',project=c.guard.OWNER))
+        with self.assertRaises(c.guard.SafetyError): lifecycle.resume_disposable_schedule(h)
+        h.test_db.assert_not_called()
+
     def test_offline_wrapper_does_not_inherit_owner_airflow_labels(self):
         wrapper = (c.ROOT / 'infra/scripts/check_m08c_offline.ps1').read_text()
         self.assertIn('com.docker.compose.project=m08c-offline', wrapper)

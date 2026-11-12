@@ -30,10 +30,15 @@ foreach ($file in @(
     "/migrations/platform/005_etsy_work.sql",
     "/migrations/platform/006_report_health.sql",
     "/migrations/platform/007_report_order_detail.sql",
-    "/migrations/platform/008_report_queries_telemetry.sql"
+    "/migrations/platform/008_report_queries_telemetry.sql",
+    "/migrations/platform/009_etsy_recovery_scans.sql"
 )) {
     docker compose --env-file $composeEnv --file $compose exec -T postgres sh -c `
         "psql --set ON_ERROR_STOP=1 --username `"`$POSTGRES_USER`" --dbname data_platform --file '$file'"
     if ($LASTEXITCODE -ne 0) { throw "Migration failed: $file" }
 }
-# End of migration runner.
+foreach ($name in @('001_s02_temporal.sql','002_local_playback.sql','003_live_batches.sql','004_delivery_schedule.sql')) {
+    docker compose --env-file $composeEnv --file $compose exec -T postgres `
+        psql --set ON_ERROR_STOP=1 --username postgres --dbname marketplace_sim --file "/migrations/marketplace_sim/$name"
+    if ($LASTEXITCODE -ne 0) { throw "SIM migration failed: $name" }
+}

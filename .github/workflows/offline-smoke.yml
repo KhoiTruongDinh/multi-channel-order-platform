@@ -39,8 +39,17 @@ jobs:
           python tests/test_s02_local_scheduled.py
           python tests/test_s02_live.py
       - name: Preserve M06 scheduler defaults
-        run: python tests/test_m06_scheduling.py
+        run: |
+          python tests/test_m06_scheduling.py
+          python tests/test_etsy_recovery_scan.py
       - name: M08C inventory and target guards (stdlib only)
         run: python tests/test_m08c.py
+      - name: Prepared deliveries and observable campaign guards (stdlib only)
+        run: |
+          python tests/test_s02_delivery.py
+          python tests/test_s02_campaign.py
+          python tests/test_airflow_health.py
+          python tests/test_m08d_measure.py
+          python tests/test_m08d_envelope.py
       - name: Compile application and test code
         run: python -m compileall -q tools ingestion simulator transformation orchestration reports test_support tests

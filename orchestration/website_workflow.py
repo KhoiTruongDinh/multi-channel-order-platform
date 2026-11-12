@@ -128,7 +128,8 @@ def perform(conn, args, stage, number):
         if args.source == 'etsy_sim':
             mode = getattr(args, 'collection_mode', 'recovery')
             arguments = ['ingestion.etsy', mode, '--execution-id', f'm04-{args.execution_id}',
-                         '--checkpoint-stream', args.checkpoint_stream]
+                         '--checkpoint-stream', args.checkpoint_stream,
+                         '--page-size', str(getattr(args, 'page_size', 1))]
             if args.validation_mode == 's01':
                 arguments += ['--observed-at', args.observed_at.isoformat()]
             if mode == 'recovery':
@@ -140,21 +141,28 @@ def perform(conn, args, stage, number):
         arguments = ['ingestion.website' if args.source=='internal_web' else 'ingestion.ebay', '--window-start', args.window_start.isoformat(),
                      '--window-end', args.window_end.isoformat(), '--observed-at', args.observed_at.isoformat(),
                      '--execution-id', f'm04-{args.execution_id}', '--checkpoint-stream', args.checkpoint_stream]
+        if args.source == 'ebay_sim':
+            arguments += ['--page-size', str(getattr(args, 'page_size', 1))]
         if args.fault_after_raw_once and number == 1:
             arguments.append('--fail-after-raw' if args.source=='internal_web' else '--fail-after-page')
         command(*arguments)
     elif stage == 'freeze':
         if state is None:
+            # Expose the actual DAG owner atomically with FROZEN. A later
+            # finally-time annotation races the campaign orphan-release guard.
+            owner_run = getattr(args, 'airflow_run_id', args.execution_id) if args.dag_id else None
             if getattr(args,'freeze_connection',None) is not None:
                 from transformation.batch import freeze
                 freeze(argparse.Namespace(batch_id=args.batch_id,run_id=identity(args.execution_id,'transform'),
                     source=args.source,mapping_version=args.mapping_version,transformation_version=args.transformation_version,
-                    validation_mode=args.validation_mode,connection=args.freeze_connection))
+                    validation_mode=args.validation_mode,connection=args.freeze_connection,
+                    airflow_dag_id=args.dag_id,airflow_run_id=owner_run))
             else:
                 command('transformation.batch', 'freeze', '--batch-id', args.batch_id,
                         '--run-id', identity(args.execution_id, 'transform'), '--source', args.source,
                         '--mapping-version', args.mapping_version, '--transformation-version', args.transformation_version,
-                        '--validation-mode',args.validation_mode)
+                        '--validation-mode',args.validation_mode,
+                        *(['--airflow-dag-id',args.dag_id,'--airflow-run-id',owner_run] if args.dag_id else []))
         elif state == 'FAILED':
             raise RuntimeError('failed batch requires an explicit new replay execution')
         conn.execute('UPDATE ops.pipeline_runs SET batch_id=%s WHERE run_id=%s', (args.batch_id, args.workflow_id))

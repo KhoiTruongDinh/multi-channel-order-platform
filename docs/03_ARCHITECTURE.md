@@ -6,6 +6,37 @@ worker, actual-time scheduled ingestion and manual append-only generation. No
 per-batch pipeline campaign setting or empty-warehouse requirement in live mode.
 Legacy replay remains a separate explicit test tool. Verification is in STATUS.
 
+M08D recovery refinement: Python tracks bounded Etsy scan identities, invalidates
+inconsistent page caches and resumes/reconciles through HTTP without resetting
+attempts or advancing a partial checkpoint. Fields/constraints precede migration009
+in05_TARGET_SCHEMA.md; runtime evidence and remaining cadence limits are in STATUS.
+No change to source interfaces, business SQL ownership or atomic publication.
+
+M08D cadence experiment: Website staging/version SELECTs materialize as per-batch
+build tables to avoid repeated JSON/fingerprint evaluation through views. Column
+semantics and all model/test/publish barriers stay fixed; no incremental merge or
+stable/source DDL. Build storage and full workflow outcomes require measurement;
+see19_M08D_MEASUREMENT.md and STATUS, not the temporary SQL speedup alone.
+
+M08D list batching: live collectors support bounded configurable page sizes with
+the policy pinned in each immutable polling cycle. Legacy/S01 defaults remain1;
+detail fetches, durable raw/work lineage and global atomic release stay unchanged.
+No source-storage access, extra worker, stored procedure or business-model change.
+
+M08D Website SQL refinement2026-11-08: expand/group child JSON arrays by raw/order
+before joining headers; materialize shipment rows/items within the statement so
+the planner cannot re-expand items per shipment. Preserve ordinality, duplicate
+header/child evidence, null equality and shipment EXISTS membership. The staging
+output and fingerprint contract do not change. This is not incremental parsing
+or parallel release; deployment/full-build/load evidence remains separate in STATUS.
+
+The DAG-owned TRANSFORM run now records actual Airflow DAG/run identity in the
+same freeze transaction that exposes the batch. Finally-time lineage annotation
+alone had a transient missing-owner race. The campaign orphan guard rechecks the
+exact active barrier before refusing a terminal owner; already-resolved batches
+are not barriers, while real orphans still require operator approval. No automatic
+abort/reset or source/business-schema change. See05_TARGET_SCHEMA.md and STATUS.
+
 S02-only opt-in backing-store revision (acceptance status in STATUS):
 [pre-generated temporal marketplace sources](14_S02_TEMPORAL_SOURCE.md).
 Simulator reconstructs current source JSON from immutable DB versions as of a

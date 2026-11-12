@@ -13,6 +13,7 @@ from ingestion.website import parse_time
 from transformation.batch import connect as release_connection
 from transformation.source_config import SOURCES
 from orchestration import telemetry
+from ingestion.pagination import page_size
 
 
 def prepare(args):
@@ -25,6 +26,13 @@ def prepare(args):
     args.observed_at=datetime.now(timezone.utc)
     account=SOURCES[args.source][0]
     settings={k:getattr(args,k) for k in ('fault_after_raw_once','fault_after_freeze_once','inject_test_failure')}
+    maximum = 200 if args.source == 'ebay_sim' else 100
+    if args.source in ('ebay_sim', 'etsy_sim'):
+        configured = getattr(args, 'page_size', None)
+        if configured is None:
+            configured = os.environ.get('EBAY_PAGE_SIZE' if args.source == 'ebay_sim'
+                                        else 'ETSY_RECOVERY_PAGE_SIZE', '1')
+        settings['page_size'] = configured
     drain = args.source=='etsy_sim' and args.collection_mode=='drain'
     if args.source=='etsy_sim':
         settings['collection_mode']=args.collection_mode
@@ -40,20 +48,28 @@ def prepare(args):
         prior=conn.execute('''SELECT p.requested_window_start,p.requested_window_end,p.airflow_dag_id,
             c.validation_mode,c.clock_mode,c.mapping_version,c.transformation_version,c.overlap_seconds,c.settings,p.airflow_run_id
             FROM ops.polling_cycles c JOIN ops.pipeline_runs p USING(run_id) WHERE c.run_id=%s''',(args.workflow_id,)).fetchone()
+        if args.source in ('ebay_sim', 'etsy_sim') and not (prior and getattr(args,'reuse_cycle_config',False)):
+            args.page_size = page_size(configured, maximum)
+            settings['page_size'] = args.page_size
         if prior:
+            prior_settings = dict(prior[8])
+            if args.source in ('ebay_sim', 'etsy_sim'):
+                if type(prior_settings.get('page_size', 1)) is not int:
+                    raise ValueError('invalid persisted page size')
+                prior_settings['page_size'] = page_size(prior_settings.get('page_size', 1), maximum)
             if len(prior)>9 and prior[9] != (args.airflow_run_id if args.dag_id else None):
                 raise ValueError('existing cycle has different bounds/context/configuration')
             if getattr(args,'reuse_cycle_config',False):
                 if prior[1]!=args.window_end or prior[2]!=args.dag_id:
                     raise ValueError('existing cycle has different bounds/context/configuration')
                 args.mapping_version,args.transformation_version,args.overlap_seconds=prior[5:8]
-                if set(prior[8])-{'fault_after_raw_once','fault_after_freeze_once','inject_test_failure','collection_mode','checkpoint_stream','logical_clock','window_policy'}:
+                if set(prior_settings)-{'fault_after_raw_once','fault_after_freeze_once','inject_test_failure','collection_mode','checkpoint_stream','logical_clock','window_policy','page_size'}:
                     raise ValueError('unsupported persisted cycle settings')
-                for key,value in prior[8].items():
+                for key,value in prior_settings.items():
                     setattr(args,key,value)
                 args.window_start=prior[0]
                 return
-            if prior[1]!=args.window_end or prior[2]!=args.dag_id or tuple(prior[3:9])!=config:
+            if prior[1]!=args.window_end or prior[2]!=args.dag_id or (*prior[3:8],prior_settings)!=config:
                 raise ValueError('existing cycle has different bounds/context/configuration')
             args.window_start=prior[0]
             return
@@ -147,6 +163,7 @@ def main():
     p.add_argument('--collection-mode',choices=('drain','recovery'),default='recovery')
     p.add_argument('--checkpoint-stream')
     p.add_argument('--reuse-cycle-config',action='store_true')
+    p.add_argument('--page-size',type=int)
     p.add_argument('--execution-id',required=True)
     p.add_argument('--dag-id')
     p.add_argument('--airflow-run-id')

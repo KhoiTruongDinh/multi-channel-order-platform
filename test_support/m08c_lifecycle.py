@@ -48,6 +48,33 @@ def snapshot(h):
     return h.sql(guard.signature_query(guard.PROTECTED))
 
 
+def drain_test_schedule(h,timeout=900):
+    from tools.s02_data.live import _drain_schedules
+    class DB:
+        def sql(self,text,db='marketplace_sim'): return h.sql(text,db)
+        def command(self,args): return h.dc(args)
+    _drain_schedules(DB(),timeout=timeout,dags=('m08c_recovery',))
+
+
+def resume_disposable_schedule(h):
+    """Remove only this validated test scope's retained drain markers before parse."""
+    identity=h.marker.get('id','')
+    guard.require(re.fullmatch('[0-9a-f]{12}',identity) and
+                  h.marker.get('project')=='m08a-'+identity, 'Not a disposable schedule target')
+    guard.exact_path(h.root,guard.root_for(identity))
+    h.test_db()
+    # Real metadata CLI, with NO scheduler: prevent the retained unpaused DAG
+    # from publishing a run between container startup and the later pause call.
+    h.dc(['run','--rm','-T','--no-deps','--entrypoint','airflow','airflow',
+          'dags','pause','m08c_recovery'])
+    directory=h.root/'binds/airflow-state'
+    guard.exact_path(directory,h.root/'binds/airflow-state')
+    for name in ('m08c-drain','polling-drain'):
+        path=directory/name
+        guard.exact_path(path,directory/name)
+        path.unlink(missing_ok=True)
+
+
 def service_restarts(h, abrupt=False):
     start_airflow(h)
     before = snapshot(h)
@@ -113,10 +140,14 @@ def source_version(h, identity, state, created, requested=None):
 
 
 def scheduled_pause_resume(h):
+    # maintenance_drain intentionally leaves polling-drain. Clear both test-only
+    # markers BEFORE the first DAG parse; never touch owner's maintenance state.
+    resume_disposable_schedule(h)
     install_dag(h)
     signal(h, 'm08c-drain', remove=True)
     h.dc(['exec','-T','airflow','airflow','dags','pause','m08c_recovery'])
     before = snapshot(h)
+    last_run=int(h.sql("SELECT coalesce(max(id),0) FROM dag_run WHERE dag_id='m08c_recovery';",'airflow_meta'))
     identity = 'C-' + uuid.uuid4().hex[:12]
     created = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
     requested = None
@@ -130,14 +161,12 @@ def scheduled_pause_resume(h):
     h.dc(['exec','-T','airflow','airflow','dags','unpause','m08c_recovery'])
     wait(lambda: h.sql("SELECT count(*) FROM core.orders_current WHERE source_order_id='" + order +
                        "' AND cancellation_state='CANCELED';") == '1', 'scheduled current-state catch-up')
-    wait(lambda: int(h.sql("SELECT count(*) FROM dag_run WHERE dag_id='m08c_recovery' AND run_type='scheduled' AND state='success';", 'airflow_meta')) >= 2,
+    wait(lambda: int(h.sql("SELECT count(*) FROM dag_run WHERE dag_id='m08c_recovery' AND run_type='scheduled' AND state='success' AND id>"+str(last_run)+";", 'airflow_meta')) >= 2,
          'two actual scheduled successes')
     # Drain without pausing active retries; parser observes marker and stops new intervals.
     h.dc(['exec','-T','airflow','python','-c',
           'from pathlib import Path; Path("/opt/airflow/state/m08c-drain").touch()'])
-    wait(lambda: h.sql("SELECT count(*) FROM dag_run WHERE dag_id='m08c_recovery' AND state IN ('running','queued');", 'airflow_meta') == '0',
-         'test maintenance drain')
-    h.dc(['exec','-T','airflow','airflow','dags','pause','m08c_recovery'])
+    drain_test_schedule(h)
     guard.require(h.sql("SELECT count(*) FROM core.order_snapshot_history WHERE source_order_id='" + order + "';") == '1',
                   'Unobserved intermediate snapshots were fabricated')
     return dict(status='PASS', order_id=order, source_updated_at=updated,

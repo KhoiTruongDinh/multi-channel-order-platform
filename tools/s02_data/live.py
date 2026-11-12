@@ -10,6 +10,7 @@ from urllib.request import Request,urlopen
 
 from tools.s02_data.load import ROOT,migrations,query
 from test_support.s02_plan import literal
+from ingestion.pagination import page_size
 
 DAGS=('website_polling','ebay_polling','etsy_inbox','etsy_recovery')
 
@@ -66,13 +67,14 @@ def require_live_storage(db):
         if mode!='live-pg': raise ValueError('run live-up; '+service+' is still fixture/replay mode')
 
 
-def drain(db,timeout=600):
+def drain(db,timeout=600,guard=None):
     """Keep retries runnable; pause only after that DAG has no active runs."""
-    return _drain_schedules(db, timeout, DAGS)
+    return _drain_schedules(db, timeout, DAGS,guard)
 
 
-def _drain_schedules(db, timeout, dags):
+def _drain_schedules(db, timeout, dags,guard=None):
     """Shared algorithm; disposable controllers supply only their test DAG IDs."""
+    if guard: guard()
     deadline=time.monotonic()+timeout
     states={r['dag_id']:r.get('is_paused',True) for r in query(db,'SELECT dag_id,is_paused FROM dag','airflow_meta')}
     known=set(states)
@@ -94,6 +96,7 @@ def _drain_schedules(db, timeout, dags):
             db.command(['exec','-T','airflow','airflow','dags',action,dag])
         if action=='pause': paused.add(dag)
     while True:
+        if guard: guard()
         active={r['dag_id'] for r in query(db,"SELECT DISTINCT dag_id FROM dag_run WHERE state IN ('running','queued')",'airflow_meta')}
         if active-set(dags): raise ValueError('manual/replay DAG became active during drain')
         # A run may have been created between the idle read and pause command.
@@ -137,17 +140,28 @@ def probe_sources(model):
             raise RuntimeError(kind+' live source read failed; inspect SIM/DB role before generating') from None
 
 
-def up(db):
+def validate_live_parallelism(value):
+    if str(value) not in ('2','4'):
+        raise ValueError('LIVE_AIRFLOW_PARALLELISM must be2 or4 for this local envelope')
+    return int(value)
+
+
+def up(db,drain_guard=None):
     print('Live startup: validating configuration',flush=True)
     model=json.loads(compose(db,['config','--format','json']))
     # Validate credentials and prerequisites before pausing any schedules.
     passwords={kind:model['services'][kind+'-sim']['environment']['S02_DB_PASSWORD'] for kind in ('ebay','etsy')}
     if any(not p for p in passwords.values()): raise ValueError('set stable S02 reader passwords in .env')
+    validate_live_parallelism(model['services']['airflow']['environment']['AIRFLOW__CORE__PARALLELISM'])
+    environment=model['services']['airflow']['environment']
+    page_size(environment.get('EBAY_PAGE_SIZE', '1'), 200)
+    page_size(environment.get('ETSY_RECOVERY_PAGE_SIZE', '1'), 100)
     for name,sql in [('website_source',"SELECT to_regclass('public.orders') AS relation_name"),
                      ('data_platform',"SELECT to_regclass('ops.polling_cycles') AS relation_name")]:
         if not query(db,sql,name)[0]['relation_name']: raise ValueError('run existing M01-M07 migrations first')
     print('Live startup: draining existing runs without resetting retries',flush=True)
-    drain(db)
+    drain(db,guard=drain_guard)
+    db.sql((ROOT/'migrations/platform/009_etsy_recovery_scans.sql').read_text(),'data_platform')
     migrations(db)
     db.sql((ROOT/'migrations/marketplace_sim/003_live_batches.sql').read_text())
     for kind,password in passwords.items():

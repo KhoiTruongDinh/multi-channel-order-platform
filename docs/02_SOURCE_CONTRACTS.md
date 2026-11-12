@@ -271,6 +271,14 @@ Example eBay request (decoded for readability): GET /sell/fulfillment/v1/order?f
 
 Example Etsy recovery request: GET /v3/application/shops/7001/receipts?min_last_modified=1792227600&max_last_modified=1792227960&limit=1&offset=0&sort_on=updated&sort_order=asc. These bounds represent 09:00–09:06 UTC on the fixture date.
 
+M08D runtime pagination refinement: base/S01 commands retain limit1. Live list
+page sizes are configurable (eBay1..200, Etsy1..100), default50 in the overlay;
+polling cycles persist the selected integer in immutable settings. Retry restores
+that value (legacy missing=1), including after environment changes. The direct
+Etsy recovery command refuses a different limit from retained list-request URLs.
+This changes request batching, not detail endpoints, source/account identity,
+logical deduplication, fixed bounds, audit retention or checkpoint semantics.
+
 ### B9.2. Core validation and normalization
 
 | Field / condition | Agreed rule |
@@ -298,6 +306,13 @@ Example Etsy recovery request: GET /v3/application/shops/7001/receipts?min_last_
 | Transient errors | Retry timeouts, 429 and selected 5xx with bounded exponential backoff and jitter; honor Retry-After when present. Initial configurable maximum: 5 total attempts (including the first attempt) per processing cycle, then leave work pending/failed for controlled replay. No silent skip. |
 | Permanent or uncertain errors | 400: retain failed request and investigate; 401/403: stop affected source and flag configuration/access; 404 on a referenced receipt: retain pending work and reconcile, not an automatic deletion. Explicit provider-specific retry rules can refine this baseline. |
 | Rebuild | Reprocess retained raw observations with a known mapping/contract version. Do not use the simulator truth ledger as ingestion input. Expose source coverage and unresolved work separately from the latest timestamp seen. |
+
+Implementation refinement2026-11-07 (not a changed vendor contract): Etsy tracks
+bounded scan identities in ops.etsy_recovery_scans. Count/order drift invalidates
+only that cache set; retry can re-read offset0 without deleting audits or resetting
+the cumulative five HTTP attempts per URL. Consistent/legacy successful pages
+still resume; acquisition/processing checkpoint policy above stays unchanged.
+See05_TARGET_SCHEMA.md and STATUS for exact constraints and runtime evidence.
 
 ### B9.4. Fixed fixture inventory
 

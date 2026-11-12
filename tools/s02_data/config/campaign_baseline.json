@@ -1,0 +1,28 @@
+{
+  "dataset": "campaign-baseline",
+  "timezone": "Asia/Bangkok",
+  "duration_minutes": 3,
+  "order_seed": 17,
+  "event_seed": 91,
+  "profile": "normal",
+  "channels": {
+    "internal_web": {"orders": 4, "required": {"cancel": 1, "request": 1}, "delay_seconds": [10, 15]},
+    "ebay_sim": {"orders": 4, "required": {"ship": 1, "partial": 1}, "delay_seconds": [10, 15], "basket": {"lines_min": 2, "lines_max": 5, "quantity_min": 1, "quantity_max": 5}},
+    "etsy_sim": {"orders": 4, "required": {"ship": 2}, "delay_seconds": [10, 15], "delivery_plan": {"seed": 42}}
+  },
+  "campaign": {
+    "timeout_seconds": 1800,
+    "poll_seconds": 15,
+    "measurement": {
+      "max_orders": 100,
+      "max_source_versions": 500,
+      "max_generated_bytes": 10485760,
+      "min_free_disk_mb": 2048,
+      "max_db_growth_mb": 512,
+      "max_docker_memory_percent": 90,
+      "max_container_memory_mb": 2400,
+      "max_pending_sends": 500,
+      "max_final_observed_delay_seconds": 1200
+    }
+  }
+}

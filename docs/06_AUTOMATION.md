@@ -9,6 +9,19 @@ New live cycles use actual UTC at cycle entry, not stale Airflow interval ends;
 the window/policy is persisted and retries never resample it. Coordinator waits
 can still delay acquisition; this does not promise every source state is observed.
 
+Live pagination uses LIVE_EBAY_PAGE_SIZE and LIVE_ETSY_RECOVERY_PAGE_SIZE
+(default50 in the overlay; base/S01 defaults1). Polling persists settings.page_size
+per cycle and forwards it explicitly to the collector; same-cycle retries restore
+it instead of adopting a changed environment. Changing page size applies to NEW
+cycles after normal guarded live-up/deployment. No increase in HTTP concurrency,
+executor slots or retry budgets is implied.
+
+M08D Etsy recovery refinement: count/order-inconsistent page sets are retained
+as INVALID scans, then bounded reconciliation re-reads from offset0 on retry.
+Consistent RUNNING/VALIDATED scans resume cached pages. Neither scan changes nor
+Airflow retries reset the URL/work attempt budgets. Dictionary/migration009 and
+actual evidence:05_TARGET_SCHEMA.md and STATUS. No API snapshot isolation claim.
+
 Planning revision: 2026-10-30; the M08 stabilization split is defined in
 [10_S02_TEST_STRATEGY.md](10_S02_TEST_STRATEGY.md). M05B implements the website/eBay
 requirements below; exact runtime evidence

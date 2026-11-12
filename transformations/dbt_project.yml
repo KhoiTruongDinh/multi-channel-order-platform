@@ -19,9 +19,9 @@ on-run-end:
 models:
   multi_channel_orders:
     staging:
-      +materialized: view
+      +materialized: table
     intermediate:
-      +materialized: view
+      +materialized: table
     candidates:
       +materialized: table
     ebay:

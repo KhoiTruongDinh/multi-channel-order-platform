@@ -10,12 +10,14 @@ import uuid
 from datetime import timedelta
 from email.utils import parsedate_to_datetime
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, parse_qs, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from ingestion.website import parse_time
 from ingestion.etsy_common import (connect, now, uid, shop, origin, validate_url,
                                    start_run, finish_run, raw_record, enqueue)
+from ingestion.etsy_recovery import PageSetChanged, begin_scan, finish_scan, page_history
+from ingestion.pagination import page_size
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -165,7 +167,10 @@ def drain(conn, observed=None, only=None, collection_run=None):
         conn.commit()
     if not only:
         return
-    for _ in range(100):
+    # Bound this invocation by its initial work set, not an arbitrary 100 claims.
+    # Successful work is no longer claimable; new arrivals wait for the next call.
+    # HTTP/lease failures still stop the call and retain their durable budgets.
+    for _ in range(len(only)):
         lease = claim(conn, only, collection_run)
         if not lease:
             break
@@ -179,28 +184,27 @@ def drain(conn, observed=None, only=None, collection_run=None):
         raise RuntimeError(f'{unfinished} receipt work items unresolved; no complete processing claim')
 
 
-def recover(conn, args, run):
+def recovery_pages(conn, args, run, scan):
+    limit = page_size(getattr(args, 'page_size', 1), 100)
     offset, expected, works, seen, previous = 0, None, [], set(), None
     while True:
         url = origin() + f'/v3/application/shops/{shop()}/receipts?' + urlencode({
             'min_last_modified': int(args.window_start.timestamp()),
-            'max_last_modified': int(args.window_end.timestamp()), 'limit': 1, 'offset': offset,
+            'max_last_modified': int(args.window_end.timestamp()), 'limit': limit, 'offset': offset,
             'sort_on': 'updated', 'sort_order': 'asc'})
-        prior = conn.execute('''SELECT r.response_status,r.parsed_payload,r.raw_record_id,
-            count(*) OVER () FROM ops.etsy_http_attempts a JOIN raw.raw_records r USING(raw_record_id)
-            WHERE a.run_id=%s AND a.work_id IS NULL AND r.resource_locator=%s
-            ORDER BY a.recorded_at DESC LIMIT 1''', (run, url)).fetchone()
-        success = bool(prior and prior[0] == 200)
+        attempts, prior = page_history(conn, run, url, scan)
+        success = bool(prior and prior[0] == 200 and prior[4] <= 2097152)
         if success:
             status, payload, raw = prior[:3]
-        for attempt in range((prior[3] if prior else 0) + 1, 6) if not success else ():
+        for attempt in range(attempts + 1, 6) if not success else ():
             require_source_ready(conn)
             status, body, headers = fetch(url)
             raw, payload = raw_record(conn, run, 'etsy_receipts', url, 'GET', None if '_transport_error' in headers else status, body, headers, args.observed_at,
                 {'transport_error':headers.get('_transport_error'),'body_truncated':len(body)>2097152})
             conn.execute('''INSERT INTO ops.etsy_http_attempts
-                (attempt_id,run_id,attempt_number,raw_record_id,recorded_at,collection_run_id) VALUES (%s,%s,%s,%s,%s,%s)''',
-                (uuid.uuid4(), run, attempt, raw, now(),run))
+                (attempt_id,run_id,attempt_number,raw_record_id,recorded_at,collection_run_id,recovery_scan_number)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)''',
+                (uuid.uuid4(), run, attempt, raw, now(),run,scan))
             conn.commit()
             if status == 200 and len(body) <= 2097152:
                 success = True
@@ -215,10 +219,10 @@ def recover(conn, args, run):
         if not success or not isinstance(payload, dict):
             raise RuntimeError('recovery page failed; checkpoint unchanged')
         count, results = payload.get('count'), payload.get('results')
-        if type(count) is not int or count < 0 or not isinstance(results, list) or len(results) > 1:
+        if type(count) is not int or count < 0 or not isinstance(results, list) or len(results) > limit:
             raise ValueError('invalid count/results recovery envelope')
         if expected is not None and expected != count:
-            raise ValueError('changing recovery count; retry/reconcile window')
+            raise PageSetChanged('changing recovery count; retry/reconcile window')
         expected = count
         if count > 10000 or offset+len(results)>count:
             raise ValueError('invalid recovery page cardinality')
@@ -231,17 +235,40 @@ def recover(conn, args, run):
                 raise ValueError('receipt outside requested recovery window')
             order = (modified,receipt_id)
             if receipt_id in seen or (previous is not None and order <= previous):
-                raise ValueError('duplicate or unsorted recovery page; reconcile window')
+                raise PageSetChanged('duplicate or unsorted recovery page; reconcile window')
             seen.add(receipt_id)
             previous = order
-            require_recovery_allowed(conn,receipt_id)
-            works.append(enqueue(conn, f'recovery:{args.execution_id}:{receipt_id}', receipt_id, raw))
+            works.append((receipt_id, raw))
         conn.commit()
         offset += len(results)
         if offset >= count:
             break
         if not results or offset > 10000:
             raise ValueError('incomplete or excessive recovery paging')
+    return works
+
+
+def recover(conn, args, run):
+    limit = page_size(getattr(args, 'page_size', 1), 100)
+    # Changing URLs mid-collection would bypass retained cache/HTTP budgets.
+    rows = conn.execute('''SELECT DISTINCT r.resource_locator FROM ops.etsy_http_attempts a
+        JOIN raw.raw_records r USING(raw_record_id) WHERE a.run_id=%s AND a.work_id IS NULL''',
+        (run,)).fetchall()
+    if any(parse_qs(urlsplit(row[0]).query).get('limit') != [str(limit)] for row in rows):
+        raise ValueError('collection page size differs from retained requests')
+    scan, status = begin_scan(conn, run)
+    try:
+        pages = recovery_pages(conn, args, run, scan)
+    except PageSetChanged:
+        finish_scan(conn, run, scan, False)
+        raise
+    if status == 'RUNNING':
+        finish_scan(conn, run, scan, True)
+    works = []
+    for receipt_id, raw in pages:
+        require_recovery_allowed(conn, receipt_id)
+        works.append(enqueue(conn, f'recovery:{args.execution_id}:{receipt_id}', receipt_id, raw))
+    conn.commit()
     if works:
         drain(conn, args.observed_at, works, run)
     conn.execute('''INSERT INTO ops.extraction_checkpoints
@@ -261,7 +288,9 @@ def main():
     p.add_argument('--window-end', type=parse_time)
     p.add_argument('--observed-at', type=parse_time)
     p.add_argument('--checkpoint-stream', default='receipts')
+    p.add_argument('--page-size', type=int, default=1)
     args = p.parse_args()
+    args.page_size = page_size(args.page_size, 100)
     if not re.fullmatch(r'receipts(?:_polling|_test_[0-9a-f]{32})?',args.checkpoint_stream):
         p.error('invalid receipt checkpoint scope')
     if args.mode == 'replay' and args.work_id is None:

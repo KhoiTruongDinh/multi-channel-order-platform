@@ -130,7 +130,8 @@ Owner authorized M08C on 2026-11-01, then explicitly paused further campaigns an
 requested a checkpoint commit and M09 CV/demo packaging. Recovery inventory:
 [17_M08C_RECOVERY.md](17_M08C_RECOVERY.md). Owner resumed C on2026-11-05; its18
 declared runtime cases and affected local regressions now PASS (see STATUS for
-exact evidence and scope). M08D is deferred pending owner review/authorization.
+exact evidence and scope). Owner authorized the first bounded M08D baseline on
+2026-11-06 after reviewing both observable demos; full D certification is pending.
 M09 packaging is implemented; full release certification still requires the
 remaining D/reproducibility gates. Generated code alone is not runtime evidence.
 
@@ -193,15 +194,103 @@ remaining D/reproducibility gates. Generated code alone is not runtime evidence.
   case has reproducible evidence and the documented automatic OR explicit operator
   recovery outcome; failed gates retain last-good publication and all audits.
   Fix discovered correctness bugs and rerun affected regression before advancing.
-- **M08D — Load, burst, soak and bottleneck stabilization.** Opt-in isolated tests
+- **M08D — Load, burst, soak and bottleneck stabilization.** Opt-in bounded tests.
+  Owner reviewed both live demos2026-11-06 and authorized the next step. Begin
+  bounded warm-history correctness/resource baseline per19_M08D_MEASUREMENT.md;
+  preserve one local stack and old profiles. Exact first-publication latency,
+  sustained/burst/soak and final D certification remain explicit separate gates.
+  Next authorized slice2026-11-07: finite Website24/6min then mixed72/6min,
+  fixed900s observed-drain budget and at least2 scheduled successes per required
+  active-source DAG; report minute-plan buckets and actual final backlog/age.
+  No source/schema/business redesign, no burst/soak certification from these steps.
+    Owner then authorized official orphan recovery and higher finite steps:
+    after low gates PASS, mixed300/6min then900/10min. Predeclared count ceilings
+    grow only for those profiles; resource/delay/drain budgets stay fixed. Stop
+    escalation at any failure; exact actual outcomes remain in STATUS.
+    After observed executor queue/cycle contention, one live-only4-slot experiment
+    is predeclared (base2/per-DAG1/global publication lock unchanged). If the short
+    mixed gate still fails, retain it and calibrate exposure ONCE:144/12min at
+    the same0.2 offered/s, then600/12min at the300/6min offered rate, then900/10min.
+    Identical latency/resource/drain/cycle gates; no indefinite window relaxation
+    or retroactive green verdict. These remain finite, not full D certification.
+    Actual qualification144 FAILED the scheduled-cycle gate; independent data
+    correctness passed.600/900 were not admitted. Next prerequisite is bounded
+    reconciliation of Etsy mutable/cached recovery pages, retaining raw evidence,
+    durable budgets and approved S01 resume behavior. No further exposure
+    calibration; rerun the same qualification only after a verified fix.
+    Reconciliation fix now verified by rollback HTTP/SQL probes and a live
+    INVALID->VALIDATED successor scan. The unchanged144 rerun still FAILS cadence
+    (one qualifying recovery start), while independent data correctness passes.
+    Next prerequisite is measured workflow/build cadence optimization; keep the
+    same gates and source/atomic-release contracts. Subsequent measured change:
+    materialize existing Website staging/intermediate SELECTs as tables, with
+    full multiset parity and the complete 54-node dbt release gate retained.
+    Unchanged 144 and 600 finite envelopes now PASS; 900 FAILS scheduled cadence
+    although independent final-data reconciliation passes. Stop escalation.
+    Narrow follow-up: replace the 100-claim drain cap with an invocation work-set
+    bound; no DDL or fixed-membership-across-restart claim. Verify >100 work and
+    unchanged failure/resume/checkpoint behavior. SAME900 rerun still FAILS
+    cadence2/1/1/1, although inbox390/recovery300 work complete per collection
+    without the100 cutoff and final-data reconciliation passes. Drain843.241s
+    stays within900s. Next: paging and broader workflow profiling;
+    Bounded page50 refinement now verified: base/S01default1, immutable cycle
+    policy and legacy1 restored on retry.125selected tests plus17HTTP/SQL checks
+    PASS. Same900 rerun still FAILS cadence1/1/1/1; final900 data correctness and
+    drain751.877s PASS separately. Next profile detail/operational SQL and build/
+    queue (including idle-cycle work); do not equate fewer list calls with full
+    M08D acceptance. No worker/model-selection changes in this experiment;
+    do not inflate budgets or source exposure. This is not completed
+    D acceptance. Exact evidence is in STATUS.
+    Next authorized slice2026-11-08: profile/rewrite Website staging repeated
+    child-array expansion only, with complete multiset/fingerprint parity and
+    session-temp SQL plans per19_M08D_MEASUREMENT.md. No incremental storage,
+    model selection, parallel release or acceptance-gate changes in this slice.
+    Deployment exposed a missing-owner annotation race: resolve it with atomic
+    owner metadata in the existing freeze transaction and an exact-barrier
+    guard reread, not automatic orphan abort or relaxed gates. After45selected
+    regressions and full54-node release, unchanged900 still FAILS cadence1/1/1/1.
+    Independent900data reconciliation and751.029s observed drain PASS separately;
+    no escalation. Review measured Etsy staging and executor/coordinator waits
+    next; complete D acceptance remains pending (exact evidence in STATUS).
+  Owner sequencing revision2026-11-06: finish C repeatability prerequisite, then
+  observable normal campaign and one eBay outage/recovery demo. Implement/review
+  these before load measurements or any performance verdict; the latter are
+  explicitly deferred until owner checks the demos. New commands/profile docs:
+  tools/s02_data/CAMPAIGN.md. Final D acceptance is NOT implied by READY_FOR_REVIEW.
+  Owner requested SIM-first implementation/review before the campaign controller.
+  Implemented subset: additive delivery provenance/schedule migration, opt-in
+  generated live delivery plans, durable sender retry/ACK progress and inspection
+  demo. Legacy profiles unchanged; new schedule v1 intentionally live-only,
+  legacy replay refuses it. SIM checks do not satisfy D load/campaign acceptance.
   Owner-approved observable campaign direction2026-11-05: reuse the M08B data
   config with an optional campaign section and a dedicated campaign entrypoint;
   generate-only commands never inject faults. Support a stable explicitly opted-in
   synthetic local stack, seeded bounded fault timing, visible UI/DB access and
   retained inspection after recovery. Prepare data before measurement; separate
   correctness, recovery and performance verdicts. C regressions remain separate.
-  Prerequisite: investigate the newest C scheduled catch-up rerun failure recorded
-  in STATUS; historical18-case PASS does not supersede newer failing evidence.
+  Pre-implementation review: precompute delayed/reordered/duplicate/omitted
+  notification delivery plans independently of immutable source versions. Receipt
+  HTTP reads remain current-as-visible, not historical notification replay.
+  Reuse runtime hooks/controller for transport/service failures; do not model
+  HTTP500 or process loss merely by adding order rows. Preserve existing quota
+  semantics and generate-only compatibility; finalize attempt fields/constraints
+  before any supporting DDL. Historical pre-implementation proposal below is now
+  superseded by the implemented SIM slice and bounded review campaign above.
+  Config paths are arbitrary profiles under tools/s02_data/config/, not a
+  hardcoded local_now.json. Review proposal: retain logical s02.deliveries and
+  add a minimal child send schedule keyed by campaign/message/attempt, distinct
+  from source-version visible_at. Current latest-visible selection may coalesce
+  versions; changing visibility alone does not prove repeated acquisitions or
+  notification reorder. Negative data stays opt-in; prioritize UNMAPPED coverage
+  separately from an unknown-status gate-blocking profile. No DDL approved yet.
+  Concrete schema proposal in the temporary review: leave source tables unchanged,
+  add source/account/source_sequence provenance to deliveries (nullable sequence
+  only for legacy), plus one delivery_schedule child keyed by campaign/message/
+  planned attempt. Store due time and minimal retry/ACK progress without payload
+  copies. Parent-version FK, seal guards and sender-only progress writes are
+  required; no migration/schema execution in the design-review task.
+  Prerequisite repaired2026-11-06: C scheduled catch-up passed two clean sequential
+  reruns after scoped marker/CLI-pause/drain fixes; exact evidence is in STATUS.
   with declared source mix, initial history/line cardinality, offered rate, bounded
   duration, resource ceilings and stop conditions. Measure actual generation vs
   logical processing, publication latency, backlog/drain, errors/retries and laptop
@@ -289,7 +378,8 @@ commit are recorded in STATUS. M07 local report/SQL/AppTest acceptance passed an
 the owner approved its local commit. M08A is locally implemented/verified and
 owner confirmed completion; M08B passed local case-based acceptance and awaits review.
 M08C declared local recovery matrix passed2026-11-05; owner review pending.
-M08D is deferred.
+M08D bounded baseline is authorized/in progress; sustained/burst/soak and final
+certification remain pending.
 M09 documentation packaging is authorized; full release certification is pending.
 The fixed fixture pack
 passes 10 offline checks and 10 utility unit tests. M05 additionally passes 7 HTTP

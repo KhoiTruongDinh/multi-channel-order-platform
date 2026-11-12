@@ -1,5 +1,1695 @@
 # TẠM THỜI — Giải trình M08 để chủ dự án kiểm tra
 
+## Đã triển khai và chạy lại bài 900 — 08/11/2026
+
+**Kết quả: dữ liệu đúng và drain đúng hạn, nhưng bài tải vẫn FAIL cadence.**
+
+| Kiểm tra | Kết quả thực tế |
+| --- | --- |
+| SQL mới vào Airflow | Đã triển khai qua drain/build/start; hash khớp workspace |
+| dbt + publish | 10 batch trong cửa sổ đo, mỗi batch đủ 54 node, không có node lỗi |
+| Đối soát độc lập | PASS 900 order, 3.801 lines, 907 observed versions, 0 lỗi |
+| Bắt kịp trạng thái cuối | 751,03 giây sau khi cửa sổ nguồn kết thúc, dưới budget 900 giây |
+| Scheduled success đủ điều kiện | Website/eBay/inbox/recovery = 1/1/1/1; yêu cầu 2 cho từng DAG → FAIL |
+| Giữ nguyên code/cấu hình khi đo | 78 hash khớp; vẫn 2 slots, polling 60 giây, page size 50/50 |
+
+Report chính: `runtime/campaign-262f579dff4943a1bc8b9ef0fb03a5cb/report.json`.
+Nguồn kết thúc 12:07:50 giờ Việt Nam; quan sát đủ trạng thái cuối lúc 12:20:21;
+controller chốt FAIL lúc 12:22:52. Không tính các run bắt đầu ngoài cửa sổ đã chốt
+để biến kết quả thành PASS. 907 history versions là phần pipeline thật sự thấy,
+không tự dựng đủ 1.941 trạng thái đã lên lịch ở SIM.
+
+Trong lúc triển khai có hai việc vận hành cần phân biệt:
+
+1. Batch cũ `5d030239-d64c-58ae-895b-6d5804464e5f` thật sự mồ côi: owner FAILED,
+   task SKIPPED, không có publisher đang chạy. Theo đúng phép bạn đã cho, mình
+   dùng bước abort chính thức dưới release lock; giữ raw/audit/manifest/last-good.
+   Lệnh đi qua coordinator trước đó timeout source slot, không reset budget.
+2. Lượt startup đầu báo nhầm một batch mới là orphan: thực tế owner RUNNING và
+   dbt đang chạy. Mình không abort nó. Nguyên nhân trong code là owner metadata
+   chỉ được bổ sung ở `finally`, sau khi batch đã lộ trạng thái FROZEN. Đã sửa
+   `batch.py`/workflow để ghi owner cùng transaction tạo manifest; guard đọc lại
+   đúng batch còn active trước khi từ chối. Orphan thật vẫn bị chặn, không tự abort.
+
+Lượt startup bị từ chối không nhận dữ liệu, giữ riêng ở
+`runtime/campaign-73a90b8c3a2f4a4b99cec8a8d1ed8ffc/report.json`.
+Không có thay đổi chọn raw mới/incremental trong `batch.py`; chỉ sửa owner metadata.
+Không thêm bảng/schema/procedure, không đổi business SQL ngoài staging đã duyệt.
+
+Những phần còn chậm được đo, không phải phỏng đoán máy đã đạt giới hạn:
+
+- Etsy staging: khoảng 82–109 giây trong các batch Etsy.
+- Chờ source slot tới 235 giây, release slot tới 177 giây.
+- Toàn stage build/test Etsy 116–162 giây; stage còn có startup/process overhead.
+- Một lượt eBay collect retry vì `mutable page total; reconcile window`, sau đó
+  chạy thành công. HTTP error audit bằng 0 không có nghĩa không có retry nghiệp vụ.
+- 63 resource samples không chạm ceiling; peak reported stack memory khoảng 2,17 GiB.
+
+Hướng review tiếp là Etsy parsing/canonicalization và cách task chờ slot chiếm
+executor; chưa tự tăng worker/budget hay chuyển toàn bộ sang stored procedure.
+Không thể kết luận pipeline nhanh hơn bao nhiêu chỉ từ hai lần chạy có lịch sử
+lưu sẵn và phase scheduler khác nhau. M08D vẫn chưa hoàn thành; chưa chạy burst/soak.
+
+Bạn kiểm tra lại kết quả dữ liệu bằng lệnh **chỉ đọc** sau, với stack đang bật:
+
+```powershell
+python -m test_support.m08d_measure --report runtime/campaign-262f579dff4943a1bc8b9ef0fb03a5cb/report.json
+```
+
+Lệnh trên PASS không thay verdict FAIL của bài tải. Nếu chủ động chạy lại toàn
+bài, lệnh campaign dưới đây sẽ **thêm một bộ 900 order mới**, không reset dữ liệu:
+
+```powershell
+python -m tools.s02_data campaign --config tools/s02_data/config/campaign_rate_900.json --confirm-local
+```
+
+45 regression test chọn lọc, S01 offline và diff-check pass. Các dịch vụ đang
+healthy, bốn DAG không pause; giữ để bạn xem UI/DBeaver. Chưa stage/commit/push.
+
+## Tối ưu Website staging theo số đo — 08/11/2026
+
+Lượt này chỉ sửa `transformations/models/staging/stg_website_observations.sql`.
+Chưa chuyển sang incremental, chưa bật build song song, không đổi page size,
+worker, transaction publish hay điều kiện PASS. Không thêm bảng/schema bền vững.
+
+Trước đây: mỗi order lại lọc các mảng items/payment/cancel/shipment trong cùng
+raw; việc dựng payload để trả ra và tính fingerprint còn có thể lặp các subquery.
+Hiện tại: mở từng mảng một lần theo raw, gom theo order rồi join với header.
+
+```mermaid
+flowchart TD
+  A[Raw Website của batch đã freeze] --> B[Headers: một dòng cho mỗi order quan sát]
+  A --> C[Items / payments / cancellations: gom theo raw + order]
+  A --> D[Shipment rows: giữ vị trí gốc]
+  A --> E[Shipment item rows: mở mảng một lần]
+  D --> F[Danh sách raw + order + shipment không lặp]
+  F --> G[Ghép shipment items vào đúng order]
+  E --> G
+  B --> H[LEFT JOIN các nhóm con]
+  C --> H
+  D --> H
+  G --> H
+  H --> I[Business payload và fingerprint theo quy tắc cũ]
+```
+
+Các CTE `MATERIALIZED` trong câu SQL là kết quả trung gian của lần chạy, không
+phải thêm bảng để bạn quản lý trong DBeaver. Mình giữ nguyên thứ tự phần tử,
+child trùng, header trùng và phân biệt raw; shipment lặp không làm nhân đôi item
+vì giữ đúng ngữ nghĩa `EXISTS` cũ. Không tự tạo history từ lịch SIM.
+
+Đã so sánh SQL cũ/mới trên PostgreSQL thật bằng `EXCEPT ALL` hai chiều cho toàn
+bộ cột, gồm fingerprint. PASS trên S01, child rỗng/thiếu, header/raw lặp,
+shipment lặp/cross-order, Unicode và 200 raw thật chứa 2.091 order observations.
+Ba dạng mảng child sai kiểu vẫn báo lỗi `22023` ở cả hai bản; không che lỗi dữ liệu.
+
+| Order trong một raw giả lập | SQL cũ, trung vị | SQL mới, trung vị |
+| --- | ---: | ---: |
+| 1 | 1,16 ms | 1,16 ms |
+| 10 | 9,30 ms | 6,76 ms |
+| 100 | 280,89 ms | 69,62 ms |
+| 300 | 2.643,85 ms | 287,44 ms |
+| 600 | 9.190,57 ms | 432,45 ms |
+
+Mỗi số là trung vị 4 lượt `EXPLAIN ANALYZE`, chạy cũ/mới luân phiên. Kết quả
+cuối xác nhận từng mảng chỉ mở một lần cho một raw. Cải thiện khoảng 21 lần ở
+600 order **chỉ dành cho câu staging này**, không có nghĩa toàn pipeline nhanh
+21 lần. Báo cáo v1 cũng được giữ: nó giúp phát hiện shipment items vẫn bị planner
+quét lặp; bản v2 đã khắc phục bằng CTE materialized và được đo lại.
+
+Bạn tự chạy lại từ thư mục gốc, Docker và Airflow container hiện có đang bật:
+
+```powershell
+python tests/website_staging_probe.py --container multi-channel-order-platform-airflow-1 --report runtime/website-staging-review.json
+```
+
+Chọn tên report mới nếu file đã tồn tại. Không cần bật thêm stack test; script
+dùng bảng/hàm tạm trong session và rollback toàn bộ. Không sửa core/mart/ops,
+không restart/pause Airflow. `status: PASS` nghĩa là parity và probe này pass,
+không phải M08D đã pass. Execution plans nằm trong file JSON để bạn kiểm tra.
+
+**Chưa triển khai SQL mới vào image Airflow đang chạy.** Chưa chạy lại đủ
+54 node dbt/build/test/publish hay bài 900 với SQL mới. Bước tiếp là triển khai
+tại thời điểm không có release đang làm, kiểm tra gate đầy đủ rồi mới chạy lại
+bài 900 với cùng tiêu chí cũ. M08D vẫn chưa hoàn thành. Không stage/commit/push.
+
+## Đã thêm phân trang live và đo lại — 07/11/2026
+
+Theo bước tiếp theo đã trao đổi, mình chỉ đổi cách chia trang danh sách:
+live mặc định eBay50/Etsy recovery50; base/S01 vẫn1. Có thể cấu hình trong.env:
+`LIVE_EBAY_PAGE_SIZE` (1..200) và `LIVE_ETSY_RECOVERY_PAGE_SIZE` (1..100).
+Mình thêm ví dụ vào.env.example, không sửa.env riêng của bạn.
+
+Cycle mới lưu `settings.page_size` trong cấu hình bất biến. Retry dùng đúng giá
+trị đã lưu; cycle cũ chưa có field này được hiểu là1. Recovery trực tiếp cũng
+kiểm tra limit của request đã lưu trước khi dùng lại cache/scan. Không thêm
+schema/table hay stored procedure, không đổi dbt, worker, fingerprint, giới hạn
+retry hoặc cổng PASS. Mỗi đơn vẫn GET detail đầy đủ, không lấy list thay detail.
+
+Test chọn lọc125case PASS, probe HTTP thật/PostgreSQL rollback17kiểm tra PASS.
+Ví dụ có51đơn, page20 cần3list request thay vì51; eBay vẫn cần102request detail/
+enrichment ở cả hai cách. Source thay đổi giữa list/detail vẫn phải bị từ chối,
+không bỏ kiểm tra nhất quán để chạy nhanh. CI đã thêm lệnh nhưng chưa chạy remote.
+
+Đã triển khai qua guarded drain/build và chạy lại đúng900/10phút. Container khớp
+hash code trên máy; page50/50, worker2. Report:
+`runtime/campaign-a152a820e7324b50a6fda9dfcdf6198c/report.json`.
+Dataset `campaign-rate-900-47b3eeb1ab2e`, nhận dữ liệu22:01:20, deadline22:26:20.
+DB trước lượt này đã có4.879đơn/5.086history, không phải DB trống hay A/B cố định.
+
+**Dữ liệu cuối đúng, nhưng bài tải vẫn FAIL nhịp scheduled.** Đối soát độc lập
+PASS900đơn/3.801dòng hàng/914history quan sát trên1.941phiên bản nguồn,zero sai
+lệch. Đủ900final lúc22:23:51, drain751,88giây trong ngưỡng900. Nhưng Website/
+eBay/inbox/recovery chỉ1/1/1/1scheduled success hợp lệ, yêu cầu mỗi DAG2. Report
+vẫn FAILED/measurement INCOMPLETE, không tự điền p95 hay đổi FAIL cũ thành PASS.
+
+Phân trang mới chạy thật: một recovery lấy300receipt bằng6list request rồi300
+detail GET, mỗi work chỉ1attempt. Inbox có collection459receipt hoàn tất1attempt.
+Trong cửa sổ audit22:01:20..22:24:00, có10list audit eBay và7Etsy, đều limit50;
+không dùng con số này để tuyên bố độc quyền toàn bộ CPU/request cho campaign.
+
+Phần còn vướng: eBay vẫn có count drift phải retry; có source-slot wait tới183
+giây, release wait90giây; build/test khoảng81..166giây trong các lượt đã đọc.
+Như vậy ít trang hơn chưa đủ làm toàn pipeline đạt nhịp. RAM stack mẫu cao nhất
+khoảng2,23GiB, DB tăng71,74MiB, chưa vượt ceiling; chưa kết luận giới hạn máy.
+78/78hash code khớp cuối bài. Không so hai lượt warm khác lịch sử để kết luận
+toàn pipeline nhanh hơn bao nhiêu. Chưa sửa thêm phần SQL/index/build/queue trong
+lượt này; đó là bước profiling tiếp theo, kể cả chi phí rebuild khi không có data mới.
+
+Stack vẫn healthy,4DAG đều unpaused; batch còn chạy có owner RUNNING, không abort.
+Không reset/xóa dữ liệu hoặc volume. Chưa stage/commit/push; M08D chưa hoàn tất.
+
+## Đã chạy lại tải 900 sau bản sửa — 07/11/2026
+
+Mình đã chạy đúng lệnh campaign900 theo yêu cầu, không đổi ngưỡng. Startup
+drain/build an toàn, hash code `etsy.py` trong container khớp máy; dataset
+`campaign-rate-900-89dd726f2873`, bắt đầu 20:57:58 giờ Việt Nam. Report:
+`runtime/campaign-c9e9f6fab5594f7ca89c0459a9af37ab/report.json`.
+
+**Bản sửa drain hoạt động thật:** inbox lấy 390 receipt trong một collection,
+recovery lấy 300 trong một collection; mỗi work chỉ 1 attempt. Không còn lỗi
+phải retry vì dừng ở 100. Các lượt collect Etsy được đọc lại cuối bài đều
+SUCCEEDED, không có FAILED/RETRYABLE trong phạm vi từ admission lúc kiểm tra.
+
+**Toàn bài 900 vẫn FAIL cổng nhịp scheduled.** Website/eBay/inbox/recovery đạt
+2/1/1/1 scheduled success hợp lệ, cần mỗi DAG ít nhất2 với thời điểm bắt đầu
+trong cửa sổ nguồn. Các lượt chạy thành công bắt đầu sau cửa sổ không được cộng
+ngược. Việc collect thành công không đồng nghĩa cả DAG đã hoàn tất đúng nhịp.
+
+Đủ 900/900 đơn ở phiên bản cuối lúc21:22:01, trước deadline21:22:58; drain
+843,24 giây vẫn trong ngưỡng900. Đối soát độc lập PASS900 đơn/3.801 dòng hàng/
+910history đã quan sát trên1.941 phiên bản nguồn, không sai lệch. Report tải
+vẫn FAILED/measurement INCOMPLETE, không tự bổ sung p95 hay đổi thành PASS.
+
+Phần còn chậm đã đo được: eBay phải retry do bộ trang thay đổi; có lượt chờ
+release97 giây, inbox chờ source slot127 giây; inbox390 receipt mất khoảng192
+giây, recovery300 receipt khoảng277 giây, rồi còn dbt/build/publish. Đây là
+nhiều phần cộng lại, không chỉ lỗi recovery hay giới hạn100 nữa. RAM stack cao
+nhất khoảng2,19GiB trong VM2CPU/4GB, chưa vượt ceiling; chưa đủ bằng chứng để
+khẳng định nâng RAM sẽ giải quyết hay máy hoàn toàn không liên quan.
+
+DB trước bài đã có3.979 đơn và4.176 history; khác baseline bài trước, nên không
+so thời gian hai lượt để kết luận bản sửa làm pipeline nhanh/chậm bao nhiêu.
+76/76 hash code vẫn khớp cuối bài. Không sửa code/worker/page size/ngân sách
+giữa lượt đo, không tăng tải tiếp. Bước tiếp theo là profiling HTTP/phân trang,
+queue và build trước khi quyết định sửa tiếp; chưa triển khai thêm.
+
+Stack vẫn healthy,4DAG đều unpaused, dữ liệu giữ nguyên để xem Airflow/dashboard/
+DBeaver. Batch đang BUILDING được xác nhận owner RUNNING, không abort. Chưa
+stage/commit/push. M08D chưa hoàn tất, kết quả FAIL cũ vẫn giữ nguyên.
+
+## Bản sửa hẹp `drain()` theo yêu cầu — 07/11/2026
+
+Đã sửa đúng vòng lặp nhận việc: từ tối đa 100 sang tối đa số work ID được chọn
+ở đầu lần gọi. Ví dụ có 250 việc GET đều thành công thì lấy hết trong một lần,
+không cần fail/retry chỉ vì chạm mốc 100. Không đổi claim, process, stored
+procedure, page size, dbt, ngân sách 5 attempt hay schema DB.
+
+Kiểm chứng: 11 unit test PASS; probe HTTP thật + PostgreSQL PASS 15 kiểm tra,
+trong đó lấy 250 receipt trong một lần, mỗi việc 1 attempt, lưu raw/lineage đầy
+đủ, gọi lại không GET thêm. Probe dùng transaction rollback; đọc lại xác nhận
+không còn run/work thử nghiệm. Các regression scan 8, envelope 11 và fixture
+S01 cũng PASS. Lần test đầu lỗi do test double trả ID 0 thay vì lease tuple;
+đã sửa test và chạy lại, không bỏ kiểm tra lỗi để làm xanh.
+
+Giới hạn: danh sách chỉ chốt theo mỗi lần gọi, chưa phải manifest lưu bền xuyên
+mọi lần retry/restart. Lỗi HTTP, cooldown hay lease chưa nhận được vẫn không
+được coi là hoàn tất. Bản sửa chưa chứng minh toàn bài 900 PASS và chưa xử lý
+mọi nút thắt phân trang/chờ release. Không đổi verdict FAIL cũ.
+
+Chưa redeploy Airflow chính hay chạy lại tải 900 trong lượt sửa hẹp này. Chạy
+campaign bên dưới sẽ tự qua startup/drain/build để triển khai code mới rồi đo
+lại đúng cấu hình cũ (không cần tự xóa container/volume):
+
+```powershell
+python -m tools.s02_data campaign --config tools/s02_data/config/campaign_rate_900.json --confirm-local
+```
+
+Stack chính vẫn healthy, không dừng PostgreSQL hay reset dữ liệu. Chưa stage,
+commit hoặc push. Lệnh test chi tiết và kết quả thực tế ở STATUS và
+`orchestration/ETSY.md`.
+
+## Bước tối ưu cadence đang kiểm chứng — 07/11/2026
+
+**Chốt lượt đo: 144 và 600 PASS; 900 FAIL nhịp scheduled. Dừng tăng tải.**
+
+Mức 900 kết thúc 17:51:23 ngày 07/11/2026, report
+`runtime/campaign-5dac64c79dce4008905e7af52b97fcec/report.json`.
+Đã quan sát đủ 900 đơn ở phiên bản cuối lúc 17:48:32; đối soát độc lập PASS:
+3.801 dòng hàng, 935 history quan sát/1.941 phiên bản nguồn, không sai lệch.
+Drain khoảng 730,42 giây, trong ngưỡng 900 giây. Nhưng scheduled success hợp lệ
+chỉ đạt Website/eBay/inbox/recovery = **3/1/0/1**, yêu cầu mỗi DAG ít nhất 2.
+Lượt recovery tiếp theo bắt đầu ngoài cửa sổ nguồn. Inbox đã FAILED ở attempt 5,
+log còn 159 receipt work chưa hoàn tất; lượt scheduled mới sau đó tiếp tục lấy
+phần còn lại. Không reset attempt, không ép success, không xóa raw hay dữ liệu.
+
+Vì vậy đây không phải mất dữ liệu cuối, nhưng **chưa đạt khả năng xử lý theo nhịp
+đã chốt**. Report tải vẫn FAILED/measurement INCOMPLETE, không tự điền p95 hay
+đổi thành PASS từ đối soát độc lập. 63 mẫu: RAM stack cao nhất khoảng 2,16 GiB,
+DB tăng khoảng 64,83 MiB; 76/76 hash code được đọc lại vẫn khớp. Không đổi code
+hay tiêu chí giữa các lượt đo. Các mức FAIL trước đây vẫn giữ nguyên.
+
+Hướng tiếp theo: phân tích việc chia receipt work thành các phần nhỏ có thể
+resume, chi phí phân trang HTTP và thời gian chờ stage/khóa release. Hiện drain
+giới hạn 100 claim/lượt, stage có 5 attempt; không nên dùng tăng retry vô hạn để
+che backlog. Thiết kế phải giữ audit, dedup, ngân sách hữu hạn và publish nguyên
+tử; sau đó chạy lại đúng mức 900 trước khi tăng tải/burst/soak. Chưa triển khai
+thêm thay đổi kiến trúc trong lượt này. Cả stack vẫn bật, 7 service có healthcheck
+đều healthy, observer đang chạy và 4 DAG live đều unpaused. Chưa stage/commit/push.
+
+Cập nhật mới nhất: **600 đơn cũng PASS toàn bộ envelope** lúc 17:17:54 giờ
+Việt Nam. Ba nguồn mỗi nguồn đủ 200 đơn ở phiên bản cuối; đối soát 2.482 dòng
+hàng, 619 phiên bản đã quan sát/1.317 phiên bản nguồn, không sai lệch. P95 quan
+sát 636,72 giây; drain 392,57 giây. Bốn DAG có 4/2/3/2 scheduled success hợp lệ
+(Website/eBay/inbox/recovery). 52 mẫu tài nguyên: RAM stack cao nhất khoảng
+2,05 GiB, tổng DB tăng khoảng 50,30 MiB. Đối soát độc lập đọc lại cũng PASS.
+Report: `runtime/campaign-bc8879a3cad646e2a8e11b46dcb8c2ac/report.json`.
+Kết luận cuối mức 900 ở trên. Các mục bên dưới ghi lại diễn tiến trước
+đó; kết quả FAIL cũ không được đổi thành PASS hay xóa đi.
+
+Cập nhật runtime: lượt 144 đã **PASS toàn envelope**, không chỉ PASS dữ liệu.
+144 đơn/602 dòng hàng/157 history quan sát,0 sai lệch; Web/eBay/inbox/recovery
+có 3/3/3/2 scheduled success hợp lệ. P95 quan sát khoảng503 giây,drain394 giây;
+RAM mẫu cao nhất khoảng2,00GiB,DB tăng30,62MiB.76hash đều khớp. Report
+`runtime/campaign-4e0d2e5f09be49eb828776a7fd4d4b35/report.json` và đối soát đọc lại
+đều PASS. Đây là một lượt hữu hạn trên DB giữ lịch sử, không chứng nhận24h hay
+tuyên bố cả pipeline nhanh hơn2,4lần. Đã bắt đầu startup mức600;900 chỉ chạy khi
+600PASS. Kết quả FAIL cũ vẫn giữ nguyên để review.
+
+Sau lỗi cache đã sửa, mình không bỏ cổng hai chu kỳ hay kéo dài cửa sổ. Thay đổi
+lần này chỉ là **hai dòng config dbt**: tầng Website staging/intermediate từ
+view thành table trong schema `build`. Không đổi SELECT, fingerprint, grain,
+trạng thái nghiệp vụ, 54 model/test hay khóa publish. Dữ liệu tính từ đúng
+manifest đóng băng, vẫn rebuild theo batch, chưa làm incremental.
+
+```mermaid
+flowchart LR
+    R[Raw trong manifest] --> S[Tách JSON và fingerprint một lần thành table]
+    S --> V[Dedup version một lần thành table]
+    V --> H[Header history]
+    V --> L[Line history]
+    V --> E[Evidence]
+    S --> E
+    H --> T[Đầy đủ tests rồi mới publish nguyên tử]
+    L --> T
+    E --> T
+```
+
+Trước đây hai tầng là view nên truy vấn header, line và evidence lặp lại phần
+tách JSON/tính fingerprint. Benchmark có kiểm soát dùng SQL dbt đã compile từ
+cùng manifest: 962 snapshot, 4.407 dòng history, 1.369 evidence link giống nhau
+từng dòng bằng EXCEPT ALL ở cả hai chiều. Tổng nhánh này từ **23,15 giây xuống
+9,70 giây**, đã tính 8,42 giây tạo bảng trung gian. Đây là một lượt chẩn đoán
+tuần tự trên dữ liệu warm, không tự suy ra cả pipeline nhanh hơn cùng tỷ lệ.
+
+Benchmark chỉ tạo object TEMP và rollback, không publish/core/source writes;
+publication checksum giữ nguyên, bốn lịch được drain rồi khôi phục trạng thái.
+Đổi lại, hai table trung gian sẽ dùng thêm dung lượng `build`, cần đo thực tế.
+Report mới chụp thêm hash project/model/macro/test dbt và code release để biết
+đúng phiên bản đã đo. Chưa stage/commit/push, không xóa dữ liệu.
+
+Đang triển khai qua idle startup và chạy lại đúng `campaign_rate_144.json`.
+Chỉ PASS toàn bộ cổng mới tăng `campaign_rate_600.json`, rồi `campaign_rate_900.json`;
+bất cứ mức nào FAIL thì dừng. Không thay thời lượng/ngưỡng/worker để làm xanh.
+Kết quả cuối phải đọc STATUS; số đo SQL phía trên chưa phải chứng nhận M08D.
+
+## Kết quả sau bản sửa — 07/11/2026
+
+**Lỗi retry dùng lại bộ trang sai đã sửa và kiểm chứng được trên run thật.
+M08D vẫn chưa PASS cổng tải/cadence; chưa tăng lên 600/900 đơn.**
+
+Lượt `campaign-rate-144-80116bcdf045` đối soát PASS: 144 đơn, 602 dòng hàng,
+150 history quan sát/316 phiên bản nguồn, không sai lệch. Trên chính HTTP SIM +
+pipeline đang chạy, collection `8bbf241f-eb3f-5a16-af62-bd9daa6d17d8` có:
+
+| Scan | Kết quả | HTTP list audit | Attempt cao nhất mỗi URL |
+| --- | --- | --- | --- |
+| 1 | INVALID do bộ trang đổi | 14, vẫn giữ nguyên | 1 |
+| 2, cùng collection | VALIDATED sau retry đọc lại | 33 | 2, không reset về 1 |
+
+Đây là bằng chứng đường sửa hoạt động, không chỉ là unit test tự mock.
+Trong DBeaver, chọn database `data_platform` để tự kiểm:
+
+```sql
+SELECT scan_number,status,started_at,finished_at,error_code
+FROM ops.etsy_recovery_scans
+WHERE run_id='8bbf241f-eb3f-5a16-af62-bd9daa6d17d8'
+ORDER BY scan_number;
+```
+
+Nhưng cả envelope vẫn FAIL lúc 14:55:15 giờ Việt Nam: số scheduled success hợp
+lệ Web/eBay/inbox/recovery là 4/2/3/1, trong khi yêu cầu ít nhất 2 mỗi đường.
+Recovery run quét lại đã SUCCESS; run tiếp theo cũng SUCCESS nhưng bắt đầu sau
+cửa sổ nguồn, không được tính bù. Không nới tiêu chí để làm xanh kết quả.
+Report: `runtime/campaign-20d7ee19c7aa47f2bdcd64b543057b59/report.json`.
+Lệnh đối soát chỉ đọc, không thay verdict của envelope:
+
+```powershell
+python -m test_support.m08d_measure --report runtime/campaign-20d7ee19c7aa47f2bdcd64b543057b59/report.json
+```
+
+P95 quan sát trạng thái cuối khoảng 537 giây, drain khoảng 318 giây; RAM mẫu cao
+nhất khoảng 2,01 GiB, DB tăng khoảng 32,35 MiB. Không vượt resource ceiling,
+nhưng build mỗi lượt vẫn khoảng 59–80 giây p95 trong cohort nhỏ, còn cộng chờ
+slot/executor. Không thể suy ra hệ thống chịu tải cao từ việc đủ 144 đơn.
+
+Sau khi kết thúc đo, đã siết constraint SQL không cho scan INVALID thiếu mã lỗi
+(tránh CHECK cho NULL đi qua). Probe cuối PASS **12 kiểm tra HTTP/SQL**, mọi ghi
+DB rollback; 8 unit test scan PASS. Các kiểm tra M06/S01 và live/campaign đã ghi
+lệnh/kết quả cụ thể trong STATUS. Hash collector/helper không đổi suốt lượt đo;
+migration009 được siết sau đó nên không giả vờ toàn bộ file cuối cùng đều đã
+nằm trong lượt campaign trước. Chưa chạy lại toàn campaign sau thay đổi DDL-only.
+
+Bước kế tiếp vẫn thuộc M08D: tối ưu nhịp workflow/build có giới hạn và đo lại
+đúng envelope, không thêm môi trường, không tự bỏ source/global lock hay đổi
+S01. Chưa chứng nhận burst/soak, tải 600/900 hoặc production SLA. Không stage,
+commit, push hay xóa dữ liệu/volume. Các đoạn “đang chạy” phía dưới là nhật ký
+checkpoint cũ; kết luận mới nhất là phần này.
+
+## Bản sửa recovery — đã qua probe, đang kiểm tra lại scheduled
+
+Startup đã chặn đúng batch cũ sau khi owner chuyển FAILED. Sau khi bạn cho phép
+riêng, đã abort chính thức đúng batch `acc3d02c-1d89-5a1e-9d98-7c2d0c094da7`;
+6.715 manifest inputs, 6.715 raw liên quan và 3 publication last-good giữ nguyên
+số dòng/checksum. Không abort batch khác hay ép task success. Lượt mới bắt đầu
+07:19:42 UTC đang drain các run còn lại; report startup bị từ chối trước đó vẫn
+giữ nguyên. Kết quả scheduled cuối cùng phải xem cập nhật STATUS.
+
+Đã triển khai bản sửa cho lỗi bộ trang 23/23/22. Không bỏ kiểm tra count, không
+xóa raw/cache cũ và không reset retry budget. Thay đổi schema chỉ thuộc DB
+`data_platform`, không sửa schema nguồn hoặc bảng business:
+
+- Thêm `ops.etsy_recovery_scans`: khóa `(run_id, scan_number)`, scan từ 1 đến 5;
+  trạng thái RUNNING → VALIDATED hoặc INVALID; giữ giờ bắt đầu/kết thúc và mã lỗi.
+- Thêm `ops.etsy_http_attempts.recovery_scan_number`, nullable để giữ nguyên audit
+  cũ; FK đến scan. Mọi HTTP attempt cũ vẫn còn và vẫn tính vào giới hạn 5/URL.
+- Scan 1 được dùng lại trang legacy chưa có scan number. Khi bộ trang bị lỗi count/
+  thứ tự, đánh INVALID; retry tạo scan kế tiếp và đọc lại từ trang 0. Chỉ cache
+  của scan hiện tại mới hợp lệ. Không cấp lại 5 HTTP attempt cho mỗi scan mới.
+- Interruption/HTTP lỗi thông thường giữ scan hiện tại và trang đã đọc thành công.
+  Bộ trang đã VALIDATED được dùng lại nếu bước xử lý receipt bị gián đoạn.
+- Chỉ enqueue receipt sau khi toàn bộ trang hợp lệ; checkpoint vẫn chờ receipt
+  work xử lý thành công. Không dựng history cho trạng thái chưa quan sát được.
+
+```mermaid
+flowchart TD
+    A[Resume hoặc tạo scan, tối đa 5] --> B[Đọc cache đúng scan hoặc gọi HTTP trong budget còn lại]
+    B --> C{Count và thứ tự hợp lệ?}
+    C -->|Có, còn trang| B
+    C -->|Đủ trang| V[VALIDATED: enqueue và xử lý receipt]
+    C -->|Không| I[INVALID: giữ raw và attempt, không tiến checkpoint]
+    I --> R[Retry scheduled: scan mới, budget URL không reset]
+    R --> A
+    V -->|Work thành công| P[Tiến checkpoint]
+    V -->|Work bị gián đoạn| K[Resume cùng scan VALIDATED và work identity]
+    K --> V
+```
+
+Code chính: `ingestion/etsy_recovery.py` giữ identity/cache/budget;
+`ingestion/etsy.py` kiểm trang, chuyển scan và xử lý receipt. Schema chi tiết đã
+chốt trước DDL ở `docs/05_TARGET_SCHEMA.md`, migration
+`migrations/platform/009_etsy_recovery_scans.sql`. Bootstrap, migrate và live-up
+đều đã nhận migration mới. Đây không phải cam kết API có snapshot isolation;
+count không đổi vẫn không chứng minh được mọi thay đổi vô hình trên vendor.
+
+8 unit test scan đã PASS. Probe `tests/etsy_recovery_probe.py` dùng HTTP thật và
+PostgreSQL thật, PASS 11 kiểm tra gồm count đổi, duplicate/thứ tự, scan mới,
+giữ 5 attempt/URL, không enqueue/checkpoint dở, resume legacy, interruption,
+receipt processing thật và khóa audit. **Mọi ghi DB của probe đều rollback**;
+không chạm control SIM chính. Đây chưa phải scheduled/load acceptance.
+
+Sau lần tạm ngắt, cả stack đang dừng nên probe đầu gặp lỗi DNS `postgres`.
+Đã bật lại PostgreSQL giữ nguyên volume, chạy lại probe PASS. Có một batch
+BUILDING cũ `acc3d02c-1d89-5a1e-9d98-7c2d0c094da7` chưa xác nhận được recovery
+sau khởi động; không tự abort. Đã bắt đầu lại đúng profile `campaign_rate_144.json`,
+không nới ngưỡng hay thời lượng. Kết quả scheduled mới phải đọc STATUS; chưa
+gọi M08D hoàn thành hoặc chạy tiếp 600/900 khi chưa đạt cả lượt.
+
+## Kết luận mới nhất — 07/11/2026, dừng tăng tải để sửa recovery
+
+**Chưa thể gọi M08D hoàn thành hay hệ thống chịu tải tốt.** Đã đo thật trên stack
+main đang giữ lịch sử, không mở thêm môi trường hoặc reset DB.
+
+| Lô mới | Kết quả dữ liệu | Kết quả toàn lượt đo |
+| --- | --- | --- |
+| 24 Website / 6 phút | PASS, 24 đơn / 121 dòng hàng | PASS |
+| 72 mixed / 6 phút, 2 slot | PASS, 72 đơn / 313 dòng hàng | FAIL: chưa đủ chu kỳ Etsy |
+| 72 mixed / 6 phút, thử 4 slot | PASS, 72 đơn / 313 dòng hàng | FAIL: chưa đủ chu kỳ Etsy; đã trả về 2 slot |
+| 144 mixed / 12 phút, 2 slot | PASS, 144 đơn / 602 dòng hàng | FAIL: Etsy recovery lặp lỗi paging |
+| 600 / 12 phút, 900 / 10 phút | Chưa chạy | Đã bị chặn đúng sau FAIL |
+
+Lượt 144 có 48 đơn/nguồn, 316 phiên bản nguồn đã chuẩn bị; history thực sự quan
+sát được là 148 phiên bản, không bắt buộc dựng lại những trạng thái polling bỏ
+qua. Đối soát trạng thái, tiền, dòng hàng, mapping và liên kết raw không có sai
+lệch. Tất cả trạng thái cuối đã thấy lúc 11:02:08 giờ Việt Nam; cổng chu kỳ chốt
+FAIL lúc 11:12:26 (04:12:26 UTC), không đổi thời hạn để lấy PASS. Web/eBay/inbox/
+recovery lần lượt có 4/2/3/1 scheduled success hợp lệ, yêu cầu ít nhất 2 mỗi đường.
+
+### Lỗi tìm được: retry lặp lại bộ trang đã không nhất quán
+
+```mermaid
+flowchart LR
+    A[Recovery đọc trang 0: count 23] --> B[Trang 1: count 23]
+    B --> C[Nguồn tiếp tục đổi trạng thái]
+    C --> D[Trang 2: count 22]
+    D --> E[Từ chối bộ trang không nhất quán; giữ raw audit]
+    E --> F[Retry lấy lại các trang HTTP 200 đã cache]
+    F --> E
+```
+
+Thông điệp thật: `changing recovery count; retry/reconcile window`. Các HTTP
+response đều 200 nhưng tập dữ liệu phân trang thay đổi. Việc từ chối là cần thiết
+để không âm thầm bỏ sót đơn; điểm chưa đúng là retry dùng lại nguyên bộ trang
+23/23/22 nên không thoát được lỗi. Tăng RAM hoặc executor slot không sửa logic này.
+Đây là lỗi đã xác minh, không phải phỏng đoán dựa vào DAG màu đỏ.
+
+Số đo của 144 đơn: p50 khoảng 249 giây, p95 khoảng 471 giây, cao nhất khoảng
+579 giây; drain khoảng 289 giây. Đây là **mốc nguồn đủ điều kiện xuất hiện → SQL
+observer thấy trạng thái cuối**, không phải latency commit→publish chính xác.
+RAM báo cao nhất khoảng 1,98 GiB; DB tăng khoảng 29,08 MiB trong lượt. Không
+suy ra công suất production từ số offered 0,2 đơn/giây. Cổng recovery vẫn FAIL.
+
+### Tự kiểm lại và bước tiếp theo
+
+Report giữ nguyên tại
+`runtime/campaign-de879a18327d4d4f97b494335b1af8b5/report.json`, dataset
+`campaign-rate-144-af960b23dede`. Đọc `measurement.load_assessment` để thấy FAIL,
+run ID, số chu kỳ và deadline. Đối soát DB chỉ đọc:
+
+```powershell
+python -m test_support.m08d_measure --report runtime/campaign-de879a18327d4d4f97b494335b1af8b5/report.json
+```
+
+Mong đợi ở dữ liệu đang giữ: PASS, 144 orders, 602 lines, 148 observed versions,
+316 planned versions, 0 errors. Lệnh này **không đổi verdict FAIL** của cả lượt.
+Trong Airflow xem DAG `etsy_recovery`, run
+`scheduled__2026-11-07T03:54:13.633356+00:00`, log task `cycle`. SQL kiểm stage,
+raw audit và executor queue nằm ở `tools/s02_data/inspect_campaign.sql`.
+
+Tiếp theo cần sửa cơ chế quét lại/reconciliation có giới hạn khi bộ trang biến
+động: giữ mọi raw audit, không reset attempt budget, không tiến checkpoint trên
+scan dở dang, bảo toàn S01/resume đã duyệt. Thêm regression test và kiểm chứng
+HTTP/DB rồi chạy lại đúng envelope 144 đã khai báo; chỉ PASS mới tăng 600/900.
+Không xóa cache/audit, bỏ kiểm tra count hay kéo dài thêm cửa sổ để làm xanh bài đo.
+Chưa sửa collector giữa lượt vừa chạy. Chưa chứng nhận burst/soak/triệu đơn.
+
+122 unit tests chọn lọc và các kiểm tra S01 đã PASS; lỗi runtime ở trên vẫn là
+lỗi mở. Stack chính còn chạy, các service có healthcheck đều healthy, bốn DAG live
+unpaused; không xóa dữ liệu/volume và chưa stage, commit hay push. Các phần bên
+dưới là nhật ký checkpoint cũ; ưu tiên kết luận mới nhất ở đầu file này.
+
+## Tiếp tục sau khi được phép recovery và tăng tải — 2026-11-07
+
+Bạn cho phép xử lý đúng batch cũ và muốn bài tải có ý nghĩa hơn. Đã chạy abort
+chính thức cho `d0b60a58-f9fe-5b0c-8fc5-486f584195b7` sau khi kiểm lại chủ FAILED,
+không có task chủ đang chạy. Batch chuyển FAILED;3949 manifest inputs,3949 raw
+liên quan và3 last-good publication giữ nguyên số dòng/checksum trước–sau.
+Không reset retry, ép task success, xóa dữ liệu hay abort batch khác. Evidence:
+`runtime/operator-abort-rate-4bc2e5165be1400fb2fbb95eaf04fe29.json`.
+
+Thứ tự tăng tải đã chốt trước khi gen/admit:
+
+```mermaid
+flowchart LR
+    W[24 Website / 6 min] -->|PASS| M[72 mixed / 6 min]
+    M -->|PASS| H[300 mixed / 6 min]
+    H -->|PASS| L[900 mixed / 10 min]
+    W -->|FAIL or ceiling| S[Stop escalation; retain evidence]
+    M -->|FAIL or ceiling| S
+    H -->|FAIL or ceiling| S
+    L -->|FAIL or ceiling| S
+```
+
+Hai profile lớn thêm trong cùng `tools/s02_data/config/`:
+`campaign_rate_300.json` (100 đơn/nguồn,643 phiên bản),
+`campaign_rate_900.json` (300 đơn/nguồn,1941 phiên bản). Các mức đơn là lô mới,
+DB vẫn giữ lịch sử cũ; không gọi chúng là tổng toàn bộ DB. Mỗi lần runner gen
+một lô hữu hạn trước khi đo, SIM/pipeline dùng đúng đường hiện có, không mở thêm
+stack. Website vẫn SQL read-only; eBay/Etsy vẫn HTTP.
+
+Hai mức lớn khai báo trước max1000 đơn/3000 phiên bản/1000 planned send còn lại,
+payload10MiB. Planned send gồm cả chưa đến giờ nên không đồng nghĩa retry backlog.
+**Không tăng giới hạn RAM/disk/tăng trưởng DB hay nới độ trễ1200 giây/drain900
+giây** để có PASS. Nếu mức nào lỗi, dừng trước mức sau và ghi lỗi thật.
+
+900 đơn/10 phút là mức offered1,5 đơn/giây, không tự suy ra pipeline đã commit/
+publish1,5 đơn/giây hay chạy ổn24h. Đây vẫn chưa phải soak, triệu đơn hoặc SLA
+production. Cần kết quả runtime thật để biết bottleneck nào đáng tối ưu; không
+thể kết luận "chịu tải tốt" chỉ từ cấu hình gen. Kết quả từng mức sẽ được ghi lại
+trong STATUS và cập nhật ở đây.
+
+Kết quả đã có: Website24 PASS,121 lines,28 history quan sát/63 phiên bản nguồn,
+0 sai lệch;2 scheduled success, p95 quan sát cuối383,57 giây, drain273,57 giây,
+RAM báo cao nhất khoảng2,07GiB. Report
+`runtime/campaign-6a5e93898982497cac3da36e101cd123/report.json`;
+đối soát DB chỉ đọc sau chạy vẫn PASS. Đây là lô mới trên nền1879 đơn đang giữ,
+không phải DB trống. Mức72 đang chạy;300/900 chỉ chạy nếu mức trước PASS.
+
+**Mức72 với2 executor slot đã FAIL cổng chu kỳ** (03:05 UTC), không FAIL dữ liệu:
+đối soát72 đơn/313 lines/75 history PASS; Web/eBay2 scheduled success nhưng Etsy
+inbox/recovery chỉ1 run bắt đầu trong cửa sổ đã chốt. Đủ dữ liệu không được tự
+đổi verdict đó thành PASS. Queue task đo từ queued_dttm→start_date khoảng119–156
+giây ở các nhóm; không phải suy đoán từ đồng hồ DAG.300/900 đã được chặn đúng.
+
+Thử nghiệm tiếp theo đã khai báo trước và chỉ áp dụng SAU verdict: thêm
+`LIVE_AIRFLOW_PARALLELISM=4` vào `.env` local; example/default vẫn2, base/disposable
+không đổi. Mục đích giảm task chờ executor trong khi worker khác đang đợi slot.
+Không tăng CPU/RAM Docker, không đổi per-DAG1 hay khóa source/global; dbt vẫn
+publish từng lượt, không chạy4 publication cạnh tranh. `.env` là file ignored,
+không đưa secret lên Git. Host tool chỉ nhận giá trị2 hoặc4 và từ chối trước drain
+nếu cấu hình sai. Sau khi drain idle mới recreate Airflow, không kill task đang chạy.
+
+Chạy lại đúng profile72/6 phút, seed/basket/ngưỡng không đổi; chỉ nếu PASS mới
+tăng300/900. Lịch sử cũ vẫn giữ và sẽ lớn hơn nên không gọi đây là so sánh A/B
+hoàn toàn đồng nhất. Hiệu quả và RAM phải đo thật; chưa kết luận4 slot sẽ tốt hơn.
+
+Đã đo thật với4 slot: queue các mẫu đầu giảm về khoảng0,06–0,19 giây, nhưng
+global build/publish vẫn tuần tự; đủ72 đơn/313 lines/75 history,0 sai lệch, chưa
+đạt2 chu kỳ của mỗi DAG trong6 phút. Không gọi việc giảm queue là cải thiện toàn
+bộ độ trễ. Hai bài ngắn đều giữ nguyên verdict, không sửa timestamp hay tiêu chí.
+
+Để bài sustained có đủ thời gian quan sát, chốt MỘT lần hiệu chỉnh trước lượt mới:
+144 đơn/12 phút vẫn0,2 đơn/giây như72/6;600/12 vẫn0,8333 đơn/giây như300/6.
+Đó là tăng gấp đôi tổng dữ liệu và thời gian tiếp xúc, không giảm áp lực mỗi giây.
+File `campaign_rate_144.json` là qualification; chỉ khi PASS mới600 rồi900/10
+phút (mức1,5 đơn/giây ban đầu giữ nguyên). RAM/disk/độ trễ1200 giây/drain900 giây/
+hai scheduled success đều giữ nguyên. Nếu qualification hoặc bước sau vẫn FAIL,
+dừng và báo giới hạn, không tiếp tục kéo dài cửa sổ cho đến khi xanh. Không có
+DDL hay thay đổi schema/SIM nghiệp vụ; đây là chỉnh thiết kế thời lượng bài đo.
+
+## Bước hiện tại: tăng mức dữ liệu hữu hạn — 2026-11-07
+
+Sau baseline PASS, bạn cho phép bước tiếp theo. Mình dùng lại cùng runner/config
+folder, không thêm môi trường hay schema:
+
+1. `campaign_rate_website.json`:24 đơn Website/6 phút,63 phiên bản nguồn.
+2. Chỉ nếu lượt đầu PASS mới chạy `campaign_rate_mixed.json`:72 đơn/6 phút,
+   mỗi nguồn24 đơn,161 phiên bản nguồn. Các phiên bản là cập nhật cùng đơn,
+   không phải161 đơn khác nhau.
+
+Mức đầu chỉ **lô mới** có Website; lịch eBay/Etsy cũ vẫn bật. Không gọi đây là
+benchmark máy chỉ chạy riêng Website. Hai lượt giữ lịch sử cũ, không reset DB.
+Khoảng6 phút là cửa sổ nguồn; startup và drain cần thêm thời gian. Đây là bước
+tải thấp hữu hạn, không phải soak hay khẳng định công suất tối đa.
+
+Phần bổ sung kiểm tra ở test tool, không sửa pipeline/SIM nghiệp vụ:
+
+- Ghi kế hoạch số đơn mới/phiên bản mỗi phút để biết offered load thực sự định
+  đưa vào nguồn; không nhầm thành số commit hay số pipeline xử lý mỗi giây.
+- Ghi tại mỗi lần SQL nhìn thấy: bản cuối nào đã đến giờ nhưng chưa có trong
+  current, độ tuổi chờ lớn nhất và số bản cuối đã khớp theo từng nguồn.
+- Giữ quan sát đến hết cửa sổ nguồn đã config, dù random khiến đơn đến sớm hết.
+- Mỗi DAG của nguồn có dữ liệu phải có ít nhất2 scheduled success bắt đầu trong
+  cửa sổ admit→hết nguồn. Etsy kiểm cả inbox và recovery. Run manual, run cũ và
+  success hoàn tất sau deadline không được tính.
+- Sau hết cửa sổ nguồn, tối đa900 giây phải drain/đạt các lượt lịch. Quá hạn
+  FAIL, không nới thời gian hoặc clear/reset task. Giới hạn RAM/disk/DB giữ như
+  baseline. Khi đã admit, lịch nguồn hữu hạn giữ nguyên, không bị xóa để test xanh.
+
+```powershell
+python -m tools.s02_data campaign --config tools/s02_data/config/campaign_rate_website.json --confirm-local
+if ($LASTEXITCODE -ne 0) { throw 'Dừng tăng tải: kiểm tra report Website trước' }
+python -m tools.s02_data campaign --config tools/s02_data/config/campaign_rate_mixed.json --confirm-local
+```
+
+Xem Airflow8080, report8501, DBeaver5433 như cũ. Trong report cần cả
+`measurement.status=BASELINE_PASS` và `measurement.load_assessment.status=PASS`.
+Đọc `final_progress`, `observed_drain_seconds`, `scheduled_successes` và run IDs;
+`READY_FOR_REVIEW` riêng lẻ không đủ. Đồng hồ commit→publish vẫn chưa có và không
+bịa số. Các bài single-source riêng eBay/Etsy, burst/soak và tối ưu có đối chứng
+vẫn là cổng sau. Kết quả thật của lượt này được cập nhật bên dưới khi xong.
+
+### Kết quả hiện tại: bị chặn ở khôi phục phiên cũ, chưa chạy tải
+
+Code/config đã làm;119 unit test PASS, S01 vẫn10 checks +10 utility test PASS.
+Khi khởi động lại Airflow, run eBay cũ15:39 ngày06/11 chuyển FAILED, nhưng batch
+`d0b60a58-f9fe-5b0c-8fc5-486f584195b7` còn BUILDING. Các run retry hiện tại15:42+
+không sở hữu batch này nên phải chờ release. **Không phải24 đơn mới làm chậm:**
+DB xác nhận chưa gen/admit bất kỳ dataset campaign-rate nào.
+
+Mình dừng riêng host test trước admission, không kill task chính. Tool interrupt
+không chạy Python finally nên report đầu còn RUNNING cũ; có operator-stop.json
+giải thích và xác minh không còn host process. Lượt chạy lại guard hiện tại từ
+chối đúng batch, exit1 trong vài giây; report
+`runtime/campaign-1e1f970d54094648a297fe8297de9f97/report.json` là FAILED,
+**không phải PASS tải**. Mình cũng thêm kiểm tra orphan trong lúc drain, không
+chỉ kiểm trước restart, để lỗi tương tự không bị đợi hết600 giây mới lộ ra.
+
+Hiện PG/Airflow/hai API/receiver healthy; worker/report/observer vẫn dừng vì chưa
+qua startup. Drain marker giữ lịch mới không phát thêm, retry đang có vẫn được
+chạy; không tự clear, đổi pause state để ép xanh hay xóa dữ liệu. Mình cần bạn
+cho phép abort chính thức **đúng batch cũ trên**, sau khi xác minh lại không có
+task chủ đang chạy. Giữ raw/audit/manifest/last-good. Sau đó mới chờ các retry
+drain rồi chạy Website→mixed. Các cổng M08D còn mở, chưa có kết quả tải runtime.
+
+## Bước tiếp theo: baseline đo có giới hạn — 2026-11-06
+
+Bạn đã review campaign bình thường và sự cố, cho phép chuyển bước. Mình bắt đầu
+M08D bằng **baseline nhỏ trên dữ liệu lịch sử đang giữ**, chưa nhảy ngay sang test
+tải lớn/soak. Không thêm bảng, không đổi schema hay logic nghiệp vụ các nguồn.
+
+- Dùng cùng folder config: `tools/s02_data/config/campaign_baseline.json`.
+  Có12 đơn (mỗi nguồn4),30 phiên bản nguồn, khoảng sinh3 phút. Không có sự cố
+  mới trong lượt baseline này. Pipeline vẫn chạy qua HTTP/Website read-only/dbt/
+  Airflow hiện có; không lấy kết quả mong đợi để đổ vào warehouse.
+- `campaign.measurement` là phần config tùy chọn mới: giới hạn số đơn, phiên bản,
+  bytes, RAM, dung lượng trống, tăng trưởng DB, backlog và thời gian quan sát cuối.
+  Profile cũ không có phần này giữ nguyên cách chạy để bạn quan sát.
+- Bộ kiểm tra riêng `test_support/m08d_measure.py` tính kỳ vọng từ dữ liệu nguồn,
+  đối chiếu trạng thái, tiền/currency, từng line, quantity, mapping, liên kết
+  snapshot và raw/manifest. History chỉ kiểm các trạng thái thực sự quan sát được,
+  không bắt buộc đủ30 phiên bản nguồn.
+- Lưu mẫu RAM/CPU từng container, dung lượng4 DB, backlog và thời gian stage thực.
+  Đây là stack đang dùng chung: không gán toàn bộ tài nguyên cho riêng12 đơn mới.
+- Giới hạn được kiểm trước admit. Nếu vượt trong lúc chạy, báo FAIL và giữ bằng
+  chứng; không xóa timeline đã admit, không kill stack chính hay reset retry.
+
+**Điểm quan trọng về đồng hồ:** hiện hệ thống chưa có sổ ghi commit nguồn → lần
+publish đầu tiên chính xác. Không dùng `first_observed_at` hay batch hiện tại để
+giả làm chỉ số đó. Lượt này đo **thời điểm phiên bản cuối đủ điều kiện xuất hiện
+ở nguồn → lần câu SQL kiểm tra nhìn thấy đúng timestamp cuối trong core**. Nó gồm
+chờ worker/poll/build và cả chu kỳ observer; không gọi là độ trễ commit→publish.
+Đơn chưa quan sát được phải ghi thiếu/censored, không tự cho PASS.
+
+Chạy tại root, Docker Desktop đang bật; không cần tự gen/startSIM trước:
+
+```powershell
+python -m tools.s02_data campaign --config tools/s02_data/config/campaign_baseline.json --confirm-local
+```
+
+Runner drain các lượt cũ an toàn, bảo đảm dịch vụ healthy, bật4 lịch hiện có,
+gen/admit một lô có tên duy nhất rồi theo dõi. Airflow8080/report8501 và DBeaver
+PG5433 vẫn dùng địa chỉ hiện tại. Đọc đường dẫn report được in ra; kết quả riêng
+phải là `measurement.status=BASELINE_PASS`, reconciliation PASS, đủ12 quan sát
+cuối và không vi phạm ngân sách. `READY_FOR_REVIEW` một mình chưa đủ chứng minh
+baseline PASS. Không cần thấy đủ30 dòng history.
+
+Chi tiết hợp đồng/chỉ số: [19_M08D_MEASUREMENT.md](19_M08D_MEASUREMENT.md).
+Baseline PASS vẫn chưa hoàn thành M08D: còn các mức tải sustained, burst/drain,
+soak đúng thời lượng khai báo, thiết kế đồng hồ commit/publish và tối ưu dựa trên
+bằng chứng. Kết quả chạy thực tế sẽ được bổ sung ngay dưới đây và trong STATUS.
+
+### Kết quả baseline đã chạy thật
+
+- Lệnh ở trên exit0, `measurement.status=BASELINE_PASS`. Dataset
+  `campaign-baseline-d05c55aa6ddc`, source ID `0481cfb69ceb`; report
+  `runtime/campaign-551964eda899400d9a4a3276373990a4/report.json`.
+- Admit15:07:31 UTC, thấy đủ bản cuối15:15:52 UTC ngày06/11 (giờ Việt Nam cộng7).
+  Tổng lệnh có cả drain/startup:14:59:24–15:15:54 UTC. Khoảng sinh3 phút không
+  có nghĩa toàn bộ khởi động/pipeline sẽ xong trong3 phút.
+- Đủ12/12 đơn,49 lines,13 phiên bản history quan sát được; đối soát0 sai lệch.
+  Gen30 phiên bản nguồn không bắt warehouse phải có30 history. Chạy lại riêng
+  lệnh đọc report để đối soát DB vẫn PASS, không chạy collect/publish tay.
+- 12 mẫu độ trễ quan sát cuối: p50 khoảng265 giây, p95 khoảng372 giây, không thiếu
+  mẫu; dưới ngân sách1200 giây đã đặt. Không gọi đây là p95 commit→publish.
+- 24 mẫu tài nguyên: RAM Docker CLI báo cao nhất khoảng2,23GiB;4 DB tăng nhiều
+  nhất16,625MiB so với mốc ban đầu; pending send cao nhất8, cuối cùng0.
+  Không vượt giới hạn. Đây là tài nguyên stack chung, không riêng12 đơn mới.
+- Telemetry cho thấy build/test và chờ release slot đáng điều tra tiếp: build
+  p95 Web53,8/eBay68,1/Etsy84,5 giây; chờ release p95 Web82/eBay54,3/Etsy67,8 giây.
+  Mỗi nhóm chỉ1–3 mẫu hoàn tất, chưa đủ suy ra công suất tối đa hay cam kết SLA.
+- 107 unit test liên quan PASS; S01 vẫn10 fixture checks +10 utility test PASS.
+  Compile/diff check PASS. Không sửa schema trong bước này, không xóa dữ liệu,
+  không stage/commit/push; stack chính vẫn chạy để bạn xem Airflow/report/DBeaver.
+
+**Bước kế tiếp chưa chạy:** chốt các mức sustained/mixed, burst và soak có ngân
+sách rõ ràng rồi mới tăng tải; cần hợp đồng đồng hồ bền vững nếu muốn đo chính
+xác commit→publish. Không tự gọi M08D hoàn thành chỉ từ baseline này.
+
+## Bước đang làm sau SIM: sửa C và campaign để bạn quan sát — 2026-11-06
+
+Bạn đã duyệt phần gen/SIM. Yêu cầu mới: sửa lỗi C trước, làm campaign bình thường,
+thêm một sự cố dễ quan sát; **chưa đo tải hoặc chấm hiệu năng**. M08D chưa được
+coi hoàn tất chỉ vì có campaign command. Những mục cũ phía dưới là lịch sử review.
+
+Lỗi C đã báo trước là bài `scheduled_pause_resume` chờ core catch-up quá hạn.
+Nguyên nhân harness có hai phần: `polling-drain` của lượt trước làm DAG test không
+lên lịch; khi chỉ xóa marker rồi bật scheduler lại có race vì DAG cũ đang unpaused
+có thể chạy trước lệnh pause. Fix mới dùng CLI thật pause đúng DAG test trước khi
+bật scheduler, xóa cả hai marker chỉ trong scope disposable đã xác minh và drain
+đúng khi kết thúc. Không sửa marker main, không ép task success/reset budget.
+Một run test bị ngắt đã được cho về trạng thái terminal tự nhiên; đó là operator
+recovery, không ghi thành test PASS. Sau đó đã chạy hai lượt clean liên tiếp đều
+PASS, mỗi lượt có hai scheduled success MỚI và cleanup PASS. Latest report18 case
+đều PASS; filename đầy đủ trong STATUS. Đây là sửa harness giữ marker/race, không
+phải xóa chặn bảo vệ hay tự tạo history cho trạng thái pipeline không quan sát.
+
+Main còn một batch eBay BUILDING từ01/11 nhưng DAG run đã FAILED. Bạn đã cho phép
+abort đúng batch `ae808a96-e053-528f-b833-66b77dec48e3` sau khi xác minh idle.
+Đã chạy abort chính thức; raw9485, manifest inputs1223850, publication3, webhook
+audit1157, inbox1112 và retry attempts4858 đều giữ nguyên số dòng VÀ checksum.
+Chỉ batch cũ được chuyển FAILED theo workflow, không xóa data/reset budget.
+
+**Campaign bình thường đã chạy thật:** `campaign-normal-93b6b7a06a0c`, nhận lô
+09:45:14 UTC, READY_FOR_REVIEW09:53:02 UTC: mỗi nguồn2/2 đơn có timestamp cuối
+trong core, hết future version/pending send. Report nằm ở
+`runtime/campaign-f715cc1473ac4119a9947a9cb63c4c49/report.json`. Airflow/dashboard
+đều HTTP200, PG giữ port5433. Đây là xác minh luồng tự động, chưa phải chấm
+toàn bộ nghiệp vụ/hiệu năng.
+
+**Campaign recovery đã chạy thật:** `campaign-recovery-7aa6db75e989`, source ID
+`b756e9eb786c`, nhận lô10:04:36 UTC. Pause eBay thật10:08:08.921 →10:11:23.133 UTC
+(giờ Việt Nam cộng7), đúng container `ff0afff4ac93`; đã khôi phục running/unpaused.
+Có5 request eBay không nhận được HTTP response, raw giữ status NULL chứ không
+bịa HTTP500. Airflow có `up_for_retry`, collect attempt1 RETRYABLE và attempt2
+SUCCEEDED; không reset budget hoặc ép task success. Website vẫn publish khi
+eBay bị pause. Etsy receipt `1201533700000` có cả hai notification bị omit, không
+có child send, nhưng vẫn được API recovery đưa trạng thái cuối vào core.
+Đến10:15:11 UTC: READY_FOR_REVIEW, Website2/2 + eBay2/2 + Etsy4/4 đơn có timestamp
+cuối, hết future version/pending send, audit lỗi5 vẫn còn. Report:
+`runtime/campaign-0af724fbbf2c4bb49f8a961f59e050fe/report.json`.
+Muốn xem lại lỗi thật trên Airflow: mở DAG `ebay_polling`, chọn run
+`scheduled__2026-11-06T10:05:57.909535+00:00`, xem log task `cycle` ở try1/try2.
+Raw HTTP run tương ứng `2e2872f5-20a3-41c7-8a4f-61bd87e69c11` có5 audit lỗi;
+`metadata.fetched_at` là giờ hoàn tất request thật. Các raw này có cùng
+`acquired_at` vì dùng observation clock của collection, không phải mất audit.
+
+Có một lượt recovery trước đó FAILED ở Compose build/start, **chưa gen lô hay
+áp dụng fault**; đã giữ report thất bại. Build/start trực tiếp chạy lại đều tốt,
+sau đó cùng command campaign chạy thành công như trên. Chưa xác định chính xác
+nguyên nhân lỗi Compose đầu tiên nên không tự kết luận là lỗi data/pipeline.
+
+**Dừng tại đây để bạn review:** các dịch vụ main còn chạy, port/credentials cũ
+giữ nguyên; không xóa dữ liệu/volume, không stage/commit. Phần đo tải, đối soát/
+chấm toàn bộ kết quả và tối ưu bottleneck chưa làm theo đúng yêu cầu. M08D chưa
+được ghi là hoàn thành chỉ vì hai demo này chạy tốt.
+
+Kiểm tra cuối phát hiện thêm **false-negative ở healthcheck live**: Docker probe
+CLI Airflow vượt15s liên tiếp, nhưng monitor API vẫn có heartbeat healthy và các
+run vẫn publish. Đã thêm probe nhẹ chỉ cho Compose live: kiểm tra database,
+scheduler và DAG processor đều healthy, timeout HTTP8s; không chỉ nhìn HTTP200.
+Không đổi logic collect/dbt/publish hoặc healthcheck môi trường C. Unit6 PASS,
+script mới chạy trên API thật exit0. Đã drain rồi deploy an toàn, `live-up` trả
+LIVE_SERVICES_READY, bốn DAG live được bật lại. Kiểm tra cuối10:36 UTC: Airflow
+healthy/streak0, năm probe liên tiếp exit0 khi lịch đã bật; dữ liệu hai lô vẫn
+đủ6/6 và8/8. Có một probe HTTP timeout8s lúc vừa bật lịch, đã giữ thông tin đó
+trong STATUS; không tuyên bố đây là soak/stability test dài hạn. Không restart
+giữa task đang chạy, không đổi healthcheck base/C hoặc dữ liệu/volume chính.
+
+### Cách campaign dự kiến dùng sau khi checks hoàn tất
+
+Config vẫn một cấu trúc chung trong `tools/s02_data/config/`, truyền tên file bất
+kỳ. Ví dụ mới có data config + section `campaign` ngay cùng file; không phải đổi
+campaign trong DAG hay collector. `generate` vẫn chỉ gen/admit data, không gây lỗi.
+
+```powershell
+# Lượt bình thường: nguồn → pipeline scheduled → core
+python -m tools.s02_data campaign --config tools/s02_data/config/campaign_normal.json --confirm-local
+
+# Chạy sau khi review lượt bình thường: delivery faults Etsy + pause eBay ngắn
+python -m tools.s02_data campaign --config tools/s02_data/config/campaign_recovery.json --confirm-local --allow-faults
+```
+
+Hai lệnh này dành cho stack local đã có M01–M07/live config, dùng lại DB/port và
+credentials. Chỉ chạy một campaign, không chạy song song C test Airflow trên máy
+4GB. Controller bật dependencies trước để tránh lỗi worker đơn độc thiếu Postgres
+như buổi trước. Nếu Airflow live cũ đang dừng nhưng còn RUNNING metadata, đặt drain
+flag trước khi resume đúng container live, rồi live-up drain các run cũ bằng cơ
+chế thật. Không giả task state/rewind checkpoint để bỏ backlog.
+
+Bạn xem URL Airflow/dashboard và DB port được in ra (không in mật khẩu). Sau
+startup, script chuẩn bị lô mới có suffix, SIM phát data, Airflow tự chạy; không
+gọi collect/dbt/publish thủ công để giúp kết quả. Mỗi lần OBSERVATION cho biết:
+
+- Còn source version chưa đến hạn và child send chưa hoàn tất không.
+- Expected/found/current orders của **riêng lô mới**, theo từng channel.
+- Có eBay HTTP error audits từ lúc admit hay không; không quy mọi lỗi đó chắc
+  chắn do fault campaign nếu chưa đối chiếu task log.
+
+Lưu ý khi xem UI: campaign là command chạy ở máy bạn, **không phải một DAG mới**.
+Bốn DAG live chạy task `cycle`; bên trong task đó workflow gọi collect → freeze
+→ build_and_test → publish. Bạn xem log `cycle` và query `ops.task_attempts` để
+biết sub-stage nào đang chạy, không tìm bốn ô stage riêng trong polling DAG.
+Controller này không thêm bảng warehouse hoặc đổi SQL nghiệp vụ; journal giữ
+trong runtime. Query mới: [inspect_campaign.sql](../tools/s02_data/inspect_campaign.sql),
+chạy từng đoạn ở database ghi ngay trong comment.
+
+READY_FOR_REVIEW chỉ nghĩa final source_updated_at đã vào core cho các order
+được chọn, source hết timeline và sender không pending. Chưa khẳng định toàn bộ
+line/money/history đúng, chưa có throughput/latency SLA PASS. Performance luôn
+DEFERRED trong giai đoạn bạn review này; timeout là giới hạn chờ an toàn, không
+phải kết luận pipeline đạt/không đạt SLA.
+
+### Sự cố đầu tiên diễn ra ra sao?
+
+Profile recovery dùng nguồn4 phút. Seed chọn thời điểm trong cửa sổ180–210s sau
+admission; eBay SIM bị Docker pause180s rồi unpause, không xóa/recreate container.
+Cửa sổ này rộng hơn bản nháp75s vì build nối nhau có thể trì hoãn lần collect
+tiếp theo; mục tiêu là dễ quan sát request lỗi, không phải sửa benchmark cho đẹp.
+Bạn đổi các số này ngay trong config được. Source PG vẫn có dữ liệu đến hạn,
+Website/Etsy tiếp tục, collector eBay có thể timeout/retry. Journal ghi giờ thực
+OUTAGE_INTENT → OUTAGE_STARTED → OUTAGE_RESTORED. Poll/command overhead có thể làm
+mốc thực tế muộn hơn plan, không viết lại log cho khớp giờ đã dự kiến.
+
+Chỉ được pause service eBay đang chạy, không nhận quyền sở hữu một service đã
+paused từ trước. Nếu container bị người khác recreate, restore từ chối tác động
+lên ID mới và báo RESTORE_REQUIRED. Nếu không có request eBay lỗi trong cửa sổ,
+không được nói đã chứng minh collector recovery chỉ vì pause/unpause thành công.
+
+Ctrl+C/lỗi sẽ restore fault trong finally, không dừng stack hoặc xóa data. Nếu
+terminal/process bị kill nên finally không chạy, xem report runtime rồi dùng:
+
+```powershell
+python -m tools.s02_data campaign-restore --report runtime/campaign-YOUR_ID/report.json --confirm-local
+```
+
+Report ghi atomically, có target ID và trạng thái fault để không unpause nhầm
+container khác. Lock ngăn hai startup/campaign hoặc restore chạy chồng nhau.
+Sau campaign các dịch vụ giữ chạy để bạn tự xem UI/DBeaver. Không commit trong
+task này. Hướng dẫn chi tiết: [CAMPAIGN.md](../tools/s02_data/CAMPAIGN.md).
+
+---
+
+## Đã triển khai riêng phần SIM — hướng dẫn bạn kiểm tra
+
+**2026-11-05:** đã có migration004, delivery-plan generator và live sender đọc
+schedule. Chưa làm campaign controller M08D, negative-data profile hoặc sửa lỗi
+catch-up M08C. Các mục thiết kế bên dưới giữ để đối chiếu; mục này là trạng thái
+implementation tại mốc05/11; cập nhật06/11 nằm ở đầu tài liệu. Không stage/commit
+trong task này.
+
+### 1. Mình đã làm gì?
+
+- `marketplace_sim.s02.deliveries` thêm source/account/source_sequence; record cũ
+  giữ sequence NULL, không giả backfill provenance hoặc gửi lại dữ liệu cũ.
+- Thêm `s02.delivery_schedule` đúng schema đã review, FK/index/seal/identity guards
+  và kiểm tra timeline trước seal. Một row là một planned send, không chứa JSON
+  order. Migration có thể chạy lại, không DROP data/volume.
+- Config mới có Etsy `delivery_plan`: seed, reorder quota, delay, repeat count,
+  repeat gap và late gap. File config nào cũng được, không hardcode local_now.
+- Generator chọn đủ eligible orders theo seed, chuẩn bị lịch và checksum/tail
+  trước khi ghi. Giữ source payload/lifecycle không đổi. Sender chỉ phát đến hạn,
+  lưu attempts/ACK/retry, không gen thêm data khi GET hoặc tick.
+- Legacy config không có delivery_plan vẫn chạy đường cũ. New plan v1 dùng live
+  generate/live-source; **không hỗ trợ legacy replay** trong phạm vi SIM-first này.
+  Playback từ chối trước activation, thay vì im lặng gửi sai lịch.
+- `generate` kiểm tra worker đã có module mới trước khi chuẩn bị plan mới để
+  tránh image cũ gửi notification theo logic duplicate liền. Vì vậy cần rebuild
+  live-source trước. `prepare` vẫn cho inspect offline plan, không cần worker chạy.
+
+### 2. Trên máy bạn cần bật gì?
+
+Docker Desktop phải chạy. Bạn dùng **stack chính/port/password hiện có**, không
+đổi sang test ID M08A để demo SIM. Lúc mình kiểm tra task này, tám service chính
+đang chạy; mình không dừng/rebuild/restart hay migrate chúng tự động. Những lệnh
+dưới đây là để bạn chủ động cập nhật sau khi review.
+
+Nếu bạn đã có live stack hoạt động, chạy tại repository root:
+
+```powershell
+$compose = @('--env-file','.env','--file','infra/compose.yaml')
+docker compose @compose ps
+
+foreach ($file in @('001_s02_temporal.sql','002_local_playback.sql','003_live_batches.sql','004_delivery_schedule.sql')) {
+    docker compose @compose exec -T postgres psql -X --set ON_ERROR_STOP=1 `
+        -U postgres -d marketplace_sim -f "/migrations/marketplace_sim/$file"
+    if ($LASTEXITCODE -ne 0) { throw "SIM migration failed: $file" }
+}
+
+$live = $compose + @('--file','infra/compose.live.yaml','--profile','live')
+docker compose @live build live-source
+if ($LASTEXITCODE -ne 0) { throw 'Worker build failed' }
+docker compose @live up --detach --no-deps --wait --wait-timeout 180 live-source
+if ($LASTEXITCODE -ne 0) { throw 'Worker startup failed' }
+```
+
+Đây chỉ là migrate SIM và cập nhật worker; giữ DB/SIM API/receiver đang chạy,
+không reset, không thay pause state Airflow. Recreate worker có gián đoạn emission
+ngắn rồi resume progress. Nếu chưa có live stack, làm startup cũ
+`python -m tools.s02_data live-up` sau M01–M07 prerequisites; lệnh đó bật cả pipeline,
+không phải lệnh nhỏ chỉ inspect schema. Không chạy đồng thời acceptance khác.
+
+### 3. Gen demo nhỏ
+
+```powershell
+python -m tools.s02_data generate --config tools/s02_data/config/sim_delivery_demo.json
+if ($LASTEXITCODE -ne 0) { throw 'Generate failed' }
+docker compose @live logs --tail 60 live-source
+```
+
+Demo: nguồn sinh trong2 phút; Website2/eBay2/Etsy4 orders. Etsy4 orders đều có
+paid→shipped, một order omitted, một order duplicate ba lần/message và hai
+non-omitted orders bảo đảm reorder. Manifest in tên dataset có suffix, selected
+order IDs, checksum và last_due_at. Lần generate sau tự thêm lô mới, không ghi đè.
+
+Nếu **chỉ muốn xem dữ liệu đã gen mà chưa phát nguồn**:
+
+```powershell
+python -m tools.s02_data prepare --config tools/s02_data/config/sim_delivery_demo.json
+```
+
+Prepare không admit live nên không có send/API/core mới; tên dataset cố định
+không được overwrite. Muốn prepare lần nữa đổi dataset trong bản config riêng.
+Không nhầm prepare-only chưa gửi với sender bị lỗi.
+
+### 4. DBeaver: vào đúng DB và chạy query nào?
+
+Database **marketplace_sim**, cùng connection local hiện có. Xem host port bằng:
+
+```powershell
+docker compose @compose port postgres 5432
+```
+
+Mở và chạy từng query trong
+[tools/s02_data/inspect_delivery.sql](../tools/s02_data/inspect_delivery.sql).
+
+- Query1: các dataset đã gen, admission/shift và plan summary. Chuẩn bị-only cũng
+  xuất hiện nhưng published_at/shift NULL.
+- Query2: timeline của **lô demo đã admit mới nhất**, có order/message/source
+  version, due/effective time, attempt number và actual progress. Có thể đổi
+  prefix query khi dùng profile tên khác; pipeline không cần đổi config campaign.
+- Query3: số lượng logical messages, omitted messages, planned/completed sends và
+  actual attempts. Các count scope theo một batch, không cộng cả dữ liệu cũ.
+
+**Mong đợi demo:**8 logical messages,2 omitted messages,10 planned sends. Order
+duplicate có3 child rows cho mỗi message ID. Sau giờ effective_due cuối và khi
+receiver hoạt động ổn:10 completed_sends, status2xx và last_error NULL. Actual
+attempts>=10; retry do network/mất ACK có thể cao hơn. Parent delivered_at chỉ
+ghi ACK đầu, không chứng minh mọi repeat đã gửi xong; xem child rows.
+
+Omitted parent vẫn hiện nhờ LEFT JOIN, nhưng không có child. API nguồn vẫn có
+receipt đó; muốn kết luận pipeline recovery thành công phải kiểm tra raw/work/
+publication riêng. History không bắt buộc có đủ mọi version đã chuẩn bị.
+
+2 phút là source duration, còn delivery tail/retry/tick delay rồi pipeline drain.
+Không kết luận lỗi chỉ vì core chưa đủ sau đúng2 phút. Khi nhìn actual send order,
+retry có thể đổi thứ tự thành công; planned timeline và actual timestamps giữ
+riêng để bạn thấy rõ, không sửa log cho giống kịch bản.
+
+### 5. Test tự động SIM đã chứng minh gì?
+
+`python tests/test_s02_delivery.py`: kiểm tra cấu hình, causal source không đổi,
+quota/reorder/repeat và fail preflight trước ghi DB khi không đủ eligible orders.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File infra/scripts/check_sim_delivery.ps1
+```
+
+Wrapper này **khác demo main**: chỉ tạo PostgreSQL/CLI disposable trong network
+internal, không có host port/.env/scheduler, rồi dọn đúng tài nguyên ngẫu nhiên
+của nó. Nó kiểm tra loader, reapply migration, legacy coexistence, API SIM thật
+với RLS, sender HTTP/signature thật, retry500/mấtACK, no-resend completed và DB
+guards. Receiver trong probe là HTTP test server, không phải receiver warehouse;
+không gọi đó là fullpipeline acceptance. JSON evidence dưới runtime có hashes và
+cleanup status. Môi trường disposable không phải DBeaver connection để bạn demo.
+
+Hướng dẫn English chi tiết và toàn bộ config fields:
+[DELIVERY.md](../tools/s02_data/DELIVERY.md),
+[CONFIG.md](../tools/s02_data/CONFIG.md#prepared-live-webhook-delivery-plan-sim-extension).
+
+---
+
+## Bản thiết kế SIM cụ thể để review — bảng, thuật toán và coverage
+
+**2026-11-05 — thiết kế đề xuất, chưa chạy DDL, chưa sửa SIM.** Phần này thay
+cho những chỗ trước còn nói “field sẽ chốt sau”. Bạn duyệt thiết kế trước khi
+triển khai. Mục tiêu: **giữ dữ liệu nguồn hiện có, thêm đúng một bảng lịch gửi
+webhook, không thêm một hệ thống event bus hay một bộ API replay tổng quát.**
+
+### I. Chính xác sẽ đụng những bảng nào?
+
+Database: **`marketplace_sim`**, schema **`s02`** trên PostgreSQL local hiện có.
+
+| Bảng | Thay đổi dự kiến | Một row biểu diễn gì? |
+| --- | --- | --- |
+| `campaigns` | Giữ nguyên cột/khóa | Dataset, config đã resolve, seed, checksum và seal |
+| `local_datasets` | Giữ nguyên cột/khóa | Manifest/coverage/refs và trạng thái LOADING/READY; thêm metadata delivery-plan version trong JSON, không thêm cột |
+| `orders` | Giữ nguyên | Một order marketplace theo campaign/source/account/order |
+| `components` | Giữ nguyên | Bộ lines/shipments… bất biến theo digest, tái sử dụng giữa version |
+| `versions` | Giữ nguyên | Một version nguồn marketplace, không phải một lần gửi webhook |
+| `website_versions` | Giữ nguyên | Một version nguồn website, worker ghi sang website_source khi đến hạn |
+| `deliveries` | **Thêm ba cột** và FK để biết notification phát sinh từ version nào | Một logical notification Etsy; không có hai parent row cùng message ID |
+| `delivery_schedule` | **Thêm đúng một bảng** | Một lần gửi đã lên kế hoạch cho một logical notification, kèm progress thực thi |
+| `live_batches`, `live_website_progress`, `playback`, `playback_clock` | Giữ nguyên schema | Admission/clock/progress hiện có |
+
+Không đổi schema `website_source`, `data_platform.raw/ops/core/marts` để hỗ trợ
+delivery schedule. Không lưu bản sao order JSON trong schedule. Không thêm bảng
+schedule cho API polling: collector vẫn GET HTTP theo lịch Airflow.
+
+```mermaid
+erDiagram
+    campaigns ||--o{ local_datasets : "campaign_id"
+    local_datasets ||--o{ website_versions : "campaign_id"
+    local_datasets ||--o| live_batches : "admission"
+    orders ||--|{ components : "source scoped identity"
+    components ||--o{ versions : "component_digest"
+    versions o|--o{ deliveries : "source_sequence nullable for legacy"
+    deliveries ||--o{ delivery_schedule : "campaign_id and message_id"
+    website_versions ||--o| live_website_progress : "last applied version"
+```
+
+Các đường này là quan hệ FK chính để đọc sơ đồ; không có đường FK từ
+website_versions sang deliveries vì website không phát Etsy webhook.
+
+#### I.1. Các bảng source chính giữ nguyên: schema hiện có để bạn đối chiếu
+
+Đây là bản trích cấu trúc quan trọng từ migrations hiện tại, không phải lệnh
+để chạy lại CREATE trên DB đã có. Mọi cột trong block này đều NOT NULL.
+
+```text
+s02.orders
+  campaign_id TEXT         part of the source-scoped primary key
+  source TEXT              internal allowed pairs: ebay_sim/seller_sim_01,
+  account_id TEXT                                  etsy_sim/7001
+  order_id TEXT            nonblank
+  base JSONB               object
+  PK (campaign_id, source, account_id, order_id)
+
+s02.components
+  campaign_id TEXT, source TEXT, account_id TEXT, order_id TEXT
+  digest TEXT              64 lowercase hex
+  body JSONB               object
+  PK (campaign_id, source, account_id, order_id, digest)
+  FK (campaign_id, source, account_id, order_id) → orders
+
+s02.versions
+  campaign_id TEXT, source TEXT, account_id TEXT, order_id TEXT
+  sequence INTEGER         > 0
+  visible_at TIMESTAMPTZ
+  source_updated_at TIMESTAMPTZ
+  header JSONB             object
+  component_digest TEXT
+  PK (campaign_id, source, account_id, order_id, sequence)
+  UNIQUE (campaign_id, source, account_id, order_id, visible_at)
+  UNIQUE (campaign_id, source, account_id, order_id, source_updated_at)
+  FK (campaign_id, source, account_id, order_id, component_digest) → components
+
+s02.website_versions
+  campaign_id TEXT         FK → local_datasets(campaign_id)
+  order_id TEXT
+  sequence INTEGER         > 0
+  visible_at TIMESTAMPTZ
+  payload JSONB            object containing source tables
+  PK (campaign_id, order_id, sequence)
+  UNIQUE (campaign_id, order_id, visible_at)
+```
+
+Website không có bảng order-base riêng trong marketplace_sim: các version chứa
+source payload; bảng order thật nằm trong website_source. Không hợp nhất website
+vào marketplace source tables trong thay đổi này. Full DDL của các bảng giữ nguyên:
+[001](../migrations/marketplace_sim/001_s02_temporal.sql),
+[002](../migrations/marketplace_sim/002_local_playback.sql),
+[003](../migrations/marketplace_sim/003_live_batches.sql).
+
+#### I.2. `s02.deliveries`: giữ parent hiện có, thêm provenance version
+
+Schema đích của parent: cột cũ giữ nguyên tên/type/default; ba cột mới là
+`source`, `account_id`, `source_sequence`. SQL dưới là đặc tả target, **chưa phải
+migration đã kiểm chứng**, không copy chạy CREATE thay bảng hiện tại.
+
+```sql
+CREATE TABLE s02.deliveries (
+    campaign_id TEXT NOT NULL REFERENCES s02.campaigns(id),
+    message_id TEXT NOT NULL,
+    receipt_id TEXT NOT NULL,
+    due_at TIMESTAMPTZ NOT NULL,
+    event_type TEXT NOT NULL
+        CHECK (event_type IN ('order.paid', 'order.shipped')),
+    omitted BOOLEAN NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    delivered_at TIMESTAMPTZ,
+    last_status INTEGER CHECK (last_status BETWEEN 100 AND 599),
+    source TEXT NOT NULL DEFAULT 'etsy_sim' CHECK (source = 'etsy_sim'),
+    account_id TEXT NOT NULL DEFAULT '7001' CHECK (account_id = '7001'),
+    source_sequence INTEGER CHECK (source_sequence > 0),
+    PRIMARY KEY (campaign_id, message_id),
+    FOREIGN KEY (campaign_id, source, account_id, receipt_id, source_sequence)
+        REFERENCES s02.versions
+            (campaign_id, source, account_id, order_id, sequence)
+);
+```
+
+Giải thích cột và compatibility:
+
+- `source/account_id` phản ánh đúng phạm vi Etsy shop hiện tại của SIM; không mở
+  rộng account/source contract trong milestone này.
+- `source_sequence` liên kết notification tới version phát sinh. Cho NULL với
+  dữ liệu legacy không thể xác minh; FK mặc định MATCH SIMPLE chấp nhận NULL.
+  Generator plan mới bắt buộc điền sequence hợp lệ trước seal, không tự đoán
+  provenance của record cũ từ tên message ID.
+- `due_at` parent giữ nghĩa mốc notification gốc như hiện tại; **giờ gửi thực tế
+  theo kế hoạch mới lấy từ bảng con**, không còn dùng parent due_at để quyết định
+  mọi lần gửi. Query UI nên phân biệt original event/due time với send due time.
+- `omitted=true`: notification có trong plan để đối chiếu, không có child send.
+- `attempts`: tổng số lần sender đã bắt đầu HTTP send cho message, gồm repeat và
+  retry thực tế. `delivered_at`: thời điểm ACK thành công đầu tiên được sender lưu;
+  không đồng nghĩa tất cả child send đã xong. `last_status`: HTTP result mới nhất
+  được lưu, NULL nếu lần gần nhất không có HTTP response.
+
+Migration thật dự kiến **ALTER ADD COLUMN/CONSTRAINT**, không DROP/recreate.
+Không backfill schedule hoặc reset progress cho dataset legacy/sealed. Worker
+phân nhánh bằng metadata delivery-plan version trong manifest: legacy giữ hành
+vi cũ; plan mới đọc child rows và không chạy thêm vòng duplicate cũ lần nữa.
+
+#### I.3. Bảng mới duy nhất: `s02.delivery_schedule`
+
+```sql
+CREATE TABLE s02.delivery_schedule (
+    campaign_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    attempt_no INTEGER NOT NULL CHECK (attempt_no > 0),
+    due_at TIMESTAMPTZ NOT NULL,
+    send_count INTEGER NOT NULL DEFAULT 0 CHECK (send_count >= 0),
+    last_attempt_at TIMESTAMPTZ,
+    next_retry_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    last_http_status INTEGER CHECK (last_http_status BETWEEN 100 AND 599),
+    last_error_code TEXT CHECK (last_error_code IN
+        ('TIMEOUT', 'CONNECT', 'HTTP', 'TRANSPORT')),
+    PRIMARY KEY (campaign_id, message_id, attempt_no),
+    FOREIGN KEY (campaign_id, message_id)
+        REFERENCES s02.deliveries(campaign_id, message_id),
+    CHECK ((send_count = 0 AND last_attempt_at IS NULL)
+        OR (send_count > 0 AND last_attempt_at IS NOT NULL)),
+    CHECK (completed_at IS NULL OR
+        (send_count > 0 AND last_http_status IS NOT NULL
+         AND last_http_status BETWEEN 200 AND 299
+         AND last_error_code IS NULL AND next_retry_at IS NULL))
+);
+
+CREATE INDEX delivery_schedule_pending
+    ON s02.delivery_schedule(due_at, campaign_id, message_id, attempt_no)
+    WHERE completed_at IS NULL;
+```
+
+`attempt_no` là số thứ tự **lần gửi trong plan**, không phải số lần network retry.
+Ví dụ child attempt2 gửi trùng bị timeout rồi retry: vẫn row attempt2, nhưng
+send_count tăng2. completed_at chỉ ghi sau ACK2xx, không ghi trước HTTP. Giờ
+due_at là timeline đã chuẩn bị; last_attempt/next_retry/completed là UTC thực tế.
+Live mode so sánh due_at + live_batches.shift_seconds với DB clock; không shift
+các mốc progress. Replay dùng logical clock hiện có nhưng ký bằng wall clock.
+
+Điều kiện `last_http_status IS NOT NULL` ngăn SQL CHECK bị NULL logic vô tình vượt
+qua khi row completed mà chưa có HTTP status. Không thêm cột status kế hoạch dư
+thừa: pending = completed_at NULL; gửi lại dùng next_retry_at.
+
+#### I.4. Quy tắc DB và quyền bắt buộc đi kèm, không chỉ CREATE TABLE
+
+- Tạo child plan trước seal; FK đúng version/message, không cho child của omitted
+  message, message có source_sequence NULL hoặc child due_at sớm hơn version
+  visible_at. Cross-table rules dùng trigger/validation trước seal; CHECK đơn
+  bảng không tự kiểm được các điều kiện này.
+- Với cùng message, attempt_no liên tiếp từ1; due_at tăng theo attempt, được
+  phép cùng thời điểm nếu gap0. Không ép due_at tăng giữa paid và shipped: đây
+  là nơi cần cho phép reorder. Validation trước seal xác nhận quotas/coverage.
+- Sau seal: cấm INSERT/DELETE/đổi identity/due_at; chỉ progress được cập nhật.
+  Dùng trigger tương tự delivery_progress_only, allowlist đúng sáu progress
+  fields: send_count, last_attempt_at, next_retry_at, completed_at,
+  last_http_status, last_error_code. Cấm giảm counter hoặc sửa completed row.
+- Child progress và parent summary cập nhật cùng transaction khi có thể; không
+  có transaction nguyên tử giữa HTTP receiver và SIM DB, nên crash có thể tạo
+  thêm delivery thực tế. Receiver audit là bằng chứng phía nhận; không dựng một
+  bảng log HTTP thứ hai chứa bản sao body chỉ để nói là exactly-once.
+- Worker giữ advisory lock một sender như hiện tại. Trước HTTP commit counters/
+  last_attempt; sau response commit result/progress. Crash sẽ retry row chưa
+  completed, có thể redeliver cùng message ID; bảo toàn dedupe phía receiver.
+- Owner là marketplace_owner; không cấp quyền schedule cho pipeline/API readers.
+  Sender dùng role marketplace_writer hiện có, được SELECT plan và UPDATE
+  progress theo quyền/trigger; generator chạy đường load có quyền owner hiện có.
+  REVOKE PUBLIC, không thêm grants vào core/raw/ops cho sender.
+
+Migration dự kiến `004_delivery_schedule.sql`, đăng ký schema_migrations, bổ sung
+vào bootstrap/migrate loader hiện có. Đó là công việc implementation sau review,
+**file này hiện chưa tồn tại**. Không sửa migrations001–003 đã áp dụng để giả vờ
+DB cũ tự có schema mới.
+
+### II. Thuật toán gen và chạy: không random lúc collector GET
+
+```mermaid
+flowchart TB
+    A["Đọc bất kỳ config profile trong thư mục chung"] --> B["Resolve giờ/seed; validate quota và thời lượng"]
+    B --> C["Gen từng order và lifecycle đúng rule như hiện tại"]
+    C --> D["Website: website_versions; marketplace: orders/components/versions"]
+    D --> E["Etsy: tạo paid/shipped logical notification từ version"]
+    E --> F["Chọn omission/duplicate/reorder theo quota + seed"]
+    F --> G["Gen child schedule: due times + attempt1..N; không copy payload"]
+    G --> H["Validate quan hệ/timeline; lưu manifest/checksum; seal READY"]
+    H --> I["Campaign admit/start và nguồn đến hạn"]
+    I --> J["Worker cập nhật website hoặc gửi child webhook đến hạn"]
+    I --> K["Marketplace GET chỉ reconstruct current visible version"]
+    J --> L["Pipeline thật: raw → dbt/tests → publication"]
+    K --> L
+```
+
+Các bước cụ thể:
+
+1. Seed order điều khiển thời điểm tạo, basket/customer; seed lifecycle điều
+   khiển branch/delay đúng causal order. Giữ cách tạo references/catalog hiện có.
+2. Delivery seed riêng chọn order thuộc các nhóm fault một cách tái hiện được;
+   giữ quota omit/duplicate theo số order hiện có. Omit và duplicate vẫn disjoint;
+   reorder có thể áp lên order duplicate không omitted. Record selection trong
+   manifest; không chỉ dựa vào xác suất để hy vọng có coverage.
+3. Normal notification có một child, due = version.visible_at + delay không âm.
+   Duplicate có N child cùng message ID, due tăng theo gap được lấy từ range.
+   Omitted vẫn giữ parent và source version nhưng không có child.
+4. Muốn bảo đảm reorder: chọn order thật sự có paid và shipped; đặt paid due sau
+   shipped first-send due với một khoảng dương. Không đổi source visible_at hay
+   version payload. Nếu quota nhiều hơn eligible orders thì reject trước write.
+5. Tính delivery tail sau source end; không âm thầm cắt các child gửi muộn. Campaign
+   phải chờ hết tail rồi đợi drain. Preview in số order, version, message, planned
+   send, omission và mốc cuối để bạn biết sẽ phải đợi bao lâu.
+6. Gen theo từng order, ghi batch giới hạn như loader hiện có; không giữ toàn bộ
+   payload/ngày trong RAM. Selection có thể cần danh sách order key nhỏ; không
+   sort toàn bộ payload. Lưu config resolved và checksum, không gen lại khi GET.
+7. Worker mỗi tick lấy tối đa100 child chưa completed, đến hạn và hết retry wait,
+   ORDER BY effective_due/campaign/message/attempt. HTTP ngoài transaction dài;
+   timeout/failure của một row ghi next_retry_at (mặc định5s sau lần lỗi) rồi xử
+   lý row khác trong batch, không để một lỗi chặn hết các campaign. Không cam kết
+   strict serial network completion khi có timeout; log actual times để đối chiếu.
+8. API vẫn một current visible version/order theo query hiện tại; không UNION
+   child schedules vào API output. Website cũng giữ latest/progress behavior.
+9. Campaign đo **kết quả thực tế**, không dùng plan để điền raw/history còn thiếu.
+   Lịch plan chỉ dùng cho coverage/đối chiếu nguồn; collector không đọc plan DB.
+
+Ví dụ nhỏ: order A có V1 paid10:00 và V2 shipped10:02. Có P gắnV1, S gắnV2;
+child S1=10:02:10, P1=10:04:00, P2=10:04:20. API mọi lần GET sau10:02 đều có thể
+trảV2. Đây là hai source versions, hai messages, ba planned sends, không phải ba
+orders hoặc ba history snapshots. Nếu network retry thì physical attempts có
+thể lớn hơn ba mà logical messages vẫn hai.
+
+### III. SIM mới cover chính xác case nào trong 18 case M08C?
+
+Ký hiệu: **D** = gen dữ liệu/lịch giúp tạo tình huống trực tiếp; **H** = cần thêm
+hook HTTP/controller/operator, SIM chỉ cấp workload; **R** = giữ regression
+boundary riêng. Mọi hàng đều cần assertion runtime; generate thành công không
+được gọi là case PASS.
+
+| Case M08C | Mức | SIM mới làm được / phần còn thiếu |
+| --- | --- | --- |
+| `late_reordered_webhooks` | D | Tạo late/reorder/duplicate/omitted trong PG-backed live. Cần chứng minh receiver/raw/work và API recovery thật; không chỉ nhìn plan |
+| `receiver_audit` | D + H | Duplicate hợp lệ làm bằng schedule; invalid/stale signature cần sender fault mode. V1 mới không bật signature fault mặc định |
+| `data_quality` | D một phần + R | Profile UNMAPPED riêng dự kiến cho phase sau; unknown status opt-in cần generator/source validation và gate assertions; equal-time conflict vẫn regression riêng. Bảng schedule không tự tạo các lỗi này |
+| `api_failures` | H | Workload có sẵn; 429/500/timeout/malformed/repeated/hostile page cần HTTP controls, không suy ra từ source rows |
+| `stage_resume` | R | Cần đúng hook sau durable raw/freeze và retry identity; không tạo được chỉ bằng delivery due time |
+| `abrupt_raw_inbox` | R | Kill sau raw/inbox commit trước ACK cần barrier/process control |
+| `lease_fencing` | R | Cần token/expiry/reclaim/budget assertions trong operational state |
+| `abrupt_lease_owner` | R | Cần owner process độc lập cũ quay lại sau reclaim |
+| `failed_gate` | H/R | Negative status có thể kích hoạt gate lỗi ở phase sau; còn abort/recovery/last-good phải assert bằng workflow, không phải gen tự đạt |
+| `abrupt_freeze_dbt` | R | Freeze orphan/dbt process kill cần barrier/controller và operator outcome |
+| `publish_atomicity` | R | Kill trong transaction hoặc sau commit trước ACK cần instrumentation; không random wall-clock rồi coi là trúng |
+| `task_clear_budget` | H/R | Cần lỗi lặp + budget exhaustion + real Airflow clear; gen duplicate không tương đương |
+| `postgres_restart` | H | Controller/operator restart DB thật và đối chiếu persistence |
+| `other_service_restarts` | H | Controller/operator restart service; SIM cấp dữ liệu trước/trong/sau |
+| `abrupt_service_loss` | H/R | Controller SIGKILL target opt-in; busy-boundary assertions vẫn R |
+| `scheduled_pause_resume` | H | Gen nguồn tiếp tục thay đổi; pause/resume phải thực hiện trên DAG thật, kiểm tra catch-up/observed-only history |
+| `maintenance_drain` | H/R | Workload tạo in-flight work; actual drain/timeout/release cần workflow thật |
+| `outage_visibility` | H | Dừng source/observer/scheduler và chờ freshness thật; timeline row không làm heartbeat tự ngừng |
+
+**Kết luận coverage:** mở rộng generator chủ yếu thay cách chuẩn bị case webhook
+bằng source data có thể nhìn thấy trong DB. Nó không thay cả18 probes. M08D demo
+đầu gồm baseline ba nguồn + webhook faults + một eBay outage bằng hook hiện có;
+những lỗi kill/atomicity/budget không tự bật. Negative-data profile là gói test
+riêng, không biến một lỗi dữ liệu thành “pipeline xử lý thành công”.
+
+### IV. Điều kiện xác nhận thiết kế này đã triển khai đúng
+
+- Migration giữ dataset/volume legacy; source normal/S01 behavior không đổi.
+- Một message repeat tạo nhiều child, một inbox logical và đủ receiver audits.
+- Reorder có planned/actual timestamp đối chiếu; API không bị tua ngược bởi message.
+- Crash/restart sender không bỏ child chưa ACK, có thể redeliver nhưng dedupe đúng.
+- Omitted source receipt vẫn có thể được API recovery quan sát và publish theo
+  policy; không bắt history phải chứa mọi planned state.
+- Query DBeaver đủ xem order→version→message→send plan/progress, không copy payload
+  theo mỗi lần gửi. Chỉ SELECT, không sửa sealed plan để demo.
+- Khối lượng đo tách generation, HTTP/worker và pipeline; không hứa schema thêm
+  một bảng tự chữa bottleneck dbt/publication. Latest C catch-up failure vẫn cần
+  fix/rerun trước acceptance campaign; không sửa trong lượt viết đặc tả này.
+
+Nếu bạn đồng ý, implementation sẽ theo schema và thuật toán ở phần này; khi có
+điểm buộc phải đổi mình sẽ báo trước, không âm thầm phát triển thêm một SIM engine.
+
+---
+
+## Làm rõ config, bảng event và `visible_at` — review bổ sung 2026-11-05
+
+**Phần này làm rõ đề xuất trước M08D; chưa viết migration/code.** Config chung
+nghĩa là cùng cấu trúc và cùng thư mục `tools/s02_data/config/`, không phải duy
+nhất `local_now.json`. Có thể có `demo.json`, `load.json`, `recovery.json` hoặc tên
+bạn chọn, truyền bằng `--config <path>`. `local_now.json` chỉ là ví dụ của bạn;
+không hardcode đường dẫn/tên này và không tự sửa file config local hiện có.
+
+### 1. Có thể thêm một bảng event để bạn quản lý từng dòng không?
+
+**Có.** Đề xuất thêm đúng phần còn thiếu: bảng kế hoạch **từng lần delivery**,
+không tạo thêm order và không nhân bản source version chỉ để gửi lại thông báo.
+Tận dụng `s02.deliveries` hiện có làm logical notification; thêm bảng con ở
+`marketplace_sim`, tên dự kiến `s02.delivery_schedule`. Tên và constraints dưới
+đây là thiết kế review, chưa phải schema đã tồn tại.
+
+```mermaid
+erDiagram
+    SOURCE_ORDER ||--|{ SOURCE_VERSION : "lifecycle changes"
+    SOURCE_VERSION ||--o{ LOGICAL_NOTIFICATION : "may emit"
+    LOGICAL_NOTIFICATION ||--o{ DELIVERY_SCHEDULE : "zero or more planned sends"
+    DELIVERY_SCHEDULE ||--o{ ACTUAL_SEND_AUDIT : "runtime attempts, if separately retained"
+```
+
+Trong diagram, order/version là các entity nghiệp vụ, không khẳng định mọi nguồn
+đã dùng cùng một bảng. Website đang có `s02.website_versions`; eBay/Etsy dùng
+`s02.orders/components/versions`. `ACTUAL_SEND_AUDIT` là khái niệm để phân biệt
+kế hoạch với thực thi, không phải quyết định thêm ngay một bảng thứ hai.
+
+Ví dụ order A có hai lifecycle version, hai logical notification và ba lần gửi:
+
+| Logical message | Version/event nghiệp vụ | Attempt trong plan | `due_at` dự kiến |
+| --- | --- | --- | --- |
+| A-paid | V1 paid lúc10:00 | 1 | 10:04:00 |
+| A-shipped | V2 shipped lúc10:02 | 1 | 10:02:10 |
+| A-paid | V1 paid lúc10:00 | 2 | 10:04:20 |
+
+Worker lấy schedule đến hạn theo `due_at` và tie-breaker ổn định: gửi shipped,
+sau đó paid, rồi paid cùng ID lần nữa. Bạn thấy từng dòng planned send trong DB.
+Body paid/resource không đổi; chữ ký/timestamp được tính đúng lúc gửi. Receipt
+API tại10:04 vẫn lấy current visible receipt, không đọc V1 chỉ vì message là paid.
+
+Các field tối thiểu dự kiến của bảng con:
+
+| Field | Grain / constraint dự kiến |
+| --- | --- |
+| `campaign_id`, `message_id` | FK đến một logical notification hiện có; không FK đến warehouse |
+| `attempt_no` | Integer >0, unique trong campaign/message; PK gồm ba field trên |
+| `due_at` | TIMESTAMPTZ NOT NULL, thời điểm dự kiến gửi theo timeline nguồn đã chốt; live shift áp dụng nhất quán |
+| Progress | Trạng thái/thời điểm thực gửi/HTTP result để resume; field và claim/retry semantics cần chốt trước DDL |
+
+Kế hoạch immutable sau seal; progress là phần được phép cập nhật riêng. Planned
+attempt không bảo đảm chỉ có đúng một network send: crash sau nhận ACK nhưng
+trước lưu progress có thể gửi lại. Receiver vẫn dedupe cùng logical message ID.
+Không gọi hệ thống exactly-once delivery và không dùng `delivered_at` dự kiến làm
+bằng chứng thật. Omitted message giữ provenance ở logical plan nhưng không có
+send được thực hiện; cần phân biệt không lên lịch gửi với gửi thất bại.
+
+Đây chỉ là plan cho webhook **push**. API **pull** do collector quyết định lúc
+GET, không phải mỗi dòng schedule đến hạn là pipeline tự nhận một response.
+Nếu muốn một API response có record lặp trong cùng page phải dùng paging control
+riêng; nếu GET hai lần cùng receipt chưa đổi thì đã là đọc lại cùng version.
+Không làm API thường trả toàn bộ lịch sử thay cho current-state contract.
+
+### 2. `visible_at` đang có nghĩa gì? Dùng nó tạo duplicate/reorder có đủ không?
+
+Hiện `visible_at` = **từ lúc nào một source version đủ điều kiện xuất hiện**,
+không phải “đến giờ bắt buộc gửi một event cho pipeline”. Trong live mode có áp
+`shift_seconds` khi map timeline đã chuẩn bị sang clock hiện tại.
+
+- Marketplace: `simulator/s02_temporal.py` lọc version đã visible rồi dùng
+  `DISTINCT ON(order_id)` chọn một version mới nhất theo `visible_at DESC,
+  sequence DESC`, sau đó mới lọc cửa sổ source_updated_at.
+- Website: `simulator/live_worker.py` cũng chọn version đến hạn mới nhất mỗi
+  order, chỉ xét sequence vượt progress; khi ghi còn so sánh `updated_at` với DB
+  website. `website_versions` là kế hoạch source update; collector đọc bảng thật
+  ở `website_source`, **không đọc trực tiếp website_versions**.
+- Generator bình thường bảo đảm timeline version tăng; marketplace còn có
+  unique constraint cho source_updated_at mỗi order. Không thể chỉ copy row rồi
+  đổi một field bất kỳ là luôn insert/được phát như mong muốn.
+
+Ý tưởng hai payload giống nhau khác visible_at **có thể mô phỏng nguồn cho phép
+nhìn thấy lại cùng nội dung**, nhưng với code hiện tại không bảo đảm có hai lần
+quan sát:
+
+1. Nếu hai version đã đến hạn trước cùng một lần polling/tick, code chọn latest
+   nên version đầu có thể không bao giờ được đọc.
+2. Website có thể bỏ lần ghi thứ hai vì payload.updated_at không mới hơn; sequence
+   thấp xuất hiện trễ có thể bị progress chặn hẳn.
+3. Đổi cả payload.updated_at để buộc ghi sẽ không còn là cùng source version;
+   fingerprint/version identity có thể đổi. Không dùng cách này để test dedupe
+   delivery mà lại kỳ vọng một history version vô điều kiện.
+4. Cho version seq2 visible trước seq1 có thể làm API chọn lại state cũ theo
+   visible_at hoặc khiến website bỏ seq1; đó là source availability/regression
+   fault, **không tương đương notification paid đến sau shipped**.
+
+Vì vậy: giữ `visible_at` của **source versions** cho source visibility. Trên bảng
+delivery mới dùng `due_at` (bạn có thể hiểu là visible_at của lần gửi, nhưng đặt
+tên khác để không nhầm). Đặt các due_at khác nhau cho cùng message ID sẽ biểu diễn
+đúng duplicate/reorder bạn muốn mà không sửa order hay lifecycle. Delay source
+visibility vẫn là một loại test riêng nếu thật sự muốn kiểm tra late source data.
+
+### 3. Negative business data là gì và mình đề xuất làm gì?
+
+Đây là **payload có vấn đề về nghiệp vụ/chất lượng dữ liệu**, khác timeout hay
+webhook trùng. Không phải cứ “có lỗi” thì mọi thứ phải bị loại: thiếu mapping có
+thể giữ dòng UNMAPPED để vận hành xử lý, còn status trái policy phải chặn gate.
+
+| Case đề xuất | Cách chuẩn bị data | Kỳ vọng cần chứng minh / mức ưu tiên |
+| --- | --- | --- |
+| Source variant/SKU chưa có mapping | SKU hợp lệ ở nguồn, không có mapping tương ứng trong mapping version của campaign | Giữ raw và dòng UNMAPPED, canonical ID không bị đoán; visibility/exception đúng policy. Nên làm đầu tiên; không xoá mapping dùng chung |
+| Status nguồn không được hỗ trợ | Negative order riêng có status test rõ ràng, nguồn cho phép phục vụ nó | Raw giữ được; actual dbt constraints phát hiện và gate chặn publication theo phạm vi batch, last-good giữ nguyên. Nên làm thứ hai, opt-in |
+| Line amount không khớp quantity × unit price | Một record được gắn fault provenance, sai đúng một quy tắc tiền | Phải xác minh source schema có nhận record đó không và test dbt đúng channel có bắt không; không bỏ validator chung để nạp. Phase sau |
+| Hai payload khác nhau cùng source_updated_at | Negative response fixture/control riêng | Policy conflict phải phát hiện; bảng version hiện có constraint chặn trường hợp này nên không nới constraint normal dataset chỉ để nhét lỗi. Giữ regression C trước |
+
+Mặc định normal/demo vẫn toàn dữ liệu hợp lệ. Negative profile là opt-in riêng vì
+**một record xấu có thể làm cả batch/channel không publish**, khiến bạn tưởng
+mọi pipeline hỏng hoặc sai đo tải. Không mặc định row-level quarantine nếu chưa
+có policy/code. Không tự động sửa status, thêm mapping hoặc reset gate để kết quả
+xanh; sửa nguồn/mapping là operator action cần ghi lại rõ ràng.
+
+Generator hiện validate invariants và loader nạp catalog/mapping; chưa thể thêm
+`missing_mapping`/`unknown_status` vào JSON rồi chạy ngay. Khi triển khai cần một
+fault-plan rõ ràng áp cho order được chọn, validation negative chuyên biệt chỉ
+cho phép đúng lỗi chủ đích, và expectation/provenance riêng cho test. Pipeline
+vẫn chỉ đọc source interface, tuyệt đối không đọc expected ledger.
+
+**Đề xuất chốt:** đợt demo đầu ưu tiên delivery faults và API outage; thêm profile
+UNMAPPED để xem chất lượng dữ liệu. Unknown-status/gate-block là profile demo
+riêng, không trộn vào baseline performance. Tên config nào cũng được trong thư
+mục chung. Nếu bạn muốn API thật sự trả old snapshot theo từng request, đó là
+một fault mode khác cần xác nhận riêng, không đánh đồng với webhook reorder.
+
+---
+
+## Review trước M08D — đưa tình huống lỗi vào kế hoạch sinh dữ liệu
+
+**Ngày review: 2026-11-05, sau commit `4c12bc2`. Đây là đề xuất để bạn duyệt,
+chưa triển khai generator/campaign mới.** Không sửa `local_now.json`, không bật
+service, không inject lỗi và không chạy lại runtime trong lượt review tài liệu.
+Trạng thái kiểm thử mới nhất vẫn17 PASS/1 FAIL; xem mục M08C bên dưới.
+
+### A. Bạn hiểu đúng điểm nào, cần phân biệt điểm nào?
+
+Đúng: nên chuẩn bị trước dữ liệu và lịch giao notification, rồi SIM chỉ đọc bản
+ghi đến hạn để gửi. Không cần viết một script sửa source state riêng cho mỗi lượt
+demo, không cần random liên tục khi đang đo tải. Code hỗ trợ đọc lịch phải viết
+một lần, sau đó thay config là đủ cho các kiểu tình huống đã hỗ trợ.
+
+Nhưng có **hai timeline độc lập**, không phải một chuỗi event dùng chung cho mọi
+thứ:
+
+1. **Trạng thái nguồn:** order paid lúc nào, shipped lúc nào; API trả trạng thái
+   mới nhất đã visible tại thời điểm đọc theo clock đang dùng.
+2. **Delivery notification:** thông báo về việc đó được gửi lúc nào, gửi mấy lần,
+   có bị bỏ hay không. Delivery đến trễ không làm order quay về trạng thái cũ.
+
+Ví dụ: order shipped rồi nhưng thông báo paid đến sau. Pipeline nhận webhook chỉ
+chứa tham chiếu receipt, GET API lúc đó vẫn thấy **paid + shipped**. Không đổi
+receipt thành paid-only để diễn đạt paid notification. Không sinh thêm order hay
+source version chỉ vì delivery bị lặp.
+
+### B. Case `late_reordered_webhooks` hiện tại đã test như thế nào?
+
+File thực thi: `test_support/m08c_webhook_probe.py`, hàm `main()`.
+
+1. Gọi control endpoint test của Etsy SIM để chọn fixture state `0905` — receipt
+   đã shipped — và bật một receipt phụ `9001002` cho tình huống omitted.
+2. Gửi ba request HTTP thật vào receiver, ký bằng secret test và thời gian gửi
+   hiện tại: `order.shipped` → `order.paid` → `order.paid` lần hai.
+3. Lần shipped có một webhook ID riêng; hai lần paid dùng **cùng webhook ID**.
+   Sau mỗi lần, gọi collector `drain` thật để xử lý work và GET receipt API.
+4. Không gửi notification cho receipt phụ; gọi collector recovery list với một
+   checkpoint stream test riêng và cửa sổ thời gian chứa receipt đó.
+5. SELECT DB kiểm tra: hai logical inbox, ba delivery audits; receipt phụ có raw
+   do API recovery dù không có inbox; tất cả receipt đọc qua notification đều
+   `is_shipped=true`, không có paid-only snapshot bị dựng lại.
+6. Cuối probe trả SIM về state mặc định `0905`, tắt extra receipt.
+
+**Giới hạn quan trọng:** đây là fixture-mode HTTP probe, có gửi/thu thập thật nhưng
+không dùng generator PG timeline của M08B, không đợi một paid notification trễ
+ngoài đời nhiều phút, và không chứng minh cả tình huống đã publish vào core/history.
+Nó chứng minh thứ tự giao khác thứ tự nghiệp vụ, logical dedupe, raw/work và omitted
+recovery trong phạm vi đó. Đây cũng là lý do cần campaign dễ quan sát hơn cho bạn.
+
+### C. Generator/SIM hiện tại có gì sẵn?
+
+| Thành phần | Đã có trong code | Chưa có / không nên hiểu nhầm |
+| --- | --- | --- |
+| `tools/s02_data/generate.py` | Sinh lifecycle hợp lệ theo order/event seed, source version `visible_at`, lựa chọn branch và khoảng delay | Chưa có notification delivery delay/reorder cấu hình độc lập |
+| `tools/s02_data/config.py` | Etsy `notifications.omit` và `duplicate`, chỉ bật nonzero trong `profile: faults` | Đây là quota **số order**, không phải tỷ lệ hay số event; unknown key bị reject |
+| `test_support/s02_plan.py::prepare_sql` | Lưu version và logical delivery; hiện `due_at` notification bằng `visible_at` của version | Không có kế hoạch riêng nhiều delivery-attempt row theo các thời điểm khác nhau |
+| `marketplace_sim.s02.deliveries` | Message ID, receipt ID, event type, due_at, omitted và progress | Primary key campaign/message; không insert hai row cùng ID chỉ để tạo duplicate |
+| `simulator/live_worker.py` | Đọc delivery đến hạn, ký HTTP hiện tại, gửi receiver; quota duplicate gửi lại cùng ID | Duplicate đang gửi liền trong vòng lặp, chưa random khoảng cách giữa các lần gửi |
+| Receipt API PG-backed | Đọc trạng thái visible hiện tại qua HTTP | Notification cũ không yêu cầu API trả source state cũ |
+
+Hiện `omit:1, duplicate:1` nghĩa là order Etsy đầu bỏ các notification đã lên kế
+hoạch, order kế tiếp gửi lặp notification. Hai nhóm order không chồng nhau. Các
+tham số có sẵn được ghi ở [CONFIG.md](../tools/s02_data/CONFIG.md#notification-faults).
+Không sửa nghĩa quota cũ một cách âm thầm khi thêm chức năng mới.
+
+### D. Phương án đơn giản cho campaign: gen cả lifecycle và delivery plan
+
+```mermaid
+flowchart LR
+    C["Một config M08B + section campaign tùy chọn"] --> G["Manual generate / campaign prepare một lần"]
+    G --> V["marketplace_sim: versions theo visible_at"]
+    G --> N["Notification plan: message ID + delivery due time + repeats/omit"]
+    G --> F["Fault timeline: target + start + duration, nếu cần"]
+    V --> A["SIM API: current visible receipt/order"]
+    N --> W["Source worker: gửi notification đến hạn"]
+    W --> R["Receiver: audit + inbox"]
+    R --> P["Collector: GET API, không đọc SIM DB"]
+    A --> P
+    F --> T["Campaign controller: HTTP fault / pause / restart"]
+    T -. tác động có giới hạn .-> A
+    P --> D["Raw → dbt/test → publish"]
+```
+
+Ví dụ kế hoạch **đề xuất** cho một receipt, không phải cú pháp config đã hỗ trợ:
+
+| Giờ mô phỏng | Dữ liệu / hành động |
+| --- | --- |
+| 10:00 | Version1 paid visible; tạo logical notification P nhưng lên lịch gửi10:04 |
+| 10:02 | Version2 shipped visible; notification S lên lịch gửi10:02:10 |
+| 10:02:10 | Gửi S; API lúc collector đọc trả version2 |
+| 10:04 | Gửi P đến trễ; API vẫn trả version2 hoặc version mới hơn nếu có |
+| 10:04:20 | Gửi lại P, cùng message ID và body; timestamp/signature của lần giao được tạo lúc thực gửi |
+| Cùng khoảng thời gian | Receipt khác vẫn có version visible nhưng không gửi notification; polling recovery phải tự tìm thấy |
+
+Mong đợi cho receipt đầu: hai logical notification, ba physical deliveries
+nếu tất cả được gửi/nhận một lần như kế hoạch. Network retry có thể làm physical
+attempt nhiều hơn ba; phải đối chiếu audit thực tế, không hardcode ba trong mọi
+campaign. Số history không mặc định bằng số notification/source transition.
+Receipt bỏ notification chỉ được tính recovery thành công khi có bằng chứng API
+polling thật thu thập được, không phải chỉ thấy nó trong SIM DB.
+
+**Các mốc thời gian phải ghi riêng:** source event/updated time; source visibility;
+planned delivery due time; actual send/receive time; actual API observation time.
+Clock giả có thể phục vụ nguồn/replay nhưng chữ ký webhook hợp lệ dùng delivery
+clock hiện tại theo contract. Không dùng ngày nghiệp vụ giả cũ để ký rồi vô tình
+bị receiver từ chối như một replay attack.
+
+Thêm delay vào delivery plan **trước khi seal dataset**; không update schedule
+dataset đã seal để tạo fault giữa chừng. Không copy toàn receipt cho từng delivery:
+giữ resource/message identity và tham chiếu version nghiệp vụ, giảm dữ liệu dư.
+Source worker chỉ lấy batch đến hạn có giới hạn và ghi progress; không load toàn
+bộ campaign vào RAM. Bổ sung index/column chỉ sau khi chốt dictionary/constraints;
+chưa có DDL được quyết định trong tài liệu này.
+
+Chuẩn bị trước giúp chuyển chi phí random ra khỏi lúc đo và giảm thao tác tay,
+không có nghĩa mọi thứ chắc chắn nhanh hơn: delivery trùng vẫn tạo HTTP/audit thật,
+plan còn tốn storage và DB queries. Bottleneck dbt/publication phải được đo riêng;
+không khẳng định chuyển fault vào generator tự giải quyết độ trễ pipeline.
+
+### E. Lỗi nào làm bằng data plan, lỗi nào không?
+
+| Tình huống | Ưu tiên xử lý | Phạm vi / lưu ý |
+| --- | --- | --- |
+| Webhook đến trễ, đảo thứ tự | Gen delivery due time riêng | Giữ source lifecycle đúng; đảo thứ tự giao bằng delay, không đảo causal order paid/shipped |
+| Webhook trùng | Gen repeat count và khoảng cách gửi cho cùng logical ID | Không tạo order trùng; cần progress từng attempt nếu muốn resume không gửi bù sai |
+| Omitted notification | Gen omission plan có provenance | API source state vẫn tồn tại và visible; không bỏ cả receipt vì sẽ không còn gì để recover |
+| Source update muộn nhưng hợp lệ | Gen visible/update timestamps đúng semantics | Khác delayed webhook; không backdate bừa khiến update lọt ngoài checkpoint rồi gọi đó là recovery thành công |
+| Thiếu mapping / status lạ | Có thể gen **profile negative riêng** sau khi chốt policy | Generator hiện kiểm tra invariants và loader nạp mapping; cần thiết kế mapping version/input lỗi riêng, không xoá mapping dùng chung hoặc bỏ validation cho mọi data |
+| eBay page có record lặp / đọc lại cùng snapshot | Tái sử dụng HTTP paging control hoặc lập lịch response | Không insert duplicate cùng PK vào source; hai order khác ID là hai đơn thật, không phải test dedupe |
+| HTTP429/500, timeout, malformed JSON | SIM transport/control chạy theo fault timeline | Bản ghi DB không tự tạo mã HTTP hay làm hỏng đường truyền. Dùng hooks có sẵn thay vì sửa riêng API code cho từng campaign |
+| Chữ ký sai / stale | Sender có mode lỗi rõ ràng, lên lịch bằng config nếu cần | Không thể chỉ đổi order payload; cần cách ký/header sai. Mặc định luôn ký đúng |
+| Pause/resume, restart, SIGKILL, scheduler/observer outage | Controller tác động thật vào target được phép | Data không làm container chết; không cấp Docker quyền cho SIM/collector |
+| Lease fencing, hết budget, crash đúng raw/freeze/publish boundary | Giữ regression M08C; chỉ chọn vài case tích hợp khi có cơ chế đồng bộ | Timeline wall-clock đơn thuần không bảo đảm kill trúng transaction; nếu không chạm boundary phải NOT_EXERCISED, không PASS giả |
+
+Không cần đưa toàn bộ18 case vào generator. Mục tiêu là **tái sử dụng dữ liệu và
+timeline**, không xây simulator thành một fault framework lớn. Negative input và
+transport/runtime fault vẫn phải phân biệt trong báo cáo.
+
+### F. Dự kiến config và tương thích
+
+Tiếp tục dùng một file như `tools/s02_data/config/local_now.json`, không buộc bạn
+chọn config/campaign ở pipeline. Các section dự kiến, tên cuối cùng cần chốt trước
+khi code:
+
+- Data config cũ giữ nguyên: orders mỗi channel, seed, peak hours, branch,
+  basket, lifecycle delay, duration và notification quotas đã có.
+- Phần delivery mở rộng: delay range, duplicate gap, các quota tối thiểu để chắc
+  chắn có một số order reorder/omit/duplicate; các trường này **chưa được parser nhận**.
+- `campaign`: warm-up, fault windows/durations, runtime target consent, drain
+  timeout, giữ service sau demo và các ngưỡng đánh giá.
+- Seed cho delivery/fault tách khỏi seed order: đổi lịch gửi không làm thay giỏ
+  hàng/identity; config resolved, kế hoạch và checksum được lưu trước khi chạy.
+
+Reorder ngẫu nhiên không bảo đảm có reorder; campaign coverage cần quota/bounded
+construction để chắc chắn paid được giao sau shipped ở một số order được chọn.
+Phải validate đủ thời gian cho các delivery muộn: source generation end không
+đồng nghĩa campaign kết thúc. Sau source end còn delivery tail rồi mới drain
+pipeline; nếu vượt timeout thì báo rõ phần chưa xử lý, không âm thầm cắt plan.
+
+Lệnh generate hiện tại vẫn chỉ chuẩn bị dữ liệu và không restart/pause/inject
+transport fault. Campaign entrypoint riêng mới được phép điều phối runtime.
+Hiện parser dùng allowlist nghiêm ngặt; **đừng thêm `campaign` vào config đang dùng
+ngay lúc này** vì sẽ bị reject. Khi triển khai sẽ phải tách/validate đúng section
+và test compatibility cho generate-only, không bắt bạn giữ hai file config.
+
+### G. Trình tự mình sẽ làm tiếp sau khi bạn duyệt
+
+1. **Sửa điều kiện lặp lại của C trước:** xác minh marker `polling-drain` còn lại
+   có làm test DAG ngừng schedule hay không; fix đúng scope, thêm regression
+   “drain xong chạy scheduled case lần nữa”, rồi rerun catch-up thật. Không tự xoá
+   marker maintenance của main để ép pipeline chạy.
+2. Chốt config/dictionary của logical notification và delivery attempts/progress.
+   Tận dụng bảng hiện có; chỉ thêm storage tối thiểu nếu cần lịch gửi trùng cách
+   nhau và resume chính xác. Không đổi warehouse/source contract.
+3. Mở rộng generator cho delivery delay/reorder, duplicate gap và omitted plan;
+   dùng seed/quota, validate trước khi ghi và giữ immutable source plans.
+4. Điều chỉnh worker đọc plan chung thay cho hardcode gửi duplicate liền; API vẫn
+   phục vụ state visible hiện tại. Không viết campaign-specific branch vào collector.
+5. Thêm campaign controller nhỏ: tái sử dụng live startup, SIM hooks và assert/
+   measurement có sẵn; in URL/DB access và timeline ngay đầu. Không chạy thêm stack
+   Airflow thứ hai mặc định; giữ target local đã opt-in rõ ràng, không reset data.
+6. Profile demo đầu: ba nguồn, Etsy late/reorder/duplicate/omit, eBay outage ngắn,
+   rồi recovery/drain. Pause/restart là profile opt-in tiếp, không bật mọi fault
+   chồng nhau trong lần đầu. Đo baseline cùng workload không fault để so sánh.
+7. Ghi actual event log và số đo stage/backlog/freshness/drain; kiểm tra riêng
+   correctness/recovery/performance. In NOT_EXERCISED khi không tạo được fault;
+   dữ liệu đã gen không tự là bằng chứng pipeline đã xử lý.
+8. Chạy regression và campaign nhỏ có giới hạn; ghi exact results. Cập nhật guide
+   một lệnh, query đối chiếu source→raw→core, ảnh/địa chỉ UI thực tế và restore.
+
+Đây là dự định, không phải tuyên bố code campaign đã hoạt động. Không stage/commit
+trong lượt review này. Plan/strategy English được đồng bộ ngắn để không quên các
+ranh giới; file tạm này giữ giải thích chi tiết bằng tiếng Việt cho bạn duyệt.
+
+### H. Những điểm cần bạn duyệt / mặc định mình đề xuất
+
+- **Duplicate:** giữ nghĩa quota order cũ, cùng logical ID; thêm khoảng cách gửi.
+  Không mặc định duplicate nghĩa là tạo ID khác vì đó là tình huống khác.
+- **Reorder:** ưu tiên delay delivery để đổi thứ tự, không làm sai lifecycle;
+  ít nhất một order bảo đảm có case, phần còn lại theo phân phối có seed.
+- **Profile đầu:** các lỗi delivery + một API outage, không có SIGKILL/PG restart
+  mặc định. Những thao tác disruptive chỉ chạy khi opt-in và target đã xác minh.
+- **Negative business data:** để opt-in phase sau khi thống nhất policy cụ thể;
+  không âm thầm trộn status không hỗ trợ/thiếu mapping vào normal workload.
+- **Khôi phục:** bỏ các fault do campaign tạo ra và giữ môi trường để xem; các
+  service/DAG có sẵn không được tự đổi trạng thái ngoài consent của campaign.
+- **Quy mô và ngưỡng PASS:** chưa có số order/phút, latency/drain SLA nào được
+  chứng minh. Đo baseline nhỏ trên máy bạn trước, chốt ngưỡng trước lượt đo chính;
+  duration6 phút là thời gian nguồn, không bảo đảm cả fault tail/drain cũng6 phút.
+
+Nếu bạn muốn khác ở sáu điểm này, mình cần làm rõ trước khi code; còn lại mình
+đề xuất đi theo các mặc định trên để không tăng độ phức tạp simulator.
+
+---
+
 ## M08C — Bản giải thích và hướng dẫn kiểm tra hiện hành, 2026-11-05
 
 **Cập nhật khi review để commit:** phát hiện lượt bạn chạy lại

@@ -1,5 +1,13 @@
 # Target field dictionary and storage contract
 
+M08D ownership timing refinement2026-11-08 (existing columns; no DDL): when
+freezing a DAG-owned transform batch, populate its TRANSFORM pipeline_run's
+airflow_dag_id/airflow_run_id together in the SAME transaction that exposes
+FROZEN and batch_inputs. Use the actual Airflow owner run, not the derived
+polling execution ID. Both values absent remains valid for direct/manual CLI;
+reject a partial pair. Finally-time lineage annotation remains for other child
+runs, but must not be the first owner assignment of an exposed transform batch.
+
 Status: M01 accepted technical direction, 2026-10-25. This is the target
 warehouse/operational contract; the source exports in `docs/contracts/` remain
 the approved source-facing contract and are not replaced by this document.
@@ -86,6 +94,13 @@ from the parent run. Application roles may insert/read cycles but never change
 their configuration; a trigger rejects UPDATE/DELETE. Same execution reuses the
 parent window, even after its checkpoint advances. Settings bind test fault flags
 so retry cannot change validation/fault semantics. Actual fetch time is current.
+
+M08D pagination refinement (no DDL): marketplace cycles may additionally persist
+`settings.page_size` as a JSON integer, eBay1..200 / Etsy1..100. Missing legacy
+keys mean1. A retry restores the stored value, never the current environment;
+new live cycles default50 via the live overlay, base/S01 commands default1.
+Direct Etsy recovery refuses a different limit if this collection already has
+retained list requests, preserving URL budgets and validated-page cache identity.
 
 `ops.transform_batches.validation_mode TEXT ! DEFAULT 's01'` accepts s01/runtime.
 The freeze command persists it; TESTED verifies artifact batch, source, mapping,
@@ -244,6 +259,47 @@ before dependent DDL. Do not grant report users
 direct access to ops/raw or reuse the stable source_health timestamp as live status.
 
 ## Ownership and evidence links
+
+M08D physical-plan experiment: `build.stg_website_observations` and
+`build.int_website_versions` change from views to per-batch dbt tables. The
+existing SELECTs define identical columns/types/nullability and identities; no
+stable warehouse/source column or constraint changes. These are disposable build
+relations rebuilt under the same global release barrier, not incremental source
+state. Full model/test and atomic-publish gates remain unchanged. Verify compiled
+SQL multiset parity before deploying; see19_M08D_MEASUREMENT.md and STATUS.
+
+### M08D bounded Etsy reconciliation (finalized before migration 009)
+
+No business/source fields change. `ops.etsy_recovery_scans` has grain one scan
+of the immutable recovery window in an existing collection run:
+
+| Column | Definition / constraints |
+| --- | --- |
+| `run_id UUID NOT NULL` | FK `ops.pipeline_runs`; part of primary key |
+| `scan_number SMALLINT NOT NULL` | 1..5; other PK part; monotonically allocated under existing collection advisory lock |
+| `status TEXT NOT NULL` | RUNNING, VALIDATED or INVALID; only RUNNING may transition to a terminal status |
+| `started_at TIMESTAMPTZ NOT NULL` | Actual DB clock, immutable |
+| `finished_at TIMESTAMPTZ NULL` | NULL iff RUNNING; otherwise >= started_at |
+| `error_code TEXT NULL` | PAGE_SET_CHANGED iff INVALID, otherwise NULL |
+
+At most one non-INVALID scan per collection. No delete, identity/time rewrite,
+terminal-row update or retry-budget reset. Five scans is an additional ceiling,
+NOT five fresh HTTP budgets. `ops.etsy_http_attempts.recovery_scan_number SMALLINT?`
+references `(run_id,scan_number)` and is allowed only when `work_id IS NULL`.
+Existing attempts remain unchanged/NULL; scan1 may adopt those legacy page audits.
+For every URL, the total persisted HTTP attempts across ALL scans stays <=5;
+attempt_number continues from the existing count, including legacy attempts.
+Cache reuse is restricted to the current scan (plus legacy NULL for scan1).
+Only a count/order-inconsistent scan becomes INVALID. Partial transport failures
+resume the same scan and its successful pages; VALIDATED scans resume processing
+without refetching. A new scan is never allocated after validation. HTTP-budget
+exhaustion stops before any further request, never resets the budget or invalidates
+a scan just to allocate another. Partial pages do not enqueue new receipt work;
+validated pages enqueue with unchanged receipt-work identities. Checkpoint moves
+only after all required receipt work succeeds. This is bounded reconciliation,
+not a provider snapshot-isolation guarantee. `platform_ingest`: SELECT/INSERT/
+UPDATE scans, SELECT/INSERT existing HTTP attempts; no new UPDATE attempt grant.
+`platform_transform`: SELECT scans. Report users/PUBLIC have no table access.
 
 M07 report/query and telemetry extension: finalized before migration 008 in
 [09_M07_SCALE_MONITORING.md](09_M07_SCALE_MONITORING.md). Adds presentation review

@@ -5,6 +5,35 @@ handles HTTP, exact-byte verification and raw/ops; dbt owns business SQL; Airflo
 orchestrates reusable commands. No provider account/OAuth or production-server
 claim. Baseline requires retained M01-M05 website/eBay evidence, not empty storage.
 
+M08D drain refinement: a call selects pending/leased work once (or receives an
+explicit recovery/replay work list) and permits up to that many claims. Passing
+100 successful receipt GETs is no longer a reason to fail collect. New arrivals
+wait for the next invocation; this is not a persisted scope across inbox retries.
+HTTP errors, cooldowns, unavailable leases and unfinished work still prevent a
+complete-processing claim. Five-attempt budgets and checkpoint rules are unchanged.
+No page-size, stored-procedure, dbt or source-contract change is involved.
+
+Subsequent M08D list batching: direct `ingestion.etsy recovery --page-size N`
+supports1..100 (default1). Live overlay uses LIVE_ETSY_RECOVERY_PAGE_SIZE=50;
+only recovery list pages are batched, not receipt detail GETs. Polling persists
+the selected size in settings.page_size; legacy cycles restore1. Changing the
+environment cannot change a retry's cached URL policy. Direct recovery also
+refuses a limit different from previously retained list requests for that run.
+
+Focused regression commands, from the repository root with Docker/PostgreSQL
+available and the existing project Airflow image built:
+
+```powershell
+docker compose --env-file .env --file infra/compose.yaml run --rm -T --no-deps --volume "${PWD}:/repo:ro" --env PYTHONPATH=/repo --entrypoint /opt/airflow/project-venv/bin/python airflow /repo/tests/test_etsy_drain.py
+docker compose --env-file .env --file infra/compose.yaml run --rm -T --no-deps --volume "${PWD}:/repo:ro" --env PYTHONPATH=/repo --entrypoint /opt/airflow/project-venv/bin/python airflow /repo/tests/etsy_recovery_probe.py
+```
+
+The second command uses a temporary local HTTP server and rollback-only SQL;
+it is not a live scheduled load verdict. These one-off Python containers do not
+run a second Airflow scheduler. Do not add `--remove-orphans` if Compose warns
+about live services declared in the overlay. For the unchanged finite load
+rerun/deployment path, see [campaigns](../tools/s02_data/CAMPAIGN.md).
+
 ## Startup and credentials
 
 Use repository-root `.env`, based on the new Etsy placeholders in `.env.example`.

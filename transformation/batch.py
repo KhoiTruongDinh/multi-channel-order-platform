@@ -26,6 +26,10 @@ def connect() -> psycopg.Connection[object]:
 
 
 def freeze(args: argparse.Namespace) -> None:
+    dag_id = getattr(args, 'airflow_dag_id', None)
+    airflow_run_id = getattr(args, 'airflow_run_id', None)
+    if bool(dag_id) != bool(airflow_run_id):
+        raise ValueError('Airflow owner requires both DAG and run IDs')
     with (nullcontext(args.connection) if getattr(args,'connection',None) is not None else connect()) as conn:
         conn.execute("SELECT pg_advisory_xact_lock(hashtext('platform-release'))")
         conn.execute("SELECT pg_advisory_xact_lock(hashtext('website-transform'))")
@@ -38,11 +42,11 @@ def freeze(args: argparse.Namespace) -> None:
         conn.execute(
             """INSERT INTO ops.pipeline_runs
             (run_id, stage, source_system, source_account_id, stream_name, batch_id,
-             started_at, status, log_reference)
+             started_at, status, log_reference, airflow_dag_id, airflow_run_id)
             VALUES (%s, 'TRANSFORM', %s, %s, 'orders', %s,
-                    %s, 'RUNNING', %s)""",
+                    %s, 'RUNNING', %s, %s, %s)""",
             (args.run_id, args.source, SOURCES[args.source][0],
-             args.batch_id, now, f"m03:transform:{args.batch_id}"),
+             args.batch_id, now, f"m03:transform:{args.batch_id}", dag_id, airflow_run_id),
         )
         conn.execute(
             """INSERT INTO ops.transform_batches
@@ -142,6 +146,8 @@ def main() -> None:
     freeze_parser.add_argument("--transformation-version", required=True)
     freeze_parser.add_argument("--source", choices=tuple(SOURCES), default='internal_web')
     freeze_parser.add_argument('--validation-mode', choices=('s01','runtime'), default='s01')
+    freeze_parser.add_argument('--airflow-dag-id')
+    freeze_parser.add_argument('--airflow-run-id')
 
     for name, expected in (("building", "FROZEN"), ("tested", "BUILDING"), ("failed", "BUILDING")):
         command = sub.add_parser(name)

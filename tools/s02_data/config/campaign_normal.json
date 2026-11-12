@@ -1,0 +1,14 @@
+{
+  "dataset": "campaign-normal",
+  "timezone": "Asia/Bangkok",
+  "duration_minutes": 2,
+  "order_seed": 17,
+  "event_seed": 91,
+  "profile": "normal",
+  "channels": {
+    "internal_web": {"orders": 2, "delay_seconds": [10, 15], "required": {"cancel": 1}},
+    "ebay_sim": {"orders": 2, "delay_seconds": [10, 15], "required": {"ship": 1}},
+    "etsy_sim": {"orders": 2, "delay_seconds": [10, 15], "required": {"ship": 1}, "delivery_plan": {"seed": 42}}
+  },
+  "campaign": {"seed": 42, "timeout_seconds": 1200, "poll_seconds": 10}
+}

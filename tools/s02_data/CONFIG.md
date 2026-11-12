@@ -1,5 +1,16 @@
 # S02 generator configuration reference
 
+## Optional observation campaign
+
+The same JSON schema now accepts `campaign`; see [CAMPAIGN.md](CAMPAIGN.md#configcampaign-fields)
+for its typed fields and normal/recovery commands. generate/prepare validate and
+retain that section but DO NOT execute it. Only the campaign command with explicit
+local consent can start schedules; an eBay pause additionally requires --allow-faults.
+Optional `campaign.measurement` and `campaign.load` grade a predeclared finite
+envelope; profiles without them remain observation-only. This is not production
+SLA/capacity certification. See [the current load path](CAMPAIGN.md#current-calibrated-load-path).
+No config filename is special.
+
 ## Prepared live webhook delivery plan (SIM extension)
 
 Any JSON profile may opt in with `channels.etsy_sim.delivery_plan`; the filename
@@ -33,18 +44,6 @@ sender crashes can cause extra physical retries, not extra logical messages.
 generate checks that the running live-source image supports the extension;
 rebuild that image first. Missing capability fails before dataset preparation.
 No negative-data or transport/controller faults are enabled by these fields.
-
-Configuration describes manually prepared source data, not Airflow scheduling.
-Daily: start live-up once, then run `python -m tools.s02_data generate --config <path.json>`
-manually to append live data. prepare only stores data for explicit replay;
-it does not publish to live APIs. There is no generation
-on Docker startup, API GET or DAG execution. Secrets belong in `.env`, not JSON.
-See [workflow commands](README.md) and [storage/clock contract](../../docs/15_S02_LOCAL_WORKFLOW.md).
-
-Live mode translates the persisted source timeline to admission time, keeping
-relative intervals; dates below describe the prepared timeline. Exact historical
-business dates require replay, not generate. Both original config and live shift
-remain visible in DB. See [live contract](../../docs/16_M08_LIVE_LOCAL.md).
 
 Configuration describes manually prepared source data, not Airflow scheduling.
 Daily: start live-up once, then run `python -m tools.s02_data generate --config <path.json>`
@@ -251,6 +250,75 @@ API429/500/timeout/malformed, invalid signature, missing mapping and crash/resta
 faults are not injected by these fields. Broader runtime checks remain M08C.
 
 ## Configuration is not scheduling or playback
+
+### Finite low-rate step gates
+
+Use `config/campaign_rate_website.json` (24 Website orders/6 minutes) then
+`config/campaign_rate_mixed.json` (24 per source/6 minutes). Optional
+`campaign.load` requires `campaign.measurement`, normal profile, no campaign
+outage and active source intervals of at least360 seconds. It is not a new
+generator mode; seeds, baskets, lifecycle rules and HTTP/SQL interfaces stay fixed.
+
+| load field | Default | Allowed | Meaning |
+| --- | ---: | --- | --- |
+| min_scheduled_successes | 2 | integer1..10 | successes per required active-source live DAG, started during the fixed admission/source window, completed by drain deadline |
+| max_drain_seconds | 900 | integer30..1800 | observation/cycle budget after configured source-window end |
+
+Both Etsy DAGs must meet the cycle minimum when Etsy offers orders. Manual or
+old successes do not count. Source-window end is shifted with live admission;
+the runner cannot finish early merely because sampled orders arrived early.
+Set campaign.timeout_seconds large enough for the whole source range plus drain
+and60-second startup margin. Missing cycles/drain expiration fails, not a green
+stress result. Report measurement.load_assessment and final_progress retain
+actual SQL clocks/cycle IDs and observed backlog. Exact commit/publication
+latency is still NOT_MEASURED; low-rate PASS is not soak/capacity certification.
+
+After both low profiles PASS, owner-authorized higher examples are
+`config/campaign_rate_300.json` (100/source,6min) and `config/campaign_rate_900.json`
+(300/source,10min). Their max_orders1000/max_source_versions3000 and
+max_pending_sends1000 are predeclared count ceilings; pending sends include future
+planned sends, not just due retries. RAM/disk/DB-growth and delay/drain budgets
+are unchanged. Stop on any failure/ceiling, never adjust the failed run's limits
+or skip its reconciliation to proceed. See STATUS for actual runtime outcomes.
+
+One explicitly predeclared exposure calibration is also supplied:
+`campaign_rate_144.json` gives144/12min at the same0.2 orders/s as72/6min;
+`campaign_rate_600.json` gives600/12min at the same0.8333/s as300/6min. Both use
+the larger count ceilings and the SAME resource/latency/drain/cycle gates. They
+increase total data and exposure without lowering offered pressure. Preserve
+short-profile failures; do not call longer exposure a software speedup. The
+qualification must pass before600/900; another failure stops this calibration.
+
+Live-only scheduler tuning is separate from generator JSON: optional non-secret
+`.env` LIVE_AIRFLOW_PARALLELISM is2 by default, supported values2 or4. Base and
+disposable Compose keep2; per-DAG concurrency1 and global dbt publication
+serialization remain fixed. A4-slot experiment changes executor queue capacity,
+not source rules or the profile's PASS thresholds. Normal campaign startup drains
+before recreating Airflow; always remeasure memory/queue and retain failed runs.
+
+### Optional bounded campaign baseline
+
+`campaign.measurement` is opt-in. Omit it to preserve the normal/recovery
+review-only campaign behavior. Use `config/campaign_baseline.json` as a complete
+12-order example; all fields below are integer limits (booleans are rejected).
+
+| Field | Default | Allowed range | Unit / meaning |
+| --- | ---: | --- | --- |
+| max_orders | 100 | 1..1000 | finite order count before generation |
+| max_source_versions | 500 | 1..10000 | prepared logical source versions |
+| max_generated_bytes | 10485760 | 1024..104857600 | serialized generated source bytes, not DB storage |
+| min_free_disk_mb | 2048 | 256..1048576 | MiB free on workspace and PG volume |
+| max_db_growth_mb | 512 | 1..10240 | MiB aggregate growth of four local databases |
+| max_docker_memory_percent | 90 | 20..95 | scoped Docker CLI reported memory sum / Docker RAM |
+| max_container_memory_mb | 2400 | 128..16384 | MiB per observed container |
+| max_pending_sends | 500 | 1..10000 | unfinished physical source sends |
+| max_final_observed_delay_seconds | 1200 | 30..3600 | final source eligibility to first matching SQL observation |
+
+These are local safety/review budgets, not capacity claims. A breach fails the
+observer and preserves evidence; it does not delete an admitted source timeline
+or kill the main stack. Preparation/admission is timed separately. Exact
+source-commit-to-first-publication latency remains NOT_MEASURED. See
+[M08D measurement](../../docs/19_M08D_MEASUREMENT.md) for scope and commands.
 
 Five hours means the range of fake source event timestamps, not five hours of
 data already published or a five-hour Airflow interval. Realtime exposes states

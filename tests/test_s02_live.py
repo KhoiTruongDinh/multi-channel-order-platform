@@ -37,6 +37,22 @@ def workload():
 
 
 class LiveTests(unittest.TestCase):
+    def test_live_parallelism_is_explicit_bounded_and_not_a_business_change(self):
+        from tools.s02_data.live import validate_live_parallelism
+        for value in (2,'2',4,'4'):
+            self.assertEqual(validate_live_parallelism(value),int(value))
+        for value in (0,1,3,8,True,None,'4.0','unbounded'):
+            with self.subTest(value=value),self.assertRaises(ValueError): validate_live_parallelism(value)
+
+    def test_invalid_live_parallelism_refuses_before_drain_or_database_writes(self):
+        db=Mock()
+        services={s+'-sim':dict(environment={'S02_DB_PASSWORD':'dummy'}) for s in ('ebay','etsy')}
+        services['airflow']=dict(environment={'AIRFLOW__CORE__PARALLELISM':'64'})
+        with patch('tools.s02_data.live.compose',return_value=json.dumps(dict(services=services))), \
+             patch('tools.s02_data.live.drain') as draining:
+            with self.assertRaisesRegex(ValueError,'PARALLELISM'): up(db)
+        draining.assert_not_called(); db.command.assert_not_called(); db.sql.assert_not_called()
+
     def test_reread_polls_schedule_counts_then_checks_sources_once(self):
         before=dict(status='PASS',batches=1,scheduled=[dict(dag_id=d,state='success',n=1) for d in DAGS])
         after=dict(status='PASS',batches=1,scheduled=[dict(dag_id=d,state='success',n=2) for d in DAGS])

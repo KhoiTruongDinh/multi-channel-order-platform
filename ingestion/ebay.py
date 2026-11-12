@@ -16,6 +16,7 @@ from urllib.request import Request, build_opener, HTTPRedirectHandler
 import psycopg
 from psycopg.types.json import Jsonb
 from ingestion.website import db_kwargs, parse_time
+from ingestion.pagination import page_size
 
 SOURCE = 'ebay_sim'
 ACCOUNT = 'seller_sim_01'
@@ -36,9 +37,9 @@ def safe_url(url, origin, path=None):
     return url
 
 
-def page_url(origin, start, end, offset=0):
+def page_url(origin, start, end, offset=0, limit=1):
     return origin + ROOT + '?' + urlencode({'filter': f'lastmodifieddate:[{start.isoformat()}..{end.isoformat()}]',
-                                           'limit': 1, 'offset': offset})
+                                           'limit': limit, 'offset': offset})
 
 
 def comparison_order(value):
@@ -56,6 +57,7 @@ def comparison_order(value):
 class Collector:
     def __init__(self, conn, args, run_id):
         self.conn, self.args, self.run_id = conn, args, run_id
+        self.page_size = page_size(getattr(args, 'page_size', 1), 200)
         self.opener = build_opener(NoRedirect())
 
     def raw(self, url, kind, body, status, headers, metadata):
@@ -129,18 +131,22 @@ class Collector:
         return value['orderId']
 
     def acquire(self):
-        url = page_url(self.args.origin, self.args.window_start, self.args.window_end)
+        url = page_url(self.args.origin, self.args.window_start, self.args.window_end, limit=self.page_size)
         offset, total, seen = 0, None, set()
         for page_number in range(1000):
             page_id, page = self.get(url, 'ebay_orders')
-            if (type(page.get('total')) is not int or page['total'] < 0 or page.get('limit') != 1
-                    or page.get('offset') != offset or not isinstance(page.get('orders'), list)):
+            if (type(page.get('total')) is not int or page['total'] < 0
+                    or type(page.get('limit')) is not int or page['limit'] != self.page_size
+                    or type(page.get('offset')) is not int or page['offset'] != offset
+                    or not isinstance(page.get('orders'), list)):
                 raise ValueError('malformed page envelope')
+            if page['total'] > 1000:
+                raise ValueError('order budget exhausted')
             safe_url(page['href'], self.args.origin, ROOT)
             if total is not None and total != page['total']:
                 raise ValueError('mutable page total; reconcile window')
             total = page['total']
-            if len(page['orders']) != min(1, max(0, total-offset)):
+            if len(page['orders']) != min(self.page_size, max(0, total-offset)):
                 raise ValueError('page count does not agree with total')
             jobs = []
             for order in page['orders']:
@@ -163,15 +169,15 @@ class Collector:
                 raise RuntimeError('intentional interruption after durable page/work')
             for work_id, order_id, listed in jobs:
                 self.details(work_id, order_id, listed)
-            offset += 1
+            offset += len(page['orders'])
             if offset >= total:
                 if 'next' in page:
                     raise ValueError('unexpected next link')
                 return
             next_url = safe_url(page['next'], self.args.origin, ROOT)
-            if next_url != page_url(self.args.origin,self.args.window_start,self.args.window_end,offset):
+            if next_url != page_url(self.args.origin,self.args.window_start,self.args.window_end,offset,self.page_size):
                 # Compare decoded query: percent-encoding alone is not a semantic difference.
-                expected = urlsplit(page_url(self.args.origin,self.args.window_start,self.args.window_end,offset))
+                expected = urlsplit(page_url(self.args.origin,self.args.window_start,self.args.window_end,offset,self.page_size))
                 actual = urlsplit(next_url)
                 if parse_qs(actual.query) != parse_qs(expected.query):
                     raise ValueError('next link changed bounds/offset')
@@ -214,7 +220,9 @@ def main():
     parser.add_argument('--checkpoint-stream', choices=('orders','orders_polling'), default='orders')
     parser.add_argument('--overlap-seconds', type=int, default=120)
     parser.add_argument('--fail-after-page', action='store_true')
+    parser.add_argument('--page-size', type=int, default=1)
     args = parser.parse_args()
+    args.page_size = page_size(args.page_size, 200)
     if args.overlap_seconds < 0:
         parser.error('overlap must be nonnegative')
     with psycopg.connect(**db_kwargs('PLATFORM','data_platform','platform_ingest')) as conn:
