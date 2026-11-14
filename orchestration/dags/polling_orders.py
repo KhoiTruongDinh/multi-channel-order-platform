@@ -11,8 +11,8 @@ from orchestration.scheduling import periodic_schedule, slot_wait_seconds
 SLOT_WAIT_SECONDS = slot_wait_seconds()
 
 
-def invoke(source, abort=False):
-    c=get_current_context()
+def invoke(source, abort=False, nonblocking=False, context=None):
+    c=context if context is not None else get_current_context()
     prefix='WEBSITE' if source=='internal_web' else 'EBAY'
     command=['/opt/airflow/project-venv/bin/python','-m','orchestration.polling',
         '--source',source,'--execution-id',c['run_id'],'--dag-id',c['dag'].dag_id,
@@ -25,9 +25,14 @@ def invoke(source, abort=False):
         command+=['--initial-start',initial]
     if abort:
         command+=['--abort']
+    if nonblocking:
+        command+=['--nonblocking','--reuse-cycle-config','--coordinator-attempt',str(c['ti'].try_number)]
     for flag in ('fault_after_raw_once','fault_after_freeze_once','inject_test_failure'):
         if c['params'][flag]:
             command+=['--'+flag.replace('_','-')]
+    if nonblocking:
+        from orchestration.polling_sensor import command_result
+        return command_result(command,True)
     result=subprocess.run(command,check=False)
     if result.returncode==42:
         raise AirflowFailException('Durable polling stage budget exhausted')
@@ -56,7 +61,12 @@ def build_dag(source,prefix,manual=False):
         def failed_workflow():
             invoke(source,abort=True)
             raise AirflowFailException('Polling workflow failed; audit retained')
-        cycle() >> failed_workflow()
+        if not manual and os.environ.get('POLLING_NONBLOCKING')=='true':
+            from orchestration.polling_sensor import PollingCycleSensor
+            task_cycle=PollingCycleSensor(task_id='cycle',source=source)
+        else:
+            task_cycle=cycle()
+        task_cycle >> failed_workflow()
     return pipeline()
 
 

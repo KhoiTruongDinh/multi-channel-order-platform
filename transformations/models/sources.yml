@@ -1,5 +1,9 @@
 version: 2
 sources:
+  - name: canonical_cache
+    schema: cache
+    tables:
+      - name: etsy_payloads
   - name: acquisition
     schema: raw
     tables:

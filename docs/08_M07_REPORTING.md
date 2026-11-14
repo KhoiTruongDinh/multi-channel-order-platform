@@ -1,5 +1,14 @@
 # M07 reporting implementation contract
 
+Clock clarification2026-11-14: business order/product activity is a SOURCE-CREATED
+UTC cohort, using latest published order/line values, not ingestion throughput or
+historical end-of-day states. Monitor charts count actual pipeline ATTEMPTS by
+execution time; they must not be labeled newly received orders. Observed-version,
+first-integrated-order, source-change and publication clocks are distinct metrics.
+UI headings/captions state this explicitly. Daily mart maintenance now scopes old/
+new affected days rather than recomputing every historical day each poll; it does
+not apply CURRENT_DATE-only filters. See24_ACTIVITY_TIME_REVIEW.md and STATUS.
+
 Current scale/monitoring revision: [09_M07_SCALE_MONITORING.md](09_M07_SCALE_MONITORING.md).
 It supersedes unbounded snapshot loads/all-ID selectors while preserving the rules
 and security below. Legacy small-fixture UI acceptance is not scale acceptance.

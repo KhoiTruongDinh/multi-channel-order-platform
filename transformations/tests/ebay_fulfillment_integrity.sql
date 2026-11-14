@@ -1,8 +1,8 @@
 WITH allocations AS (
     SELECT o.raw_record_id,o.order_json,f AS fulfillment,a AS allocation
-      FROM {{ ref('stg_ebay_observations') }} o,
-           jsonb_array_elements(o.shipping_json->'fulfillments') f,
-           jsonb_array_elements(f->'lineItems') a
+      FROM {{ ref('stg_ebay_observations') }} o
+      CROSS JOIN LATERAL jsonb_array_elements(o.shipping_json->'fulfillments') f
+      CROSS JOIN LATERAL jsonb_array_elements(f->'lineItems') a
 )
 SELECT raw_record_id::TEXT AS failure
   FROM allocations a
@@ -17,11 +17,22 @@ SELECT raw_record_id::TEXT AS failure
             WHERE l->>'lineItemId'=allocation->>'lineItemId' AND l->>'lineItemFulfillmentStatus'<>'FULFILLED')))
 UNION ALL
 SELECT raw_record_id::TEXT FROM allocations
-  JOIN LATERAL jsonb_array_elements(order_json->'lineItems') l
+  INNER JOIN LATERAL jsonb_array_elements(order_json->'lineItems') l
     ON l->>'lineItemId'=allocation->>'lineItemId'
  GROUP BY raw_record_id,allocation->>'lineItemId',(l->>'quantity')::INTEGER
 HAVING sum((allocation->>'quantity')::INTEGER) > (l->>'quantity')::INTEGER
 UNION ALL
-SELECT min(raw_record_id::TEXT) FROM {{ ref('stg_ebay_observations') }}
- GROUP BY source_account_id,order_json->>'orderId',order_json->>'lastModifiedDate',content_fingerprint
-HAVING count(DISTINCT build.ebay_canonical_json(shipping_json))>1
+SELECT min(raw_record_id)
+  FROM (
+    SELECT min(raw_record_id::TEXT) AS raw_record_id,source_account_id,
+           order_json->>'orderId' AS order_id,
+           order_json->>'lastModifiedDate' AS modified_at,content_fingerprint,
+           build.ebay_canonical_json(shipping_json) AS shipping_payload
+      FROM {{ ref('stg_ebay_observations') }}
+     WHERE shipping_json IS NOT NULL
+     GROUP BY source_account_id,order_json->>'orderId',
+              order_json->>'lastModifiedDate',content_fingerprint,
+              build.ebay_canonical_json(shipping_json)
+  ) shipping_versions
+ GROUP BY source_account_id,order_id,modified_at,content_fingerprint
+HAVING count(1)>1

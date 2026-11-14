@@ -1,5 +1,554 @@
 # TẠM THỜI — Giải trình M08 để chủ dự án kiểm tra
 
+## Sửa daily aggregate/publish và nghĩa ngày trên report (14/11)
+
+Không chọn một loại ngày cho toàn hệ thống: đơn/sản phẩm theo cohort ngày tạo
+đơn nguồn, monitor theo thời gian chạy thực tế. Lượt xử lý không phải đơn mới;
+quan sát phiên bản không phải doanh thu. UI ghi rõ, không tráo tên số liệu.
+
+Lỗi chi phí đã xác nhận: daily model tính lại current toàn source. Đã sửa cả
+model lẫn publisher: dbt tạo scope ngày cũ + ngày mới của order bị ảnh hưởng,
+chỉ lấy current trong những ngày này; line dùng scoped order IDs. Các ngày ngoài
+scope giữ nguyên cả giá trị và lineage. Scope vẫn có ngày cũ khi bucket mới rỗng
+để publisher xóa đúng phần hết dữ liệu, không xóa lịch sử khác. Bootstrap/backfill
+mới xử lý phạm vi toàn bộ cần thiết; không dùng WHERE ngày hôm nay làm mất late data.
+Hai helper model/source; không đổi schema/grain của các mart/core đang công bố.
+Migration013 chỉ cấp quyền SELECT hai mart cho dbt tạo scope bootstrap.
+
+Staging hiện đã là bảng materialized, không bị chạy lại bởi từng downstream model.
+Dedup logical version xảy ra sau shape/hash; raw trùng vẫn có thể tốn công tính lại.
+Giữ bằng chứng raw, không dedup mất audit. Chưa có bằng chứng phải thêm cache/table
+cho Website ngay. Thêm timer CTAS/ANALYZE và config/prepare/drop/finish; chưa đo riêng
+mọi thao tác JSON, wrapper và commit nên không tự kết luận parse là nút thắt.
+dbt CLI threads2 chạy node độc lập được, nhưng compiled live runner vẫn tuần tự
+trong một transaction. Không bật thread trên cùng connection hay commit nửa chừng.
+
+Regression mới có case ngày cũ/mới, đổi currency, bucket rỗng, late data, replay,
+empty tick, ngày không liên quan giữ nguyên; thêm parity staging fingerprint/
+multiset với duplicate/NULL/Unicode/invalid arrays. Kết quả thực tế, cả lỗi harness
+và lần chạy lại, xem STATUS. Chưa rollout main hay chạy lại bài900.
+
+## Chuẩn hóa SQL dbt theo yêu cầu chủ dự án (14/11)
+
+- Các SQL tự viết trong models/macros/tests không còn SELECT wildcard; ghi rõ
+  projection. Macro effective_current nhận danh sách cột từ model gọi nó, không
+  kéo toàn bộ schema của core vào mỗi aggregate. Không sửa dữ liệu raw đã lưu.
+- COUNT(1), INNER JOIN rõ ràng; LEFT/CROSS LATERAL giữ đúng ý nghĩa. Dedup dùng
+  GROUP BY, kể cả kiểm tra distinct identity có xử lý NULL đúng như trước.
+  IS DISTINCT FROM vẫn giữ vì là phép so sánh NULL-safe, không phải loại trùng.
+- Bỏ hai CTE wrapper dư ở test Etsy; không tháo MATERIALIZED đang chống parse
+  JSON nhiều lần. CTE nhiều không đồng nghĩa plan sai; cần xem execution plan.
+- EXISTS dùng SELECT1, PostgreSQL tự dừng khi thấy dòng, không cần TOP(1) hoặc
+  thêm LIMIT1 cho đẹp. TOP là cú pháp SQL Server, không dùng trong PostgreSQL.
+- Đã đối chiếu index trong migration: batch/raw/dirty-key/cache có PK phù hợp;
+  các điều kiện OR mapping, metadata raw và join vào CTAS vẫn cần đo plan. Không
+  tự thêm index hoặc khẳng định mọi ON đều được index tối ưu.
+- Giữ filter theo frozen batch/source/resource và affected keys; aggregate vẫn
+  cần đọc phần current cũ không đổi để ra tổng đúng, không thêm LIMIT tùy ý.
+- Việc đổi SQL làm đổi compiled/source/cache version: chưa rollout lên main;
+  plan cũ phải từ chối. Cần compile/parity/bootstrap release mới trước khi bật.
+
+Quy tắc và giới hạn: [SQL_STYLE.md](../transformations/SQL_STYLE.md).
+Kết quả kiểm tra chính xác và các lượt cần chạy lại được ghi ở STATUS.
+
+## Review build & test bài 900 và chốt phạm vi Etsy (14/11)
+
+Report số đo thực: [23_M08D_BUILD_TIMING.md](23_M08D_BUILD_TIMING.md).
+Đã bật riêng PostgreSQL theo sự đồng ý của chủ dự án, chỉ SELECT read-only ledger
+bài cũ, rồi dừng lại: exited0. Không bật Airflow/SIM, không chạy lại pipeline.
+
+| Nguồn | Số chu kỳ | Build/test p50 / p95 / max (giây) | Model trung bình | Test trung bình | Phần chưa tách timer |
+| --- | ---: | --- | ---: | ---: | ---: |
+| Website | 11 | 1,842 / 6,971 / 7,895 | 2,890 | 0,036 | 0,197 |
+| eBay | 6 | 2,641 / 3,797 / 4,080 | 2,359 | 0,225 | 0,139 |
+| Etsy | 18 | 4,982 / 6,916 / 8,066 | 1,540 | 0,046 | 3,653 |
+
+- Đây là 35 chu kỳ thực trong cửa sổ bài 900, không phải mỗi chu kỳ xử lý cả
+  900 đơn. Còn có dữ liệu cũ trong core và raw context của các order bị ảnh hưởng.
+- Website: model product activity từng tốn5,061s. Model này join tập current
+  (đơn cũ không đổi + candidate thay đổi), rồi group theo ngày/sản phẩm/tiền tệ.
+  Output chỉ166 dòng không có nghĩa nó chỉ đọc166 dòng. Cần execution plan mới
+  để biết join/scan/spill hay contention cụ thể, chưa khẳng định nguyên nhân đó.
+- Etsy: thời gian chưa chia timer là3,653s trung bình, khoảng70% tổng thời gian.
+  Một batch KHÔNG có order mới vẫn tốn6,607s, trong đó5,679s ngoài model/test.
+  Phần này có thể gồm validate release/hash, cache hook, DROP, audit/commit/wait;
+  **chưa có số đo để kết luận hook hay mạng là thủ phạm**.
+- Các test không phải phần chiếm đa số. Không bỏ test để nhanh hơn. Runtime
+  hiện chạy SQL dbt đã compile, không khởi động dbt CLI/full project mỗi chu kỳ.
+- Đề xuất: đo các subphase còn thiếu trước; profile product aggregate cả3nguồn;
+  sau đó thiết kế no-business-change tick để không rebuild nghiệp vụ khi không
+  đổi, nhưng vẫn giữ audit/checkpoint/health/mapping và raw consumption đúng.
+- Publish tạm chưa tối ưu theo yêu cầu. Không có bằng chứng chậm do đường truyền.
+
+**Etsy SIM giữ nguyên** ở slice tiếp theo. Sửa collect bỏ GET receipt dư; vẫn cần
+đổi eligibility/route/staging/cache/evidence để nhận đúng page array, không phải
+chỉ xóa một lời gọi HTTP. Giữ GET cho webhook/fallback. Xong phải parity dbt,
+release/bootstrap mới rồi mới bật live; chưa triển khai code ở lần review này.
+
+## Hướng nâng cấp collect đã sửa sau review (14/11)
+
+Lần này chỉ sửa doc/plan, **chưa sửa collector/SIM hay chạy lại test tải**.
+Thiết kế chi tiết và diagram: [22_M08D_EBAY_ACQUISITION.md](22_M08D_EBAY_ACQUISITION.md).
+
+- Đổi quyết định cũ: page lấy tuần tự; tối đa hai worker **lấy detail/enrichment**
+  cho từng source/account khi cần. Không phải bật thêm hai DAG hay hai owner.
+- eBay tận dụng Order trong page khi đủ; chỉ lấy thêm cancellation/shipping hoặc
+  fallback thật sự cần. Batch `orderIds` tối đa 50 vẫn có thể hỗ trợ khi cần lookup
+  theo nhóm, nhưng không bắt buộc gọi lại toàn bộ đơn đã có payload đầy đủ.
+- Batch vẫn là getOrders, không giàu thông tin cancellation hơn list. Khi có
+  cancellation hoặc thiếu/chưa chắc dữ liệu, vẫn gọi getOrder riêng. Shipping
+  collection vẫn theo từng order nếu cần bằng chứng ngày gửi và phân bổ line.
+- SIM cần hỗ trợ orderIds nếu dùng grouped lookup và thu hẹp khóa đang bao cả
+  request để detail thực sự chạy song song. Không tự tạo bulk fulfillment API.
+- Một response thật chỉ lưu một raw; dbt tách Orders từ array và giữ lineage
+  theo raw + order ID. Không giả raw detail hay tự tạo history chưa quan sát.
+- Etsy recovery: SIM đã trả receipt kèm transactions và các trường shipment có
+  trong payload. Bỏ GET detail dư khi page đã đủ, nhưng phải sửa route/staging/cache
+  để dùng đúng page element. Một page có nhiều receipt: không được dùng page hash
+  làm cache key duy nhất cho mỗi receipt. Không giả raw detail hay attempt HTTP.
+- Etsy webhook vẫn cần GET receipt theo resource URL; dùng tối đa hai detail worker
+  nếu cần, giữ lease/token/audit và quota chung. SIM đã đủ payload nên giữ nguyên;
+  nếu khóa request hạn chế speedup thì ghi số đo, không tự sửa SIM để đẹp kết quả.
+- Website đang lấy hàng loạt order và child bằng ANY(order_ids), cùng transaction
+  REPEATABLE READ READ ONLY. Giữ một snapshot, không ép hai worker gây lệch snapshot.
+- Sau collect, freeze/dbt/publish đã xử lý nhiều order bằng SQL theo tập. Python
+  loop model/table, không phải chạy cả pipeline/commit một lần cho từng order.
+  JSON vẫn phải parse từng phần tử trong DB; đó không phải N lần gọi DB từ Python.
+- Giữ kiểm tra page bị thay đổi, retry/budget, checkpoint hoàn tất một lần sau
+  toàn bộ công việc; detail worker không tự giải quyết việc offset có thể bỏ sót.
+- S01 giữ nguyên. Model thay đổi cần release/compile/parity/bootstrap mới, rồi
+  chạy lại đúng bài 900; chưa khẳng định sẽ đạt dưới 10 giây.
+
+Hướng Etsy đã được chủ dự án đồng ý và đưa vào plan ở lần review này. Đây vẫn là
+thiết kế, chưa sửa code runtime. Không coi việc đọc code là test concurrency hay
+chứng nhận dữ liệu thực tế của mọi tài khoản Etsy đều đủ trường.
+
+## Kết quả mới nhất: bài 900 đã PASS, chưa đạt tổng xử lý dưới 10 giây (13/11)
+
+Đã hoàn tất đúng thứ tự: sửa/gate startup Airflow → test đổi mapping → rollout
+delta trên main có dữ liệu cũ → chạy nguyên `campaign_rate_900.json`.
+
+- Bài 900 exit0, `BASELINE_PASS` và load assessment `PASS`. Đối chiếu độc lập
+  đủ 900 đơn, 3.801 dòng sản phẩm, không có sai lệch; mỗi nguồn 300 đơn đúng
+  trạng thái cuối. Không reset dữ liệu, không abort batch hay nới retry/budget.
+- Scheduled successes trong cửa sổ tải: Website 10, eBay 5, Etsy inbox 9,
+  Etsy recovery 7; ngưỡng cũ yêu cầu ít nhất 2 cho mỗi DAG.
+- Sau cửa sổ phát dữ liệu, quan sát đủ dữ liệu cuối sau **96,438 giây**,
+  dưới giới hạn drain 900 giây. Future versions và pending sends đều về 0.
+- Report: `runtime/campaign-55425905726c48c880d022e0fbface94/report.json`.
+  Dataset: `campaign-rate-900-8eab0dfd3312`; campaign nguồn `9caed6c79e22`.
+  Main cuối có Website 2.919/eBay 2.723/Etsy 2.837 đơn: giữ 7.579 đơn cũ,
+  thêm đúng 900 đơn. Airflow healthy, giữ nguyên 7 cờ pause và plan đã kiểm chứng.
+- 28 mẫu tài nguyên: đỉnh RAM quan sát toàn stack khoảng 2,25 GB, DB tăng khoảng
+  30,8 MiB; Docker 2 CPU, khoảng 4 GB RAM. Đây là đỉnh lấy mẫu, không phải giới
+  hạn công suất tối đa hay bằng chứng ổn định nhiều giờ.
+
+**Điểm chưa đạt là tổng collect → publish dưới 10 giây.** Build/test p95 hiện
+Website 6,971s/eBay 3,797s/Etsy 6,916s; nhưng collect p95 eBay 59,427s và Etsy
+40,153s. Ngay các workflow không retry cũng có tổng thời gian vượt 10 giây.
+Không được lấy riêng SQL nhanh hay bài 900 PASS để nói toàn pipeline dưới 10s.
+
+Lý do retry eBay đã xác nhận là `mutable page total; reconcile window`: API nguồn
+đổi trạng thái trong lúc đọc nhiều trang. Code `ingestion/ebay.py`, hàm `acquire`,
+đang lấy detail của hết một page rồi mới đọc page tiếp theo; khoảng cách dài làm
+dễ gặp thay đổi tập kết quả. Có 5 collection attempt lỗi kiểu này rồi retry thành
+công theo budget cũ, không phải 5 DAG thất bại vĩnh viễn. Raw/audit được giữ lại;
+HTTP trả 200 vẫn có thể bị từ chối vì pagination không nhất quán.
+
+Đề xuất tiếp theo, **chưa sửa trong bài đo**: crawl hết các list page trước rồi
+mới xử lý detail, giữ kiểm tra window/checkpoint/audit; sau đó kiểm chứng concurrency
+HTTP có giới hạn nếu cần. Không bỏ kiểm tra mutable page hay tăng retry để che lỗi.
+Chưa chạy burst/soak hay tăng tải tiếp; chưa gọi toàn M08D hoàn thành. Số
+77,376s/p95 236,711s trong report là từ lúc trạng thái cuối đủ điều kiện xuất hiện
+ở nguồn đến lần SQL observer nhìn thấy, bao gồm polling/retry; không phải riêng
+thời gian transform hay exact commit latency.
+
+## Đang tiến tới bài tải 900: thứ tự triển khai ngày 13/11
+
+Mục tiêu là chạy lại **nguyên cấu hình** `campaign_rate_900.json`: 300 đơn mỗi
+nguồn, tổng 900 đơn trong 10 phút phát sinh dữ liệu. Không nới giới hạn drain,
+retry, tài nguyên hay số chu kỳ scheduled thành công để đổi kết quả thành PASS.
+
+1. Sửa startup Airflow: đợi Execution API sẵn sàng rồi mới bật scheduler. Bản
+   adapter đầu tiên bị lỗi JWT ngay lúc khởi động trong môi trường test, chưa tới
+   bước restart cố ý; không phải lỗi JWT đã xác nhận trên main. Đã sửa cách chia sẻ
+   và lưu bền khóa ký trước khi import Airflow. Không tắt kiểm tra chữ ký.
+2. Gate restart mới đã có 3 chu kỳ Website SUCCESS, mỗi chu kỳ đúng try2: lỗi
+   freeze cố ý một lần rồi retry thành công. Đang chạy tiếp gate mapping/full dbt;
+   chưa được coi toàn bộ lượt test PASS khi chưa khôi phục/xác minh main xong.
+3. Đổi mapping chỉ trong DB test: đóng mapping cũ, thêm bản mới; plan cũ phải bị
+   từ chối. Rebootstrap đối chiếu đủ 8 đầu ra với dbt build đầy đủ trước publish,
+   giữ snapshot ID/fingerprint/first_observed_at và raw audit. Không tự bật lại
+   artifact cũ trên publication mới dù trả config mapping về hash cũ.
+4. Khi các gate PASS mới rollout main: drain đến idle, chỉ dừng Airflow; migration
+   012 bổ sung, compile/bootstrap riêng 3 nguồn, đối chiếu full dbt trước publish,
+   rồi thay container Airflow. Giữ PostgreSQL/SIM/dữ liệu và 7 cờ pause. Cần ít
+   nhất 2 scheduled successes cho mỗi DAG live trước khi chạy tải.
+5. Sau đó mới chạy 900 và báo riêng correctness, cadence, drain, latency, tài
+   nguyên. Chưa có kết quả 900 mới ở checkpoint này; không suy từ test nhỏ ra SLA.
+
+Tool rollout mới là `tools/s02_data/delta_deploy.py`, phải có report gate PASS
+đúng mã nguồn và xác nhận local. `LIVE_DELTA_PLAN_DIR` là đường dẫn release rõ
+ràng, không phải chọn dataset. Khi bật, các chu kỳ vẫn tự lấy dữ liệu mới qua
+source interface bình thường; không gen data hay compile lại dbt mỗi chu kỳ.
+Nếu bootstrap lỗi thì giữ batch/artifact để kiểm tra, không tự abort hay reset.
+Lệnh và kết quả cuối từng bước được cập nhật trong `docs/STATUS.md`.
+
+Cập nhật gate: `runtime/delta-startup-mapping-20261113-02.json` đã exit0/PASS,
+khôi phục đúng container/image main healthy, 7 pause flags và drain state không
+đổi. Test mapping giữ nguyên 113 snapshot, tái xử lý 234 raw; đủ 8 output bằng
+full dbt 54 node. Đã bắt đầu lệnh rollout main, đang drain; chưa chạy bài 900 mới.
+
+Cập nhật triển khai: rollout main đã PASS. Cả 3 nguồn qua full dbt 54 node và
+đối chiếu đủ 8 output trước publish; Airflow healthy, 7 pause flags không đổi,
+mỗi DAG live có 2 scheduled successes. Không reset PostgreSQL/SIM/raw. Đang chạy
+nguyên bài 900: report `runtime/campaign-55425905726c48c880d022e0fbface94/report.json`,
+dataset `campaign-rate-900-8eab0dfd3312`, admit lúc 21:52:56 ngày 13/11 (giờ local).
+Phát sinh 300 đơn/nguồn trong 10 phút; pipeline tự chạy qua SQL/HTTP như bình thường.
+Chưa có kết quả cuối, không gọi toàn M08D hoặc mốc MAX dưới 10 giây là PASS.
+
+## Ưu tiên 1/2: đã xác định nguyên nhân retry, gate đa nguồn PASS (13/11)
+
+Kết quả cuối: `runtime/delta-scheduled-four-dags-20261113-03.json`, exit0/PASS.
+26 scheduled runs đều SUCCESS, task cycle đều try1:
+
+| DAG | Runs thành công |
+| --- | ---: |
+| website_polling | 10 |
+| ebay_polling | 9 |
+| etsy_inbox | 4 |
+| etsy_recovery | 3 |
+
+104 stage attempts collect/freeze/build/publish đều SUCCEEDED ở attempt1.
+Giữ khóa nguồn Etsy trong DB test khiến cả hai sensor Etsy reschedule đúng;
+Website/eBay vẫn hoàn tất. Sau khi thả khóa, các Etsy workflow tiếp tục bình thường,
+không reset budget hay sửa trạng thái task trong DB. Một webhook ký thật được
+receiver nhận202; receipt9001002 không có webhook vẫn được recovery tìm qua HTTP.
+
+Receipt9001001 được quan sát4lần và9001002 được quan sát3lần nhưng mỗi đơn chỉ có
+1snapshot marketplace, không nhân đôi history. Inbox có1detail HTTP; recovery
+có6detail qua3runs. Raw frozen đã được tiêu thụ đủ sau publish; cả3publication
+pointers đúng cycle hoàn tất cuối. Web có2snapshot do bootstrap rồi cập nhật nguồn.
+
+Đã lưu/đọc26task logs trong archive tar.gz ở thư mục evidence của test. Main đã
+khôi phục đúng container/image, healthy, giữ nguyên7pause flags và bỏ đúng tín
+hiệu drain test tạo. Scope test đã cleanup; không dừng PostgreSQL/SIM main,
+không xóa dữ liệu, không abort thêm batch, chưa bật delta/migration012 trên main.
+
+Đây là gate scheduling/contention với dữ liệu nhỏ, KHÔNG phải chốt tải900 hay
+cam kết dưới10s trên dữ liệu main tích lũy. Còn startup hardening, mapping/bootstrap,
+rollout có kiểm soát và các bài tải/burst/soak. Chưa stage/commit/push.
+
+### Giải thích retry và các lượt test thất bại trước khi sửa harness
+
+Lượt tái hiện `delta-scheduled-diagnostics-20261113-01.json` giải thích được 4 tries:
+
+1. Try 1 lỗi freeze do test cố ý tạo, raw và manifest đã lưu bền vững.
+2. Try 2 bắt đầu trong 30 giây chờ dừng container, rồi bị ngắt trước khi chạy
+   nghiệp vụ. Đây là khoảng shutdown, không phải collect lại.
+3. Khi khởi động lại, scheduler nhận diện task mồ côi và giao try 3 trước khi
+   Execution API sẵn sàng. SDK/LocalExecutor báo `Connection refused`.
+4. Try 4 thành công. Ledger nghiệp vụ vẫn chỉ collect một lần, freeze lỗi một
+   lần rồi thành công; build/publish một lần. Không reset budget.
+
+Đây là race shutdown/startup của Airflow standalone đã tái hiện bằng log và
+metadata, không phải kết luận do dbt SQL hay hết RAM. Các cycle sau có 2 tries
+vì fault được cấu hình một lần MỖI WORKFLOW, không phải chỉ một lần lúc deploy.
+Chưa thay đổi startup của main; hướng hardening là chỉ cho scheduler dispatch
+khi Execution API thật sự ready, không tăng retry để giấu lỗi.
+
+Lưu ý trung thực: các assertion workflow đã qua nhưng lệnh diagnostic tổng
+exit1 ở bước copy log: thư mục chứa dấu `:` trong run ID không hợp lệ trên Windows.
+Đã đổi sang nén `.tar.gz` bên trong container rồi copy một file, không giải nén
+tên thư mục đó ra Windows. Main vẫn được khôi phục healthy, 7 pause state nguyên
+vẹn và bỏ đúng tín hiệu drain do test tạo. Không đổi kết quả FAIL thành PASS.
+
+Bước 2 dùng `--all-sources`: chạy Website, eBay, Etsy inbox và Etsy recovery
+bằng DAG production trong scope test. Test giữ khóa nguồn Etsy tạm thời để
+quan sát hai sensor `reschedule`, còn Website/eBay vẫn hoàn tất. Khi thả khóa,
+Etsy phải chạy tiếp; có webhook ký thật gửi vào receiver HTTP riêng ngoài DAG,
+và một receipt không có webhook để recovery tự tìm qua HTTP. Mỗi DAG phải có
+ít nhất 2 scheduled successes, đúng plan/pointer, không mất raw hay nhân snapshot.
+
+Lượt four-dags01 bị từ chối an toàn trước khi dừng main do scheduler tạo nốt
+interval giữa hai lần đọc idle. Đã yêu cầu idle liên tục 15 giây trong cùng giới
+hạn 600 giây; không abort hay ép task success. Lượt02 có20DAG runs thành công
+nhưng test tổng FAIL vì join nhầm raw receipt đã xác nhận với raw HTTP audit:
+hai loại là hai bản ghi riêng. Đã sửa truy vấn theo `metadata.http_raw_id` và
+`collection_run_id`, KHÔNG sửa ingestion để chiều test. Lượt03 mới là kết quả PASS
+nêu ở đầu mục. Các FAIL vẫn được giữ nguyên trong STATUS và report, không đổi xanh.
+Chưa bật delta trên main, chưa đo lại900/burst/soak.
+
+## Gate scheduler delta Website thật đã PASS (13/11)
+
+Đã chạy `runtime/delta-scheduled-20261113-02.json`, exit0. Dùng DAG Website,
+sensor, collector và SQL dbt thật trong môi trường cô lập; không mock nghiệp vụ.
+Gây lỗi có chủ đích sau freeze lần 1, restart container Airflow test, rồi kiểm tra:
+
+- Chính DAG run bị restart kết thúc `success`, không chỉ dựa vào bảng ops.
+- Cùng cycle/batch: collect chỉ một lần; freeze lần 1 RETRYABLE, lần 2 thành công;
+  build/publish thành công. Không reset budget hay recollect khi retry.
+- Có hai scheduled run kết thúc thành công sau restart; tổng ba run cuối đều
+  thành công, kể cả run đã tạo thêm trước khi drain test. Con trỏ publish đúng.
+
+Một điểm cần review tiếp: task Airflow bị restart dùng tới 4 lần thử, trong khi
+ledger nghiệp vụ chỉ có 2 lần freeze. Chưa giữ đủ log để kết luận nguyên nhân
+các retry bổ sung; chưa thể nói do RAM hay API startup. Không giấu điểm này bằng
+cách tăng budget hoặc ép task success.
+
+Main được drain cho run đang có chạy hết, chỉ dừng Airflow khi thực sự idle.
+Sau test đã khôi phục đúng container/image, healthy, giữ nguyên cả 7 pause state
+và bỏ đúng tín hiệu drain do test tạo. Không abort thêm batch, reset dữ liệu hay
+bật migration012/delta trên main. Scope test đã cleanup.
+
+Lượt 01 chỉ là bằng chứng một phần: param ở task ghi đè param DAG nên ban đầu
+fault chưa bật; sau sửa có retry thật nhưng chưa ghi đầy đủ trạng thái cuối DAG.
+Đã sửa wrapper cấu hình cả DAG/task, thêm kiểm tra SDK serialization và siết gate;
+lượt 02 mới được dùng để chốt gate này. Lệnh/kết quả đầy đủ ở `docs/STATUS.md`.
+
+Chưa xong toàn bộ M08D: còn scheduled delta đa nguồn/contention, đổi mapping và
+bootstrap lại, dữ liệu main tích lũy, tải 900/burst/soak. Đây không phải bài đo
+healthy dưới 10s vì cố ý fault và restart.
+
+## Đã abort chính thức batch cũ được bạn cho phép (13/11)
+
+Batch `0bf4d6be-5ed6-5b56-85c7-d8b56c3e4781` và workflow owner đã chuyển sang
+FAILED qua CLI chính thức, exit0. Đã xác minh lại DAG owner FAILED/task skipped,
+không có SQL thực thi trước thao tác; dùng lại đúng lượt chờ 5 đã thành công.
+
+Đối chiếu trước/sau: giữ nguyên toàn bộ 20.961 raw và manifest của batch (cả số
+lượng lẫn chữ ký dữ liệu), con trỏ last-good Etsy không đổi. Không reset retry,
+không ép task success; dòng audit build_and_test RUNNING cũ vẫn giữ làm bằng chứng.
+Source owner đã được workflow kế tiếp nhận theo cơ chế bình thường, không sửa tay.
+
+Không dừng/restart Airflow, không đổi pause state hay bật delta trên main. Các
+container vẫn healthy. Chưa chạy gate scheduler riêng; lệnh đầy đủ và kết quả
+được ghi ở đầu `docs/STATUS.md`. Chưa stage/commit.
+
+## Kiểm tra tiếp recovery và dữ liệu tích lũy (13/11)
+
+Đã chạy `runtime/delta-recovery-20261113-01.json`, kết quả PASS cho ba tình
+huống bổ sung trên PostgreSQL tạm:
+
+1. Kill thật tiến trình Python ngay sau khi tạo bảng candidate nhưng chưa
+   commit. DB rollback phần chưa commit và nhả khóa nguồn. Batch vẫn BUILDING,
+   raw chưa bị đánh dấu xử lý; lần thử 2 build/publish thành công.
+2. Kill thật tiến trình khi publish đang sửa core/mart nhưng chưa commit. Một
+   connection đọc độc lập vẫn thấy last-good. Retry ghi publisher cũ là
+   FAILED/INTERRUPTED rồi publish thành công, không mất raw.
+3. Hai tiến trình Website/eBay cùng có đơn bị ảnh hưởng, cùng qua điểm bắt đầu
+   build; cả hai build và publish thành công vào con trỏ nguồn tương ứng.
+
+Full dbt 54 node và cả 8 bảng đầu ra vẫn khớp sau các tình huống đó. Đây là kill
+tiến trình SQL/Python, **chưa phải restart scheduler/container Airflow**.
+
+Đã thêm `--http-rounds 3` vào probe: chạy 27 cycle, sinh thêm 333 đơn cho mỗi
+nguồn, giữ nguyên raw/warehouse qua các đợt. Mỗi cycle kiểm tra tổng đơn tích
+lũy; báo cáo tách riêng PASS dữ liệu và PASS/FAIL mốc 10 giây. Kết quả lượt dài
+được cập nhật vào `docs/STATUS.md` khi kết thúc. Không gọi đây là tải 900 hoặc soak.
+
+**Lượt tích lũy đã xong, PASS:** 27/27 cycle dưới 10s, không mẫu nào vượt.
+Thời gian lớn nhất Web 3,58s / eBay 5,87s / Etsy 8,56s. Cuối lượt có
+335/334/334 đơn trong core tương ứng (333 đơn mới mỗi nguồn cộng seed regression).
+Full dbt 54 node và cả 8 bảng đầu ra vẫn khớp. Đây chưa phải dữ liệu main/tải 900.
+
+Không đổi schema hay thuật toán nghiệp vụ trong lượt này, chưa bật delta trên
+main, không reset dữ liệu của bạn. Docker hiện khoảng 4 GB RAM; muốn chạy thêm
+scheduler riêng thì cần cửa sổ Airflow chính idle và được bạn cho phép tạm dừng,
+rồi khôi phục. Chưa có xác nhận thì không tự dừng.
+
+Bạn đã cho phép dừng Airflow chính **nếu idle**, nhưng kiểm tra thấy chưa idle:
+4 DAG còn running/reschedule/retry. Batch Etsy
+`0bf4d6be-5ed6-5b56-85c7-d8b56c3e4781` còn TESTED, trong khi DAG owner
+`etsy_inbox` lúc 05:00 UTC đã FAILED lúc 05:30 UTC; audit build_and_test vẫn
+RUNNING. TRANSFORM hoàn thành sau lúc DAG kết thúc khoảng 3 giây. Snapshot kiểm
+tra không có SQL main đang thực thi; đây là trạng thái giữ lại trên đường main
+cũ, không phải probe delta tạo ra. Chưa tự abort batch, drain, đổi pause state
+hay dừng Airflow. Cần chốt xử lý owner cũ và quiet window trước gate scheduler.
+
+## Đã nối đường delta vào workflow, nhưng chưa bật main (13/11)
+
+Đường thử nghiệm không tạo workflow/retry riêng. Nó dùng lại collector và các
+bước collect → freeze → build_and_test → publish hiện có; giữ giới hạn 5 lần thử,
+quyền sở hữu theo nguồn và lệnh abort chính thức. Một cycle đã chọn plan nào thì
+retry vẫn dùng đúng hash/phiên bản đó. Thiếu plan thì dừng trước khi lấy dữ liệu,
+không âm thầm chuyển về đường cũ. Audit publish thành công được commit cùng dữ
+liệu, con trỏ publication và danh sách raw đã xử lý.
+
+Đã kiểm tra bằng collector SQL/HTTP thật trên DB tạm, không đọc thẳng DB SIM cho
+marketplace. Đường mới vẫn cho kết quả khớp cả 8 bảng core/mart với full dbt
+54 node. Kiểm tra coordinator đã bao gồm hết 5 lần thử, abort rồi chạy tiếp mà
+không mất raw, chặn chen ngang cùng nguồn và cho nguồn khác tiến triển độc lập.
+
+Đo trước sửa HTTP, với 100 đơn thay đổi: Web 3,67s, eBay 6,83s, Etsy 15,53s.
+Etsy **chưa đạt 10s**; chủ yếu chậm ở collector, không phải dbt. Profile chỉ ra
+việc tạo HTTP opener liên tục; đo riêng tạo 100 opener mất 14,7s, gần hết do nạp
+lại kho chứng chỉ. Đã sửa tái sử dụng opener theo worker thread, không tắt kiểm
+tra TLS, không bỏ request/audit hay thay cách claim. Lượt đo lại không profile
+sẽ xác nhận hiệu quả; không lấy số microbenchmark làm kết luận toàn pipeline.
+
+**Kết quả cuối trên đúng code mới:** probe đã sửa thư mục làm việc và kiểm tra
+đường dẫn module collector để không lẫn code cũ trong image. Với 100 đơn:
+Web **4,17s**, eBay **9,21s**, Etsy **7,05s**, bao gồm đọc xác nhận publication.
+Cả 9 mẫu 1/10/100 đơn đều dưới 10s; full dbt 54 node và cả 8 bảng đầu ra khớp.
+Đây chỉ là mỗi mức một mẫu trên DB tạm nhỏ, chưa phải chứng nhận tải 900 đơn;
+eBay còn ít dư địa. Các lượt 02–04 dùng collector cũ đã được ghi rõ trong STATUS,
+không coi chúng là số đo của sửa opener.
+
+Chưa bật migration012 hoặc cấu hình delta trên main, chưa đụng `.env` của bạn.
+Các test tạm không tạo scheduler Airflow thứ hai và không reset dữ liệu chính.
+Chưa chứng nhận tải 900 đơn/soak, scheduler delta thật hoặc kill/restart. Chi tiết
+lệnh, kết quả lỗi ban đầu và các gate chưa chạy được ghi ở đầu `docs/STATUS.md`.
+
+## Tối ưu mới theo mục tiêu lấy dữ liệu → publish ≤10 giây (13/11)
+
+**Chưa bật đường mới trên main và chưa tuyên bố đạt 10 giây.** Hướng được chốt
+là thay cách làm, không chỉ tăng RAM hay sửa một câu SQL:
+
+- Không khởi động dbt CLI cho mỗi lượt: đã đo riêng bước parse mất44,12giây
+  trong stack đang chạy. Compile SQL/test của dbt một lần khi triển khai; mỗi lượt
+  chạy lại chính SQL đã compile, kiểm tra hash code/mapping để không dùng nhầm bản.
+- Raw vẫn giữ mọi lần lấy dữ liệu. Một bảng chỉ mục nối raw với mã đơn giúp tìm
+  đơn nào bị ảnh hưởng. Chỉ dựng lại lịch sử của các đơn đó từ bằng chứng đã lấy;
+  không tạo lịch sử từ lịch gen SIM và không bỏ bản đến trễ.
+- Mỗi nguồn có schema build riêng. Khi publish, chỉ thay những đơn bị ảnh hưởng;
+  bảng tổng hợp do dbt tính trên cả đơn mới lẫn đơn cũ không thay đổi. Raw chỉ được
+  đánh dấu đã xử lý trong cùng transaction publish thành công.
+- Full dbt/S01 vẫn là bài regression độc lập. Đây không phải bỏ dbt/test để lấy
+  số đo đẹp. Tài liệu tiếng Anh chi tiết:21_M08D_DELTA_RUNTIME.md.
+
+```mermaid
+flowchart LR
+    A[Collector SQL / HTTP như cũ] --> R[(Raw: giữ mọi lần lấy)]
+    R --> K[Raw mới → các đơn bị ảnh hưởng]
+    K --> D[SQL dbt đã compile: dựng lại các đơn đó]
+    D --> T[Test nghiệp vụ đúng nguồn]
+    T --> P[Publish atomic: core + mart + con trỏ + raw đã xử lý]
+    O[Đơn cũ không đổi] --> M[dbt tính tổng đúng toàn nguồn]
+    D --> M --> P
+```
+
+Bộ thử PostgreSQL tạm đã pass3nguồn, duplicate raw, lỗi test, rollback publish,
+retry, lượt không có raw mới và giữ nguyên đơn không thay đổi. Đã đối chiếu với
+full dbt54node PASS: cả8bảng core/mart khớp mọi trường nghiệp vụ, bỏ qua duy nhất
+cột batch lineage có chủ đích. Đơn không đổi được giữ batch lần dựng gần nhất;
+publication_state chỉ lần publish mới nhất của nguồn.
+
+Đã kiểm tra thêm bản đến trễ, lỗi dữ liệu nghiệp vụ, khóa nguồn và retry sau khi
+Python bị ngắt sau một lệnh CREATE TABLE thật. Full dbt54node và8bảng vẫn khớp.
+Đã tìm được chi phí JIT: một SELECT eBay tốn gần3giây, riêng biên dịch2,90giây;
+tắt JIT cho đúng transaction và cập nhật statistics sau khi dựng bảng giúp phần
+build/test eBay trong mẫu mới còn0,48giây. Không đổi JIT toàn PostgreSQL.
+
+Report04 đo riêng freeze/build/test/publish: eBay2,09giây, Etsy2,31giây,
+Website khoảng2,26–2,62giây. Mẫu dữ liệu nhỏ trong DB tạm, **chưa có collector**,
+không phải đo tải900đơn và không đủ để tuyên bố cả pipeline dưới10giây.
+File kết quả: runtime/delta-probe-20261113-04.json.
+
+Những số này **không phải** thời gian lấy dữ liệu → publish. Vẫn phải tích hợp
+ownership/retry/audit của Airflow, kiểm tra restart/concurrency, bootstrap rõ ràng,
+rồi đo cả collector trên dữ liệu lưu sẵn. Chưa sửa cách bạn bật pipeline hiện tại.
+Lệnh thử cô lập và giới hạn được ghi trong transformation/DELTA.md; kết quả thực
+tế/lệnh chạy nằm đầu STATUS.md. Không xóa DB/volume hay tự commit.
+
+## Kiểm tra lại ngày13/11/2026 — batch đã publish, không abort
+
+Bạn đã duyệt abort batch1513a865..., nhưng đọc lại DB sau khi khởi động
+PostgreSQL cho thấy batch **PUBLISHED**, workflow DB **SUCCEEDED**, không còn
+barrier. Vì vậy **không thực hiện abort**. Airflow vẫn giữ run FAILED do timeout;
+không sửa audit thành success. Trạng thái TESTED đã đọc hôm trước chưa phải trạng
+thái commit cuối. published_at lưu trong DB không phải mốc đo được lúc commit.
+
+Đã giữ volume/data, khởi động stack qua drain/migrate/rebuild có guard. Image mới
+có đúng SQL cuối5bd4e013... và FIFO8fd93d88..., khớp workspace. Startup PASS,
+service healthy, gỡ drain marker và bật lại đủ bốn lịch.
+
+Kết quả thật sau triển khai:
+
+| Kiểm tra | Kết quả |
+| --- | --- |
+| Full dbt eBay | 54node PASS,52,81giây; batch PUBLISHED |
+| Node evidence eBay có dữ liệu | 13.700dòng,1,60giây; không phải node rỗng |
+| Full dbt Etsy inbox | 54node PASS,78,36giây; batch PUBLISHED |
+| Evidence eBay trong build Etsy | 13.700dòng,3,50giây |
+| Cache Etsy | 2.567payload giữ nguyên; staging7.345quan sát,7,19giây |
+| Đối soát dữ liệu900đơn cũ | PASS900đơn/3.801lines/904phiên bản quan sát,0lỗi |
+
+Đây chưa phải lần chạy tải900mới hay phép đo A/B toàn pipeline. Run recovery mới
+còn đang chờ/retry nguồn tại checkpoint; không nói cả bốn DAG đã SUCCESS. Cần
+kiểm tra tiếp recovery/cadence trước khi chạy qualification900. Các phần còn tốn
+thời gian trong build Etsy là staging eBay33,72s, staging Website24,26s và test
+fulfillment15,33s; không cộng đơn giản vì dbt có chạy song song.
+
+Chưa chấm PASS toàn M08D, chưa stage/commit/push. Stack đang bật để bạn xem UI;
+chi tiết batch, timestamps, lệnh và các check chưa chạy được ghi trong STATUS.
+
+## Checkpoint trước đó — chưa triển khai xong SQL cuối, 12/11/2026
+
+- FIFO đã triển khai và quan sát được eBay có ticket cũ được chạy trước cycle mới.
+- SQL eBay bản đầu nhanh trên mẫu nhỏ nhưng full build mất79,4giây. Đã giữ kết
+  quả bất lợi này, không tuyên bố toàn pipeline nhanh hơn. Plan sau đó cho thấy
+  PostgreSQL ước lượng observations/raw chỉ1dòng, chọn Nested Loop không phù hợp.
+- Bản sửa cuối nối bằng chứng raw trước, JOIN ranked versions sau. Đã kiểm tra
+  toàn bộ3.152quan sát eBay/13.700liên kết bằng chứng: đủ5cột khớp bản cũ. Mẫu SQL
+  đầy đủ median26,8s->1,7s; mẫu ranked-view30,0s->3,2s. Đây chưa phải full build.
+  Compile, full dbt build trên DB rỗng,13case coordinator và import4DAG đều PASS.
+- Bản cuối **chỉ có trong workspace**, chưa vào image chính. Drain hết600giây
+  nên đã dừng đúng giới hạn. Run Etsy recovery cũ sau đó hết30phút khi batch
+  `1513a865-d10b-536d-a01f-135de14f73f5` đã TESTED nhưng chưa publish. Artifact
+  đủ54node PASS, không phải fail nghiệp vụ; phần chờ đã dùng gần hết thời gian DAG.
+- Cần bạn duyệt abort chính thức **đúng batch mới này**, rồi mới rebuild khi idle.
+  Chưa dùng quyền duyệt batch trước cho batch mới. Không reset retry, xóa raw hay
+  đổi last-good. Dữ liệu và service còn nguyên; drain mode còn bật nên không xem
+  container healthy là pipeline đã chạy lịch bình thường trở lại.
+- Chưa chạy lại bài900 hay chấm PASS M08D; không stage/commit/push.
+
+## Tối ưu tiếp: bằng chứng eBay và FIFO — 12/11/2026
+
+Cache Etsy và sensor reschedule đã có bằng chứng chạy thật; FIFO được kiểm tra
+cô lập, triển khai tiếp qua drain/rebuild có bảo vệ. Trong lượt này guard phát
+hiện batch Etsy `2b1c970b-dd4c-5679-92dd-bff5463bd0cb` bị giữ BUILDING khi DAG
+sở hữu đã FAILED. Sau khi bạn đồng ý, đã abort bằng workflow chính thức: giữ
+20.903 dòng manifest và giữ nguyên mọi last-good publication; không reset retry.
+
+Ưu tiên3 bắt đầu bằng execution plan, không đoán rồi thêm index. SQL evidence
+eBay cũ tạo nhiều cặp raw/observation trong cùng run rồi lọc OR. Mẫu300đơn gọi
+hàm đọc JSON180.000lần. Bản mới tách đường liên kết detail, metadata và list page;
+mỗi page chỉ mở mảng một lần, cuối cùng DISTINCT để không nhân bằng chứng.
+Không bỏ audit, không đổi fingerprint/history, không thay schema nghiệp vụ.
+
+Probe tạm đã PASS10case, gồm600quan sát thật/2.613liên kết bằng chứng khớp toàn
+bộ5cột. Median SELECT trên mẫu thật: cũ4.932,5ms, mới248,8ms; đây là SQL đơn lẻ
+trên dữ liệu đã chụp, không phải toàn pipeline nhanh20lần hay M08D đã PASS.
+Xem diagram/runbook trong `docs/20_M08D_REUSE_COORDINATION.md` và STATUS để biết
+deployment/full dbt đã hoàn tất chưa. Bài900, burst/soak chưa được chấm lại.
+
+## Ưu tiên 1 và 2 — đang kiểm chứng, 12/11/2026
+
+Hai thay đổi được chủ dự án đồng ý đang được triển khai:
+
+1. **Cache chuẩn hóa Etsy:** `cache.etsy_payloads` trong `data_platform`, không
+   nằm ở DB SIM. dbt chỉ chuẩn hóa payload còn thiếu theo source/account/byte hash/
+   phiên bản code. Sau đó nối ngược lại **tất cả raw thuộc manifest**. Không xóa
+   raw trùng, không gộp mất audit, không dựng history chưa từng quan sát. Đổi code
+   chuẩn hóa tự có version cache mới; mapping version không thay source identity.
+2. **Nhường worker khi chờ:** bốn DAG live vẫn có task `cycle`, nhưng task dùng
+   sensor `reschedule`. CLI trả75 khi coordinator bận: task chuyển sang chờ lịch
+   lại, không giữ worker và không tiêu một business retry. Quyền theo nguồn nằm
+   trong `ops.source_cycle_owners`, đồng hồ chờ nằm ở `ops.coordinator_waits`.
+   Vì vậy Etsy inbox và recovery không vượt nhau sau khi task nhường worker.
+
+Migrations010/011 chỉ bổ sung cache và operational state; không đổi core/source
+schema. Shared build/publish vẫn được bảo vệ bằng DB lock, không chạy song song
+vào cùng candidate tables. S01/manual CLI giữ kiểu chạy cũ, nhưng phải tôn trọng
+live owner còn hoạt động. RUNNING owner bị mất process không tự bị cướp quyền;
+vẫn cần xác minh và abort chính thức khi cần.
+
+Probe cache/coordinator, compile dbt và import/serialize DAG được kiểm tra riêng
+trước deployment. Chi tiết thiết kế: `docs/20_M08D_REUSE_COORDINATION.md`.
+**Đọc STATUS để biết deployment/runtime đã chạy tới đâu.** PASS probe không phải
+PASS bài tải900; các FAIL trước đây vẫn giữ nguyên, không nâng timeout để đổi màu.
+
 ## Đã triển khai và chạy lại bài 900 — 08/11/2026
 
 **Kết quả: dữ liệu đúng và drain đúng hạn, nhưng bài tải vẫn FAIL cadence.**

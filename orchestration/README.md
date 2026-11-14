@@ -125,3 +125,20 @@ ID, DAG ID, and window/observation arguments before starting a new replay cycle.
 Do not delete source/raw data or reset the persisted attempt counter to recover.
 The tested restart case is a retry after manifest persistence; arbitrary process
 kills and database outages remain broader recovery-test scope.
+
+## Local standalone startup
+
+Compose uses `python -m orchestration.airflow_local` with pinned Airflow3.3.2.
+It retains upstream standalone initialization and waits for the Execution API
+before starting the scheduler; scheduler health is deliberately not a readiness
+prerequisite. It forwards shutdown to upstream children, without changing task
+states or retry budgets. This is a local development topology, not a production
+supervisor.
+
+The optional local `.env` key `AIRFLOW_EXECUTION_JWT_SECRET` must contain at least
+64bytes when supplied. Blank means generate once in ignored
+`runtime/airflow/state/execution-jwt.key` and reuse across restarts/recreation.
+Do not commit, print, delete or casually rotate this key: scheduler and Execution
+API must share it. This is independent of UI credentials and PostgreSQL passwords.
+Startup refuses an invalid retained key rather than silently replacing it.
+See STATUS for actual restart acceptance; editing Compose alone is not deployment.

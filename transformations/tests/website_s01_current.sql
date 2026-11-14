@@ -1,11 +1,11 @@
 {{ config(enabled=(var('validation_mode', 's01') == 's01')) }}
 SELECT 1 AS failure
- WHERE (SELECT COUNT(*) FROM {{ ref('candidate_orders_current') }}) <> 1
-    OR (SELECT COUNT(*) FROM {{ ref('candidate_order_lines_current') }}) <> 1
+ WHERE (SELECT COUNT(1) FROM {{ ref('candidate_orders_current') }}) <> 1
+    OR (SELECT COUNT(1) FROM {{ ref('candidate_order_lines_current') }}) <> 1
     OR NOT EXISTS (
         SELECT 1
           FROM {{ ref('candidate_orders_current') }} o
-          JOIN {{ ref('candidate_order_lines_current') }} l
+          INNER JOIN {{ ref('candidate_order_lines_current') }} l
             USING (source_system, source_account_id, source_order_id)
          WHERE o.source_order_id = 'W1001'
            AND o.payment_state = 'PAID'

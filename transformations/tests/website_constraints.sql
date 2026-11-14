@@ -28,4 +28,4 @@ UNION ALL
 SELECT snapshot_id::TEXT
   FROM {{ ref('candidate_order_line_snapshot_history') }}
  GROUP BY snapshot_id, source_line_id
-HAVING COUNT(*) > 1
+HAVING COUNT(1) > 1

@@ -8,6 +8,45 @@ No warehouse/source DDL or business transformation changes are needed here.
 
 ## Next authorized slice: finite rate steps (2026-11-07)
 
+Owner-approved next implementation2026-11-12: priorities1/2 are finalized in
+[20_M08D_REUSE_COORDINATION.md](20_M08D_REUSE_COORDINATION.md). They supersede
+the statement-only Etsy optimization below: cache pure normalization per scoped
+bytes/code version and reschedule live coordinator waits without consuming a
+worker. Full manifest/lineage/tests/publication and historical FAILs stay fixed.
+Do not compare warm cache SELECT timings with uncached whole dbt/load timings.
+
+### Etsy normalization reuse (2026-11-12)
+
+Follow-up to the retained 900-order cadence failure: evaluate the unchanged
+`build.etsy_canonical_json(parsed_payload)` once per eligible raw receipt using
+a statement-local MATERIALIZED CTE. Reuse that exact order_json for hashing.
+Preserve all raw columns, column order/types, source/account/resource/status and
+manifest filters, exceptions, canonical fingerprints and downstream contracts.
+No function changes, stable DDL, incremental cache, executor/lock/budget changes
+or relaxed cadence gate. This is a bounded SQL experiment, not a load verdict.
+
+Run `python tests/etsy_staging_probe.py --report runtime/etsy-staging-review.json`.
+This creates only a uniquely named, labeled PostgreSQL16 container with private
+tmpfs data, no network/ports/owner volumes, one CPU and512MiB memory. No host
+Python database packages are required. The probe uses real production functions,
+compares old/new complete row multisets plus independent payload/hash assertions,
+checks invalid aliases/duplicate line IDs, and profiles10/100/300receipt reads
+with four alternating old/new EXPLAIN samples. Cleanup removes only the verified
+probe container. A SQL PASS still requires full dbt/release and same-envelope
+cadence qualification before deployment can be called successful.
+
+Actual deployment2026-11-12: first Etsy release has54passing nodes, staging54.920s.
+Unchanged900 report `runtime/campaign-83fb057f5a0e48ed96a1d35043139e15/report.json`
+FAILS both cadence1/1/1/0 (Website/eBay/inbox/recovery;2each required) and drain:
+761/900final at deadline observation,139eBay pending. Independent later read
+PASS900/3801lines/904observed versions,zero errors, but eBay published after the
+deadline. Do not relabel the failed report. All78hashes match,58resource samples,
+no ceiling breach; retained baseline is now6679orders/32319raw. Eight in-window
+published batches each pass54nodes, Etsy staging70.747..140.600s in Etsy batches.
+No controlled whole-load speedup/capacity claim. Stop escalation; review retained
+raw parsing/full-build growth and executor occupancy before another rate run.
+STATUS records exact commands, clocks, resource/stage evidence and unrun gates.
+
 ### Website JSON expansion experiment (2026-11-08)
 
 Owner authorized the proposed profiling-first sequence. This slice changes ONLY

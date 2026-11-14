@@ -252,6 +252,94 @@ remaining D/reproducibility gates. Generated code alone is not runtime evidence.
     Independent900data reconciliation and751.029s observed drain PASS separately;
     no escalation. Review measured Etsy staging and executor/coordinator waits
     next; complete D acceptance remains pending (exact evidence in STATUS).
+    Follow-up2026-11-12: reuse Etsy canonical payload via a statement-local
+    materialized CTE, preserving output/filter/error/hash contracts. First prove
+    disposable SQL multiset/hash parity and bounded profiles; full dbt/release
+    and unchanged900 cadence qualification remain separate gates. No worker,
+    source-window, DDL, incremental-cache or budget changes in this slice.
+    Deployed2026-11-12 with full54-node release PASS. Unchanged900 still FAILS:
+    cadence1/1/1/0 and139eBay orders pending at drain deadline. Later independent
+    reconciliation PASS900 does not override late catch-up. Stop escalation;
+    design/profile retained-raw rebuild cost and executor/coordinator occupancy
+    before further changes (exact evidence and limitations in STATUS).
+    Owner approved priorities1/2: versioned Etsy canonical cache joined to the
+    unchanged frozen manifest, and worker-free reschedule coordination with
+    durable source ownership. Final dictionary before migrations010/011 and
+    design/recovery gates:20_M08D_REUSE_COORDINATION.md. No model/test reduction,
+    parallel shared build or relaxed load limits; base/S01 remain regression paths.
+    Next approved optimization slice: deploy the tested FIFO refinement and use
+    bounded execution plans for eBay snapshot evidence. Separate the three OR
+    evidence paths into equijoins and expand each relevant list page once; retain
+    final DISTINCT, source/account/version joins, frozen manifest and all output
+    columns/types. Prove complete multiset/error parity before deployment; no
+    stable DDL, parallel publication or changed workload/gates. Full release and
+    unchanged900 qualification remain separate runtime checks.
+    Owner-approved revision2026-11-13: target healthy warm collect-to-visible
+    publication<=10s. Replace per-cycle full rebuild with affected-order processing,
+    source-private compiled dbt plans, applicable invariant gates and atomic delta
+    publication; full dbt/S01 regression remains separate. First dictionary before
+    migration012 and design/clock/workload limits:21_M08D_DELTA_RUNTIME.md.
+    Do not claim this target from one SQL timing or enable an unverified fast path.
+    Private coordinator integration now retains the existing durable stage
+    attempts, source ownership, actual Airflow IDs and atomic publication audit.
+    Real SQL/HTTP 1/10/100-order probes and full dbt parity are separate from
+    main retained-data/scheduler rollout and the unchanged900 acceptance.
+    Subsequent isolated four-DAG scheduler/source-contention gate PASS (STATUS):
+    actual Website/eBay/Etsy inbox/recovery scheduling and worker-free reschedule.
+    Standalone shutdown/API-readiness race diagnosed, not yet hardened on main;
+    mapping bootstrap, retained-owner rollout and unchanged900 remain separate.
+    Strict API-ready restart plus mapping/full-dbt gate now PASS privately
+    (2026-11-13): three Website cycles exactly try2 with one intentional fault,
+    mapping rebootstrap preserves source identity/raw audit and all8outputs match
+    full54-node dbt. Retained rollout now PASS: additive012, all3source cold
+    bootstrap parity, Airflow health/unchanged pause flags, two actual scheduled
+    successes per live DAG. Unchanged900 finite envelope now PASS: independent
+    900order/3801line reconciliation, cadence10/5/9/7(Web/eBay/inbox/recovery),
+    observed drain96.438s within900s. MAX<=10s NOT achieved; actual collection
+    and mutable eBay pagination retries dominate. Review list-crawl/detail work
+    separation next. No further burst/soak/escalation or fullD PASS is implied.
+    Owner-selected acquisition enhancement2026-11-14 (DESIGN ONLY):
+    [22_M08D_EBAY_ACQUISITION.md](22_M08D_EBAY_ACQUISITION.md), revised after
+    owner review: up to TWO DETAIL/ENRICHMENT workers per source/account where
+    needed, NOT two page workers. Keep sequential discovery; reuse complete eBay
+    page Orders and Etsy recovery receipts rather than refetching every entity.
+    Optional eBay grouped lookup remains at most50 IDs, not mandatory enrichment.
+    Retain required cancellation/shipping/webhook/fallback detail reads. Website
+    keeps its existing set-based consistent snapshot, not forced concurrency.
+    Preserve actual raw audit, page-element/cache identity, work leases, shared
+    retry/rate budgets, mutable-window reconciliation and one completion barrier.
+    Etsy SIM scope clarification: leave it unchanged; receipt-list payload support
+    already exists. Remove redundant collect GETs first, with necessary dbt/cache/
+    eligibility/evidence input adaptations. Retain webhook/fallback receipt GETs;
+    only report a demonstrated SIM blocker before proposing extra SIM changes.
+    A later detail-pool limit from SIM serialization is not authority to rewrite it.
+    Update dbt/cache/evidence inputs,
+    version compiled plans and requalify parity/bootstrap before live activation
+    and unchanged900. Transform/publish remain multi-order set-based SQL with
+    atomic publication. Base/S01 is unchanged; no runtime enhancement is claimed.
+    Build/test review2026-11-14: [23_M08D_BUILD_TIMING.md](23_M08D_BUILD_TIMING.md).
+    Historical900 node evidence shows Etsy mean3.653s unitemized and an empty
+    6.607s cycle; Website product activity max5.061s. Next profiling priorities:
+    subphase timers (validation/hooks/drops/CTAS/ANALYZE/commit), effective-current
+    product aggregation execution plans, then a correctly audited no-business-change
+    tick. Do not drop quality gates, blame network without evidence or silently
+    equate elapsed stage time with pure SQL CPU. Publish tuning deferred by owner.
+    Owner-requested SQL conventions2026-11-14: explicit needed projections,
+    COUNT(1), INNER JOIN spelling, grouped deduplication and PostgreSQL SELECT1
+    existence checks. Preserve required MATERIALIZED JSON reuse and correct
+    affected/retained predicates; no blanket CTE removal or speculative indexes.
+    Review/rules: transformations/SQL_STYLE.md. These SQL edits require a new
+    verified compiled release/bootstrap; existing main plans must not be activated
+    against a changed source hash. Performance conclusions still require timing.
+    Owner report/time correction2026-11-14: per-report clocks, not a global
+    date switch. Retain source-created order/product cohort meaning; monitoring
+    counts actual pipeline attempts, not received/new orders. Bound normal daily
+    aggregation and publication by explicit old/new touched-day scope, preserving
+    untouched days and handling emptied buckets/late data. Dictionary in05 before
+    helper models and limited SELECT grant013. Add staging CTAS/ANALYZE and hook
+    timers; qualify multiday/currency changes, empty/replay/late ticks and full-dbt
+    parity. No blind parallel transaction rewrite. Review:24_ACTIVITY_TIME_REVIEW.md;
+    actual results STATUS.
   Owner sequencing revision2026-11-06: finish C repeatability prerequisite, then
   observable normal campaign and one eBay outage/recovery demo. Implement/review
   these before load measurements or any performance verdict; the latter are

@@ -8,8 +8,8 @@ WITH input_raw AS MATERIALIZED (
            r.byte_sha256,
            r.parsed_payload
       FROM {{ source('acquisition', 'raw_records') }} r
-      JOIN {{ source('operations', 'batch_inputs') }} i USING (raw_record_id)
-     WHERE i.batch_id = '{{ var("batch_id") }}'::UUID
+      INNER JOIN {{ source('operations', 'batch_inputs') }} i USING (raw_record_id)
+     WHERE i.batch_id = {{ batch_uuid() }}
        AND r.source_system = 'internal_web'
        AND r.resource_type = 'website_order_window'
 ), expanded AS (
@@ -17,6 +17,10 @@ WITH input_raw AS MATERIALIZED (
            r.acquired_at, r.byte_sha256, order_value AS order_json
       FROM input_raw r
       CROSS JOIN LATERAL jsonb_array_elements(r.parsed_payload->'orders') AS orders(order_value)
+{% if var('delta_mode', false) %}
+     WHERE EXISTS (SELECT 1 FROM ops.delta_batch_keys k
+                    WHERE k.batch_id={{ batch_uuid() }} AND k.source_order_id=order_value->>'order_id')
+{% endif %}
 ), order_items AS (
     SELECT r.raw_record_id, x.value->>'order_id' AS order_id,
            jsonb_agg(x.value ORDER BY x.position) AS children
@@ -52,7 +56,8 @@ WITH input_raw AS MATERIALIZED (
      GROUP BY raw_record_id, order_id
 ), shipment_orders AS (
     -- Match the old EXISTS semantics even if invalid raw repeats a shipment.
-    SELECT DISTINCT raw_record_id, order_id, shipment_id FROM shipment_rows
+    SELECT raw_record_id, order_id, shipment_id FROM shipment_rows
+     GROUP BY raw_record_id, order_id, shipment_id
 ), shipment_item_rows AS MATERIALIZED (
     -- Prevent a planner-selected join from expanding this array per shipment.
     SELECT r.raw_record_id, x.value, x.position,
@@ -64,11 +69,12 @@ WITH input_raw AS MATERIALIZED (
     SELECT r.raw_record_id, s.order_id,
            jsonb_agg(r.value ORDER BY r.position) AS children
       FROM shipment_item_rows r
-      JOIN shipment_orders s ON s.raw_record_id = r.raw_record_id
+      INNER JOIN shipment_orders s ON s.raw_record_id = r.raw_record_id
                             AND s.shipment_id = r.shipment_id
      GROUP BY r.raw_record_id, s.order_id
 ), shaped AS (
-    SELECT e.*,
+    SELECT e.raw_record_id, e.source_system, e.source_account_id,
+           e.acquired_at, e.byte_sha256, e.order_json,
            jsonb_build_object(
                'orders', jsonb_build_array(e.order_json),
                'order_items', COALESCE(i.children, '[]'::JSONB),

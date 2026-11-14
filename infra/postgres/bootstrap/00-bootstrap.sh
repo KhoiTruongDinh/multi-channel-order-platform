@@ -28,6 +28,8 @@ done
 "${psql[@]}" --dbname data_platform --file /migrations/platform/007_report_order_detail.sql
 "${psql[@]}" --dbname data_platform --file /migrations/platform/008_report_queries_telemetry.sql
 "${psql[@]}" --dbname data_platform --file /migrations/platform/009_etsy_recovery_scans.sql
+"${psql[@]}" --dbname data_platform --file /migrations/platform/010_etsy_payload_cache.sql
+"${psql[@]}" --dbname data_platform --file /migrations/platform/011_coordinator_waits.sql
 for migration in /migrations/marketplace_sim/00*.sql; do
   "${psql[@]}" --dbname marketplace_sim --file "$migration"
 done

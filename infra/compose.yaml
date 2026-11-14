@@ -210,7 +210,7 @@ services:
       dockerfile: infra/python/Dockerfile.airflow
     init: true
     restart: unless-stopped
-    command: ["bash", "-c", "python /opt/project/orchestration/ui_credentials.py && exec airflow standalone"]
+    command: ["bash", "-c", "python /opt/project/orchestration/ui_credentials.py && exec python -m orchestration.airflow_local"]
     environment:
       AIRFLOW_APP_PASSWORD: ${AIRFLOW_APP_PASSWORD:?set AIRFLOW_APP_PASSWORD in .env}
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_CMD: python /opt/project/orchestration/metadata_url.py
@@ -221,6 +221,7 @@ services:
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
       AIRFLOW_UI_USERNAME: ${AIRFLOW_UI_USERNAME:-admin}
       AIRFLOW_UI_PASSWORD: ${AIRFLOW_UI_PASSWORD:-}
+      AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_EXECUTION_JWT_SECRET:-}
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: ${AIRFLOW_UI_USERNAME:-admin}:admin
       AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_PASSWORDS_FILE: /opt/airflow/state/passwords.json
       AIRFLOW__API__WORKERS: 1

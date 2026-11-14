@@ -5,11 +5,11 @@ SELECT (o.source_created_at AT TIME ZONE 'UTC')::DATE AS activity_date,
        l.canonical_variant_id,
        l.mapping_status,
        l.currency,
-       COUNT(*)::BIGINT AS line_count,
+       COUNT(1)::BIGINT AS line_count,
        SUM(l.quantity)::BIGINT AS ordered_units,
        SUM(l.line_gross_amount)::NUMERIC(20,6) AS merchandise_amount,
-       '{{ var("batch_id") }}'::UUID AS published_batch_id
-  FROM {{ ref('etsy_candidate_order_lines_current') }} l
-  JOIN {{ ref('etsy_candidate_orders_current') }} o
+       {{ batch_uuid() }} AS published_batch_id
+  FROM {{ effective_current('etsy_candidate_order_lines_current','order_lines_current',['source_system','source_account_id','source_order_id','canonical_variant_id','mapping_status','currency','quantity','line_gross_amount'],order_scope='etsy_candidate_daily_orders') }} l
+  INNER JOIN {{ ref('etsy_candidate_daily_orders') }} o
     USING (source_system, source_account_id, source_order_id)
  GROUP BY 1, 2, 3, 4, 5, 6, 7

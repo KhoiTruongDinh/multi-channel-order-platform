@@ -11,8 +11,8 @@ from orchestration.scheduling import periodic_schedule, slot_wait_seconds
 SLOT_WAIT_SECONDS = slot_wait_seconds()
 
 
-def invoke(mode, abort=False):
-    ctx = get_current_context()
+def invoke(mode, abort=False, nonblocking=False, context=None):
+    ctx = context if context is not None else get_current_context()
     command = ['/opt/airflow/project-venv/bin/python', '-m', 'orchestration.polling',
                '--source', 'etsy_sim', '--collection-mode', mode,
                '--mapping-version',os.environ.get('POLLING_MAPPING_VERSION','s01-v1'),
@@ -29,11 +29,16 @@ def invoke(mode, abort=False):
             command += ['--initial-start', initial]
     if abort:
         command += ['--abort']
+    if nonblocking:
+        command += ['--nonblocking','--coordinator-attempt',str(ctx['ti'].try_number)]
     if ctx['params']['inject_test_failure']:
         command += ['--inject-test-failure']
     for name in ('fault_after_raw_once','fault_after_freeze_once'):
         if ctx['params'][name]:
             command += ['--'+name.replace('_','-')]
+    if nonblocking:
+        from orchestration.polling_sensor import command_result
+        return command_result(command,True)
     result = subprocess.run(command, check=False)
     if result.returncode == 42:
         raise AirflowFailException('Durable Etsy stage budget exhausted')
@@ -58,7 +63,12 @@ def make_dag(mode, manual=False):
         def failed_workflow():
             invoke(mode,abort=True)
             raise AirflowFailException('Etsy workflow failed; audit retained')
-        cycle() >> failed_workflow()
+        if not manual and os.environ.get('POLLING_NONBLOCKING')=='true':
+            from orchestration.polling_sensor import PollingCycleSensor
+            task_cycle=PollingCycleSensor(task_id='cycle',collection_mode=mode)
+        else:
+            task_cycle=cycle()
+        task_cycle >> failed_workflow()
     return pipeline()
 
 

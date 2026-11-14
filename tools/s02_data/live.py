@@ -146,6 +146,24 @@ def validate_live_parallelism(value):
     return int(value)
 
 
+def require_no_orphaned_source_owners(db):
+    """A lost process before freeze can own a source without an active batch."""
+    relation=query(db,"SELECT to_regclass('ops.source_cycle_owners') AS name",'data_platform')
+    if not relation[0]['name']: return
+    owners=query(db,'''SELECT o.run_id,p.airflow_dag_id,p.airflow_run_id
+        FROM ops.source_cycle_owners o JOIN ops.pipeline_runs p USING(run_id)
+        WHERE p.status='RUNNING' ''','data_platform')
+    for owner in owners:
+        states=query(db,'SELECT state FROM dag_run WHERE dag_id='+literal(owner['airflow_dag_id'])+
+            ' AND run_id='+literal(owner['airflow_run_id']),'airflow_meta') if owner['airflow_dag_id'] else []
+        if states and states[0]['state'] in ('running','queued'): continue
+        current=query(db,'''SELECT o.run_id FROM ops.source_cycle_owners o
+            JOIN ops.pipeline_runs p USING(run_id) WHERE p.status='RUNNING' AND o.run_id='''+
+            literal(str(owner['run_id']))+'::uuid','data_platform')
+        if current:
+            raise ValueError('operator recovery required for retained source owner '+str(owner['run_id'])+'; no automatic abort/reset')
+
+
 def up(db,drain_guard=None):
     print('Live startup: validating configuration',flush=True)
     model=json.loads(compose(db,['config','--format','json']))
@@ -154,14 +172,22 @@ def up(db,drain_guard=None):
     if any(not p for p in passwords.values()): raise ValueError('set stable S02 reader passwords in .env')
     validate_live_parallelism(model['services']['airflow']['environment']['AIRFLOW__CORE__PARALLELISM'])
     environment=model['services']['airflow']['environment']
+    if environment.get('POLLING_DELTA_PLAN_DIR'):
+        from tools.s02_data.delta_deploy import require_ready
+        require_ready(db,environment['POLLING_DELTA_PLAN_DIR'])
     page_size(environment.get('EBAY_PAGE_SIZE', '1'), 200)
     page_size(environment.get('ETSY_RECOVERY_PAGE_SIZE', '1'), 100)
     for name,sql in [('website_source',"SELECT to_regclass('public.orders') AS relation_name"),
                      ('data_platform',"SELECT to_regclass('ops.polling_cycles') AS relation_name")]:
         if not query(db,sql,name)[0]['relation_name']: raise ValueError('run existing M01-M07 migrations first')
     print('Live startup: draining existing runs without resetting retries',flush=True)
-    drain(db,guard=drain_guard)
+    def guard():
+        if drain_guard: drain_guard()
+        require_no_orphaned_source_owners(db)
+    drain(db,guard=guard)
     db.sql((ROOT/'migrations/platform/009_etsy_recovery_scans.sql').read_text(),'data_platform')
+    for name in ('010_etsy_payload_cache.sql','011_coordinator_waits.sql'):
+        db.sql((ROOT/'migrations/platform'/name).read_text(),'data_platform')
     migrations(db)
     db.sql((ROOT/'migrations/marketplace_sim/003_live_batches.sql').read_text())
     for kind,password in passwords.items():

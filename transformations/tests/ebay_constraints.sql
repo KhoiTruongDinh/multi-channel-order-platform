@@ -1,11 +1,11 @@
 -- These assertions are scoped to eBay; website money/status rules stay separate.
 SELECT snapshot_id::TEXT AS failure
   FROM {{ ref('ebay_candidate_order_snapshot_history') }}
- GROUP BY snapshot_id HAVING count(*)<>1
+ GROUP BY snapshot_id HAVING count(1)<>1
 UNION ALL
 SELECT min(snapshot_id::TEXT)
   FROM {{ ref('ebay_candidate_order_snapshot_history') }}
- GROUP BY source_system,source_account_id,source_order_id,source_updated_at HAVING count(*)>1
+ GROUP BY source_system,source_account_id,source_order_id,source_updated_at HAVING count(1)>1
 UNION ALL
 SELECT h.snapshot_id::TEXT
   FROM {{ ref('ebay_candidate_order_snapshot_history') }} h
@@ -18,9 +18,9 @@ SELECT h.snapshot_id::TEXT
 UNION ALL
 SELECT l.snapshot_id::TEXT
   FROM {{ ref('ebay_candidate_order_line_snapshot_history') }} l
-  JOIN {{ ref('ebay_candidate_order_snapshot_history') }} h USING(snapshot_id)
+  INNER JOIN {{ ref('ebay_candidate_order_snapshot_history') }} h USING(snapshot_id)
  WHERE l.quantity<=0 OR l.currency<>h.currency OR l.line_gross_amount<0
     OR l.mapping_status<>'CONFIRMED' OR l.canonical_variant_id IS NULL
 UNION ALL
 SELECT snapshot_id::TEXT FROM {{ ref('ebay_candidate_order_line_snapshot_history') }}
- GROUP BY snapshot_id,source_line_id HAVING count(*)>1
+ GROUP BY snapshot_id,source_line_id HAVING count(1)>1

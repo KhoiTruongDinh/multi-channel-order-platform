@@ -1,5 +1,56 @@
 # Target field dictionary and storage contract
 
+## M08D bounded daily activity scope (finalized2026-11-14, before models)
+
+Daily order/product marts retain UTC SOURCE-CREATED cohort meaning, not processing
+throughput. Pipeline attempts use actual execution time; observed-version activity
+uses version observation time and must not be labeled sales/new-order revenue.
+
+New source-private dbt helper relations `candidate_activity_scope` and
+`candidate_daily_orders` (with eBay/Etsy prefixes), not new stable warehouse tables:
+
+| Relation | Columns / constraints |
+| --- | --- |
+| activity scope | activity_date DATE!, source_system TEXT!, source_account_id TEXT!, batch_id UUID!; unique date/source/account for the exact frozen batch. Union old current dates of affected orders and new candidate dates. Bootstrap additionally covers existing daily-mart dates to remove stale empty buckets. No CURRENT_DATE filter. |
+| daily orders | source_system/account/order TEXT!, source_created_at TIMESTAMPTZ!, currency TEXT!, source_order_total_amount NUMERIC(20,6) nullable. Unique scoped order; effective current rows restricted to the explicit scope's UTC half-open day ranges. |
+
+Publish reconciles daily mart rows ONLY inside this scope, preserves untouched
+dates, and handles scoped buckets that become empty. Product/currency/mapping
+buckets within a touched day are recomputed together; day scope is deliberately
+coarser than individual product keys. Status-current remains source-wide.
+Dictionary/schema/fingerprints of existing stable outputs and S01 remain unchanged.
+
+## M08D delta fields (finalized2026-11-13, BEFORE migration012)
+
+Coordinator integration uses existing polling_cycles.settings JSON: optional
+delta_plan_sha256 TEXT value, exactly64lowercase hex, immutable with the cycle's
+mapping/transformation versions. Absent means legacy; retries never switch modes.
+No new DDL. Freeze TRANSFORM and publication PUBLISH pipeline_runs retain the
+actual airflow_dag_id/airflow_run_id pair; publication status commits with release.
+
+Contract/design:21_M08D_DELTA_RUNTIME.md. Existing core/mart column definitions
+and source-version IDs are unchanged. Last-recomputed row lineage can differ
+from the latest source publication pointer; atomic consistent reads remain valid.
+
+| Relation / grain | Columns and constraints |
+| --- | --- |
+| ops.delta_raw_keys / one raw/order link; NULL order marks an empty page | raw_record_id UUID NOT NULL FK raw; source_system/source_account_id TEXT NOT NULL nonblank; source_order_id TEXT nullable, nonblank if present; UNIQUE NULLS NOT DISTINCT(raw_record_id,source_order_id). Immutable INSERT-only derived routing; index(source_system,source_account_id,source_order_id,raw_record_id). |
+| ops.delta_batches / one opt-in transform batch | batch_id UUID PK/FK transform_batches; source_system/source_account_id TEXT NOT NULL, one of the3supported tuples; plan_sha256 TEXT lowercase64hex; build_schema TEXT fixed by source to build_delta_web/ebay/etsy; base_batch_id UUID nullable FK transform_batches; bootstrap BOOLEAN NOT NULL; expected_nodes JSONB NOT NULL object with model/test ID arrays; registered_at TIMESTAMPTZ NOT NULL actual clock. Immutable. |
+| ops.delta_new_inputs / exact unseen raw frozen for a batch | batch_id UUID,raw_record_id UUID, composite PK/FK ops.batch_inputs; immutable. Distinct from historical evidence also in batch_inputs. |
+| ops.delta_batch_keys / frozen affected order keys | batch_id UUID FK delta_batches,source_order_id TEXT NOT NULL nonblank; composite PK. Source/account come from the parent. Immutable. |
+| ops.delta_seen_raw / consumption only on successful publication | plan_sha256 TEXT lowercase64hex,raw_record_id UUID FK raw,processed_batch_id UUID FK delta_batches; PK(plan_sha256,raw_record_id); recorded_at TIMESTAMPTZ NOT NULL actual clock. INSERT-only; trigger requires matching plan and PUBLISHED batch, exact membership in delta_new_inputs. No consumption on failed builds/transactions. |
+| ops.delta_results / durable gate attempt evidence | batch_id UUID FK delta_batches,attempt_number INTEGER1..5; composite PK; plan_sha256 TEXT lowercase64hex; passed BOOLEAN; results JSONB NOT NULL object of node IDs/status/duration, no source payload; recorded_at TIMESTAMPTZ NOT NULL actual clock. Immutable. A TESTED fast batch requires matching successful expected-node set. |
+
+platform_owner owns the operational tables. platform_transform SELECT/INSERT on
+routing/batch/key/result tables and SELECT seen; platform_publisher SELECT all and
+INSERT seen only, plus read-only config.product_mapping for publication-time
+configuration validation (config schema USAGE, no config writes). No PUBLIC/report
+access. Three new build schemas grant transform
+USAGE/CREATE and publisher USAGE/SELECT on transform-created candidate tables.
+Transform receives read-only core tables for effective-state mart SQL. Add the
+missing core.order_lines_current(snapshot_id) FK-supporting index; no field change.
+No data reset, pointer deletion, TTL owner steal or automatic retry reset.
+
 M08D ownership timing refinement2026-11-08 (existing columns; no DDL): when
 freezing a DAG-owned transform batch, populate its TRANSFORM pipeline_run's
 airflow_dag_id/airflow_run_id together in the SAME transaction that exposes
@@ -259,6 +310,48 @@ before dependent DDL. Do not grant report users
 direct access to ops/raw or reuse the stable source_health timestamp as live status.
 
 ## Ownership and evidence links
+
+### M08D reuse and nonblocking coordination (2026-11-12; before migrations010/011)
+
+`cache.etsy_payloads`: derived, logged, append-only canonical payload cache.
+PK `(source_system TEXT, source_account_id TEXT, byte_sha256 BYTEA,
+normalization_version TEXT)`; all NOT NULL. Source must be etsy_sim, account
+nonempty, byte hash32bytes, version32lowercase hex (code-version identifier, NOT
+source fingerprint). `source_payload JSONB NOT NULL`, `order_json JSONB NOT NULL`,
+`content_fingerprint BYTEA NOT NULL CHECK(length=32)`,
+`cached_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()`.
+Version is local_md5 of the three canonical function definitions. Mapping version
+does not change source identity. Reuse requires matching scope/hash/version AND
+identical parsed JSONB text (including numeric scale); mismatch fails the dbt
+transaction, never overwrites. JSONB equality alone would equate1 and1.0.
+No raw FK because one cache row may serve many acquisitions. Staging joins back
+to every eligible raw in the frozen manifest, preserving lineage/time/duplicates.
+Owner platform_owner; platform_transform USAGE cache,SELECT/INSERT only. No
+ingest/publisher/report/PUBLIC access. Cache is rebuildable derived state, not
+business truth; full manifest, all business tests and atomic publish stay required.
+
+`ops.source_cycle_owners`: PK `(source_system TEXT,source_account_id TEXT)`;
+source internal_web/ebay_sim/etsy_sim, nonempty account. `run_id UUID NOT NULL`
+FK pipeline_runs, `acquired_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()`.
+Pointer may be replaced only after the prior workflow is terminal SUCCEEDED or
+FAILED; RUNNING owners are never auto-expired or stolen. Same-owner retry allowed.
+Existing source advisory lock fences active processes; durable pointer preserves
+source ordering while worker is rescheduled. Terminal Airflow owner with RUNNING
+workflow requires existing explicit operator abort, not automatic state repair.
+
+`ops.coordinator_waits`: PK `(run_id UUID,wait_kind TEXT,task_try_number INTEGER)`;
+run FK pipeline_runs; kind source_slot/release_slot; task_try_number>0.
+`measurement_id UUID NOT NULL UNIQUE` FK execution_measurements. Its existing
+measurement started_at is the durable infrastructure-wait clock across pokes.
+Deadline=started_at+configured wait_seconds; no reset on reschedule/restart.
+Actual Airflow retry uses a new task_try_number, matching prior per-attempt wait
+behavior; business five-attempt budgets remain untouched. No source leases/time
+limits are increased. platform_ingest SELECT/INSERT/UPDATE owner pointers,
+SELECT/INSERT waits; platform_transform SELECT both. PUBLIC/report no access.
+New live-only reschedule path uses exit75 for coordinator contention, not failure;
+legacy/manual CLI and S01 retain blocking coordination. Same task_id cycle and
+four DAG identities remain. Scheduler queues waiting tasks without a worker;
+DB guards still protect shared candidates and atomic publication.
 
 M08D physical-plan experiment: `build.stg_website_observations` and
 `build.int_website_versions` change from views to per-batch dbt tables. The

@@ -1,8 +1,8 @@
 {{ config(enabled=(var('validation_mode','s01')=='s01' and var('release_source','internal_web')=='etsy_sim')) }}
 SELECT 'etsy golden' AS failure
- WHERE (SELECT count(*) FROM {{ ref('etsy_candidate_order_snapshot_history') }})<>1
-    OR (SELECT count(*) FROM {{ ref('etsy_candidate_orders_current') }})<>1
-    OR (SELECT count(*) FROM {{ ref('etsy_candidate_order_lines_current') }})<>1
+ WHERE (SELECT count(1) FROM {{ ref('etsy_candidate_order_snapshot_history') }})<>1
+    OR (SELECT count(1) FROM {{ ref('etsy_candidate_orders_current') }})<>1
+    OR (SELECT count(1) FROM {{ ref('etsy_candidate_order_lines_current') }})<>1
     OR NOT EXISTS (SELECT 1 FROM {{ ref('etsy_candidate_orders_current') }}
          WHERE source_order_id='9001001' AND payment_state='PAID' AND fulfillment_state='SHIPPED'
            AND cancellation_state='UNKNOWN' AND source_order_total_amount=22 AND items_gross_amount=22 AND currency='USD')

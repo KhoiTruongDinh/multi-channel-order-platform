@@ -14,6 +14,7 @@ from transformation.batch import connect as release_connection
 from transformation.source_config import SOURCES
 from orchestration import telemetry
 from ingestion.pagination import page_size
+from orchestration.coordinator import CoordinatorBusy
 
 
 def prepare(args):
@@ -41,13 +42,22 @@ def prepare(args):
         settings['logical_clock']=args.logical_clock
     if getattr(args,'window_policy',None):
         settings['window_policy']=args.window_policy
-    config=('runtime','current',args.mapping_version,args.transformation_version,args.overlap_seconds,settings)
     with workflow.connect() as conn:
         # Same-cycle preparation must not race checkpoint advancement or itself.
         conn.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))',(str(args.workflow_id),))
         prior=conn.execute('''SELECT p.requested_window_start,p.requested_window_end,p.airflow_dag_id,
-            c.validation_mode,c.clock_mode,c.mapping_version,c.transformation_version,c.overlap_seconds,c.settings,p.airflow_run_id
-            FROM ops.polling_cycles c JOIN ops.pipeline_runs p USING(run_id) WHERE c.run_id=%s''',(args.workflow_id,)).fetchone()
+            c.validation_mode,c.clock_mode,c.mapping_version,c.transformation_version,c.overlap_seconds,c.settings,p.airflow_run_id,
+            EXISTS(SELECT 1 FROM ops.transform_batches b WHERE b.batch_id=%s AND b.status='PUBLISHED')
+            FROM ops.polling_cycles c JOIN ops.pipeline_runs p USING(run_id) WHERE c.run_id=%s''',(args.batch_id,args.workflow_id)).fetchone()
+        from orchestration.delta_workflow import configure
+        if prior and getattr(args,'reuse_cycle_config',False):
+            args.mapping_version,args.transformation_version=prior[5:7]
+            configure(args,dict(prior[8]),published=bool(prior[10]) if len(prior)>10 else False)
+        else:
+            configure(args)
+        if args.delta_plan_sha256:
+            settings['delta_plan_sha256']=args.delta_plan_sha256
+        config=('runtime','current',args.mapping_version,args.transformation_version,args.overlap_seconds,settings)
         if args.source in ('ebay_sim', 'etsy_sim') and not (prior and getattr(args,'reuse_cycle_config',False)):
             args.page_size = page_size(configured, maximum)
             settings['page_size'] = args.page_size
@@ -63,7 +73,7 @@ def prepare(args):
                 if prior[1]!=args.window_end or prior[2]!=args.dag_id:
                     raise ValueError('existing cycle has different bounds/context/configuration')
                 args.mapping_version,args.transformation_version,args.overlap_seconds=prior[5:8]
-                if set(prior_settings)-{'fault_after_raw_once','fault_after_freeze_once','inject_test_failure','collection_mode','checkpoint_stream','logical_clock','window_policy','page_size'}:
+                if set(prior_settings)-{'fault_after_raw_once','fault_after_freeze_once','inject_test_failure','collection_mode','checkpoint_stream','logical_clock','window_policy','page_size','delta_plan_sha256'}:
                     raise ValueError('unsupported persisted cycle settings')
                 for key,value in prior_settings.items():
                     setattr(args,key,value)
@@ -114,7 +124,14 @@ def claim_slot(lock,args,source_slot=False):
                     got_lock=lock.execute("SELECT pg_try_advisory_lock(hashtext('platform-release'))").fetchone()[0]
                 lock.commit()
                 if got_lock and source_slot:
-                    break
+                    from orchestration.coordinator import source_available
+                    if source_available(lock,args):
+                        lock.commit()
+                        break
+                    lock.execute('SELECT pg_advisory_unlock(hashtextextended(%s,0))',
+                        (f'source-cycle:{args.source}:{SOURCES[args.source][0]}',))
+                    lock.commit()
+                    got_lock=False
                 if got_lock:
                     active=lock.execute("SELECT batch_id FROM ops.transform_batches WHERE status IN ('FROZEN','BUILDING','TESTED')").fetchall()
                     lock.commit()
@@ -174,6 +191,8 @@ def main():
     p.add_argument('--mapping-version',default='s01-v1')
     p.add_argument('--transformation-version')
     p.add_argument('--abort',action='store_true')
+    p.add_argument('--nonblocking',action='store_true')
+    p.add_argument('--coordinator-attempt',type=int,default=1)
     for flag in ('fault-after-raw-once','fault-after-freeze-once','inject-test-failure'):
         p.add_argument('--'+flag,action='store_true')
     args=p.parse_args()
@@ -183,6 +202,12 @@ def main():
         p.error('invalid Etsy checkpoint scope')
     if args.overlap_seconds<0 or args.wait_seconds<0:
         p.error('overlap/wait must be nonnegative')
+    if args.coordinator_attempt<1:
+        p.error('coordinator attempt must be positive')
+    if args.nonblocking:
+        from orchestration.scheduling import slot_wait_seconds
+        if args.wait_seconds!=slot_wait_seconds():
+            p.error('nonblocking wait must match deployment POLLING_SLOT_WAIT_SECONDS')
     if os.environ.get('S02_LOCAL_PLAYBACK')=='true':
         # Retry uses its immutable prior bounds; never resample T for the same cycle.
         cycle=workflow.identity(f'poll:{args.source}:{args.execution_id}','workflow')
@@ -209,12 +234,19 @@ def main():
             old=conn.execute('SELECT p.requested_window_end,c.settings FROM ops.pipeline_runs p JOIN ops.polling_cycles c USING(run_id) WHERE p.run_id=%s',(cycle,)).fetchone()
         args.window_end,args.window_policy=bounds(old)
     prepare(args)
-    coordinate(args)
+    if args.nonblocking:
+        from orchestration.coordinator import coordinate as nonblocking_coordinate
+        nonblocking_coordinate(args)
+    else:
+        coordinate(args)
 
 
 if __name__=='__main__':
     try:
         main()
+    except CoordinatorBusy as error:
+        print(str(error),file=sys.stderr)
+        sys.exit(75)
     except workflow.AttemptBudgetExhausted as error:
         print(str(error),file=sys.stderr)
         sys.exit(42)

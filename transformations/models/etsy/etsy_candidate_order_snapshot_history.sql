@@ -17,5 +17,5 @@ SELECT snapshot_id,source_system,source_account_id,order_json->>'receipt_id' AS 
        build.etsy_money(order_json->'grandtotal')::NUMERIC(20,6) AS source_order_total_amount,
        '{{ var("mapping_version") }}'::TEXT AS mapping_version,
        '{{ var("transformation_version") }}'::TEXT AS transformation_version,
-       '{{ var("batch_id") }}'::UUID AS batch_id
+       {{ batch_uuid() }} AS batch_id
   FROM {{ ref('int_etsy_versions') }}

@@ -7,5 +7,5 @@ UNION ALL
 SELECT e.raw_record_id::TEXT
   FROM {{ ref('candidate_snapshot_evidence') }} e
   LEFT JOIN ops.batch_inputs i
-    ON i.raw_record_id=e.raw_record_id AND i.batch_id='{{ var("batch_id") }}'::UUID
+    ON i.raw_record_id=e.raw_record_id AND i.batch_id={{ batch_uuid() }}
  WHERE i.raw_record_id IS NULL OR octet_length(e.resource_fingerprint) <> 32

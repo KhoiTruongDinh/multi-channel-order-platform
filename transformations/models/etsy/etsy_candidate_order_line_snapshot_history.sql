@@ -1,11 +1,12 @@
 WITH lines AS (
-    SELECT v.*,l AS line FROM {{ ref('int_etsy_versions') }} v,
-         jsonb_array_elements(order_json->'transactions') l
+    SELECT v.snapshot_id, v.source_system, v.source_account_id, v.order_json,l AS line
+      FROM {{ ref('int_etsy_versions') }} v
+      CROSS JOIN LATERAL jsonb_array_elements(order_json->'transactions') l
 ), mapped AS (
-    SELECT l.*,m.* FROM lines l CROSS JOIN LATERAL (
-        SELECT count(*) FILTER (WHERE source_variant_id=line->>'product_id' AND source_listing_id=line->>'listing_id') AS id_count,
+    SELECT l.snapshot_id, l.source_system, l.source_account_id, l.order_json, l.line, m.id_count, m.id_variant, m.sku_count, m.sku_variant FROM lines l CROSS JOIN LATERAL (
+        SELECT count(1) FILTER (WHERE source_variant_id=line->>'product_id' AND source_listing_id=line->>'listing_id') AS id_count,
                min(canonical_variant_id) FILTER (WHERE source_variant_id=line->>'product_id' AND source_listing_id=line->>'listing_id') AS id_variant,
-               count(*) FILTER (WHERE source_sku=line->>'sku') AS sku_count,
+               count(1) FILTER (WHERE source_sku=line->>'sku') AS sku_count,
                min(canonical_variant_id) FILTER (WHERE source_sku=line->>'sku') AS sku_variant
           FROM {{ source('configuration','product_mapping') }} m
          WHERE m.source_system=l.source_system AND m.source_account_id=l.source_account_id

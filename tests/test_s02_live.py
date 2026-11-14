@@ -37,6 +37,21 @@ def workload():
 
 
 class LiveTests(unittest.TestCase):
+    def test_source_owner_guard_before_and_after_migration(self):
+        from tools.s02_data.live import require_no_orphaned_source_owners as guard
+        owner=dict(run_id='old-owner',airflow_dag_id='etsy_inbox',airflow_run_id='old-run')
+        cases=[([[dict(name=None)]],False),
+               ([[dict(name='ops.source_cycle_owners')],[owner],[dict(state='running')]],False),
+               ([[dict(name='ops.source_cycle_owners')],[owner],[dict(state='failed')],[]],False),
+               ([[dict(name='ops.source_cycle_owners')],[owner],[dict(state='failed')],[dict(run_id='old-owner')]],True)]
+        for rows,refuse in cases:
+            db=Mock()
+            with patch('tools.s02_data.live.query',side_effect=rows):
+                if refuse:
+                    with self.assertRaisesRegex(ValueError,'operator recovery.*source owner'): guard(db)
+                else: guard(db)
+            db.sql.assert_not_called()
+
     def test_live_parallelism_is_explicit_bounded_and_not_a_business_change(self):
         from tools.s02_data.live import validate_live_parallelism
         for value in (2,'2',4,'4'):

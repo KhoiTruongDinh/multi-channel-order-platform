@@ -1,5 +1,40 @@
 # C. Technical architecture and pipeline — DRAFT
 
+Planned multi-source acquisition slice, owner revision2026-11-14:
+[22_M08D_EBAY_ACQUISITION.md](22_M08D_EBAY_ACQUISITION.md). Sequential pages,
+reuse complete eBay Orders/Etsy recovery receipts, then up to TWO DETAIL workers
+per source/account for necessary enrichment/webhook/fallback. Not two page workers
+or competing source owners. Website keeps its consistent set-based source read.
+Actual raw/element evidence, dbt ownership, bounded reconciliation, work leases
+and one completion barrier remain. Transform/publish already operate on multi-order
+sets, not a Python graph per order. Design only; base/S01 and runtime unchanged.
+
+Owner scope clarification: Etsy SIM remains unchanged for collector payload reuse;
+only collection and necessary eligibility/dbt/cache/evidence inputs are planned.
+Historical900 build/test breakdown and remaining measurement gaps:
+[23_M08D_BUILD_TIMING.md](23_M08D_BUILD_TIMING.md). Fewer HTTP calls do not prove
+lower build time; page-element cache identity and compiled-plan parity are gates.
+
+Owner-approved M08D delta redesign2026-11-13: see
+[21_M08D_DELTA_RUNTIME.md](21_M08D_DELTA_RUNTIME.md). Experimental source-private
+compiled dbt graphs recompute affected orders, preserve acquired evidence and
+atomically merge stable outputs with exact raw consumption. Deployment-time
+compilation replaces per-cycle dbt CLI startup, NOT dbt business SQL ownership.
+Retained-main activation now passed explicit cold full-dbt parity/bootstrap and
+real scheduled readiness gates (STATUS). Only opted-in live cycles use delta;
+base/S01 and explicit full-dbt regressions retain the serialized path below.
+The unchanged900 finite envelope now PASSes separately; MAX<=10s does NOT.
+Neither result is sustained/soak capacity certification. A mapping/code release
+needs explicit rebootstrap; exact workload, evidence and remaining work are in STATUS.
+
+Owner-approved M08D priorities1/2 (2026-11-12): versioned append-only derived
+Etsy payload cache, plus live-only reschedule coordination with durable source
+ownership. See20_M08D_REUSE_COORDINATION.md and05_TARGET_SCHEMA.md (migrations010/011).
+Cache rejoins every frozen raw member; business SQL stays in dbt. Busy waits
+release the Airflow worker, not source ordering. Global build/release remains
+serialized; base/manual/S01 use the prior blocking path and honor active live
+owners. Runtime acceptance and deployment status remain in STATUS.
+
 Daily local workflow revision2026-11-01: [live source contract](16_M08_LIVE_LOCAL.md).
 One stack, DB-backed marketplace HTTP, persistent source-only Website/webhook
 worker, actual-time scheduled ingestion and manual append-only generation. No
@@ -11,6 +46,12 @@ inconsistent page caches and resumes/reconciles through HTTP without resetting
 attempts or advancing a partial checkpoint. Fields/constraints precede migration009
 in05_TARGET_SCHEMA.md; runtime evidence and remaining cadence limits are in STATUS.
 No change to source interfaces, business SQL ownership or atomic publication.
+
+M08D bounded Etsy follow-up2026-11-12: a statement-local materialized staging
+CTE computes the existing recursive canonical payload once and reuses it for
+fingerprinting. No source/version/schema or release-policy change. Disposable
+SQL parity/profile evidence is separate from full dbt and load acceptance;
+see19_M08D_MEASUREMENT.md and STATUS.
 
 M08D cadence experiment: Website staging/version SELECTs materialize as per-batch
 build tables to avoid repeated JSON/fingerprint evaluation through views. Column

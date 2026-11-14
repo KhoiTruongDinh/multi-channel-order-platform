@@ -1,5 +1,6 @@
 WITH ranked AS (
-    SELECT *,
+    SELECT raw_record_id, source_system, source_account_id, acquired_at,
+           order_json, content_fingerprint, business_payload,
            MIN(acquired_at) OVER (
                PARTITION BY source_system, source_account_id, order_json->>'order_id',
                             order_json->>'updated_at', content_fingerprint

@@ -33,6 +33,8 @@ def freeze(args: argparse.Namespace) -> None:
     with (nullcontext(args.connection) if getattr(args,'connection',None) is not None else connect()) as conn:
         conn.execute("SELECT pg_advisory_xact_lock(hashtext('platform-release'))")
         conn.execute("SELECT pg_advisory_xact_lock(hashtext('website-transform'))")
+        from transformation.admission import admit
+        admit(conn,args.source,getattr(args,'owner_workflow_id',None))
         now = datetime.now(timezone.utc)
         active = conn.execute(
             "SELECT batch_id FROM ops.transform_batches WHERE status IN ('FROZEN','BUILDING','TESTED') LIMIT 1"
@@ -148,6 +150,7 @@ def main() -> None:
     freeze_parser.add_argument('--validation-mode', choices=('s01','runtime'), default='s01')
     freeze_parser.add_argument('--airflow-dag-id')
     freeze_parser.add_argument('--airflow-run-id')
+    freeze_parser.add_argument('--owner-workflow-id',type=uuid_arg)
 
     for name, expected in (("building", "FROZEN"), ("tested", "BUILDING"), ("failed", "BUILDING")):
         command = sub.add_parser(name)

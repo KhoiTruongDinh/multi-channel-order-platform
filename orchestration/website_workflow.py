@@ -112,6 +112,9 @@ def child_locator(args):
 
 def perform(conn, args, stage, number):
     state = batch_state(conn, args.batch_id)
+    if getattr(args,'delta_plan',None) and stage!='collect':
+        from orchestration.delta_workflow import perform as perform_delta
+        return perform_delta(conn,args,stage,number,state)
     if stage == 'collect':
         locator = child_locator(args)
         succeeded = conn.execute(
@@ -156,12 +159,13 @@ def perform(conn, args, stage, number):
                 freeze(argparse.Namespace(batch_id=args.batch_id,run_id=identity(args.execution_id,'transform'),
                     source=args.source,mapping_version=args.mapping_version,transformation_version=args.transformation_version,
                     validation_mode=args.validation_mode,connection=args.freeze_connection,
-                    airflow_dag_id=args.dag_id,airflow_run_id=owner_run))
+                    airflow_dag_id=args.dag_id,airflow_run_id=owner_run,owner_workflow_id=args.workflow_id))
             else:
                 command('transformation.batch', 'freeze', '--batch-id', args.batch_id,
                         '--run-id', identity(args.execution_id, 'transform'), '--source', args.source,
                         '--mapping-version', args.mapping_version, '--transformation-version', args.transformation_version,
                         '--validation-mode',args.validation_mode,
+                        '--owner-workflow-id',args.workflow_id,
                         *(['--airflow-dag-id',args.dag_id,'--airflow-run-id',owner_run] if args.dag_id else []))
         elif state == 'FAILED':
             raise RuntimeError('failed batch requires an explicit new replay execution')

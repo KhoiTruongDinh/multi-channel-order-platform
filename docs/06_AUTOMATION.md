@@ -1,5 +1,31 @@
 # Local automation and acceptance contract
 
+M08D2026-11-13 experimental delta path: deployment-time compiled dbt plans,
+source-private builds and short atomic publication are specified in
+[21_M08D_DELTA_RUNTIME.md](21_M08D_DELTA_RUNTIME.md). The target is acquisition
+start to committed publication MAX<=10s for declared healthy warm workloads;
+it is not a dbt-node threshold or universal source-event freshness guarantee.
+No automatic activation/fallback, no changed retry budget. Live source ownership
+and worker-free coordination below remain in force. The runtime adapter accepts
+POLLING_DELTA_PLAN_DIR only for nonblocking runtime cycles and pins its plan hash
+in immutable cycle settings. Compose exposes optional LIVE_DELTA_PLAN_DIR, blank
+by default. Explicit guarded deployment now passed on retained main: additive012,
+three full-dbt-verified cold bootstraps, health/pause restoration and two scheduled
+successes per live DAG. The unchanged900 finite envelope also passed; MAX<=10s
+was NOT achieved. Exact evidence and remaining checks are in STATUS. Future
+live-up validates active plans, never bootstraps or falls back.
+Missing/stale plans refuse before collection; explicit abort remains available.
+See transformation/DELTA.md for deployment and mapping-release requirements.
+
+Live M08D coordination revision2026-11-12: `POLLING_NONBLOCKING=true` is set by
+the live Compose overlay only. Four live task_ids remain cycle, but use a
+reschedule sensor: CLI exit75 means bounded coordinator contention, not a retry
+or stage success. Source ownership persists across worker exit; each wait clock
+persists by workflow/phase/actual Airflow try. Base/manual/S01 keep blocking
+commands; no extra scheduler/triggerer/pool is required. Failed/orphan owners
+require explicit recovery. See20_M08D_REUSE_COORDINATION.md; actual verification
+is recorded in STATUS, not inferred from the flag.
+
 Daily local M08B live revision (2026-11-01): [live sources](16_M08_LIVE_LOCAL.md).
 Start source services/worker and schedules once; manual generate admits additional
 source batches without dataset configuration in consumers. Uses actual UTC,

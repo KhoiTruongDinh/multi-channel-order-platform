@@ -279,6 +279,22 @@ Etsy recovery command refuses a different limit from retained list-request URLs.
 This changes request batching, not detail endpoints, source/account identity,
 logical deduplication, fixed bounds, audit retention or checkpoint semantics.
 
+Planned opt-in live acquisition enhancement (owner revision2026-11-14, not implemented):
+[payload reuse and bounded detail workers](22_M08D_EBAY_ACQUISITION.md).
+Keep sequential discovery and up to two detail/enrichment workers per source/account
+where needed. Reuse complete eBay Order/Etsy recovery receipt page elements with
+actual raw+element provenance; retain webhook and required fallback detail reads.
+`getOrders?orderIds=...` supports at most50 IDs and ignores other query parameters;
+its cancellation-request array remains non-authoritative. Targeted getOrder and
+required per-order shipping evidence remain. Actual HTTP envelopes, scoped element
+provenance and checkpoint/reconciliation rules are mandatory. Approved S01
+endpoints, source versions and canonical fingerprints are unchanged. Etsy cache
+identity must distinguish multiple receipts in one page; no synthetic detail
+response is created. Website retains its read-only consistent set-based extraction.
+Etsy SIM is unchanged in the selected collection slice: existing receipt-list
+payloads are reused, with necessary eligible-input/dbt/cache/evidence adaptations.
+Preserve webhook detail GETs and explicit fallback, not redundant complete-receipt GETs.
+
 ### B9.2. Core validation and normalization
 
 | Field / condition | Agreed rule |

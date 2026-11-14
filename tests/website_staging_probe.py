@@ -21,7 +21,8 @@ def render(text):
     return Environment(undefined=StrictUndefined).from_string(text).render(
         source=lambda schema, table: {'raw_records': 'pg_temp.probe_raw',
                                      'batch_inputs': 'pg_temp.probe_inputs'}[table],
-        var=lambda name: BATCH,
+        var=lambda name, default=None: False if name=='delta_mode' else BATCH,
+        batch_uuid=lambda: "'"+BATCH+"'::UUID",
     ).replace('build.canonical_jsonb_text', 'pg_temp.canonical_jsonb_text').strip().rstrip(';')
 
 
@@ -78,7 +79,7 @@ def compare(conn, old, new):
     return conn.execute('SELECT count(*) FROM pg_temp.probe_new').fetchone()[0]
 
 
-def run(model, baseline, fixtures, canonical):
+def run(model, baseline, fixtures, canonical, sizes=(1, 10, 100, 300, 600)):
     import os
     import psycopg
     from jinja2 import Environment
@@ -142,7 +143,7 @@ def run(model, baseline, fixtures, canonical):
                     errors.append(None)
             assert errors == ['22023', '22023'], f'invalid array handling changed: {errors}'
             result['invalid_arrays'].append({'value': value, 'sqlstates': errors})
-        for size in (1, 10, 100, 300, 600):
+        for size in sizes:
             load(conn, [synthetic(size)])
             compare(conn, old, new)
             times = {'old': [], 'new': []}

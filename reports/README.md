@@ -1,5 +1,12 @@
 # M07 multi-channel operations workspace
 
+Date semantics: Overview/Operations filters select source-created UTC order
+cohorts; values/states are latest published, not an as-of-day reconstruction.
+"Orders by source creation date" is not received-data throughput. Monitoring uses
+actual execution clocks and counts pipeline attempts, not new unique orders.
+No physical-receipt timestamp or order-level throughput is fabricated. Daily mart
+maintenance separately uses affected-day scope; report reads do not trigger dbt.
+
 English, read-only Streamlit on localhost. Current contract:
 [scale/monitoring](../docs/09_M07_SCALE_MONITORING.md); preserved review rules:
 [reporting](../docs/08_M07_REPORTING.md). No source actions, raw payloads, fixtures,

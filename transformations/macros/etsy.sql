@@ -39,7 +39,7 @@ INSERT INTO ops.data_exceptions
 SELECT md5(concat_ws(':','etsy:map',snapshot_id::TEXT,source_line_id,'{{ var("mapping_version") }}'))::UUID,
        concat_ws(':','etsy:map',snapshot_id::TEXT,source_line_id,'{{ var("mapping_version") }}'),
        'ETSY_PRODUCT_MAPPING','WARNING','OPEN','etsy_sim','7001',source_line_id,
-       '{{ var("batch_id") }}'::UUID,'{{ var("transformation_version") }}',
+       {{ batch_uuid() }},'{{ var("transformation_version") }}',
        'Unresolved source product; line retained without invented canonical identity',
        jsonb_build_object('snapshot_id',snapshot_id,'mapping_status',mapping_status),now(),now()
   FROM {{ ref('etsy_candidate_order_line_snapshot_history') }} WHERE mapping_status<>'CONFIRMED'

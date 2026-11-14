@@ -7,15 +7,15 @@ WITH lines AS (
       FROM {{ ref('int_website_versions') }} v
       CROSS JOIN LATERAL jsonb_array_elements(v.business_payload->'order_items') AS item(value)
 ), mapped AS (
-    SELECT l.*,
+    SELECT l.snapshot_id, l.source_system, l.source_account_id, l.order_json, l.item_json,
            mapping.id_count,
            mapping.sku_count,
            mapping.id_variant,
            mapping.sku_variant
       FROM lines l
       CROSS JOIN LATERAL (
-          SELECT COUNT(*) FILTER (WHERE m.source_variant_id = l.item_json->>'variant_id') AS id_count,
-                 COUNT(*) FILTER (WHERE m.source_sku = l.item_json->>'sku_at_purchase') AS sku_count,
+          SELECT COUNT(1) FILTER (WHERE m.source_variant_id = l.item_json->>'variant_id') AS id_count,
+                 COUNT(1) FILTER (WHERE m.source_sku = l.item_json->>'sku_at_purchase') AS sku_count,
                  MIN(m.canonical_variant_id) FILTER (WHERE m.source_variant_id = l.item_json->>'variant_id') AS id_variant,
                  MIN(m.canonical_variant_id) FILTER (WHERE m.source_sku = l.item_json->>'sku_at_purchase') AS sku_variant
             FROM {{ source('configuration', 'product_mapping') }} m

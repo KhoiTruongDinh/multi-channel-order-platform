@@ -15,4 +15,4 @@ SELECT o.source_system,
        l.currency,
        o.published_batch_id
   FROM {{ ref('etsy_candidate_orders_current') }} o
-  JOIN {{ ref('etsy_candidate_order_line_snapshot_history') }} l USING (snapshot_id)
+  INNER JOIN {{ ref('etsy_candidate_order_line_snapshot_history') }} l USING (snapshot_id)

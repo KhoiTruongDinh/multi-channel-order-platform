@@ -1,9 +1,9 @@
 WITH quantities AS (
-    SELECT v.*,
+    SELECT v.snapshot_id, v.source_system, v.source_account_id, v.order_json, v.shipping_json, v.first_observed_at, v.content_fingerprint,
            (SELECT sum((l->>'quantity')::INTEGER) FROM jsonb_array_elements(order_json->'lineItems') l) AS ordered,
            (SELECT coalesce(sum((l->>'quantity')::INTEGER),0)
-              FROM jsonb_array_elements(shipping_json->'fulfillments') f,
-                   jsonb_array_elements(f->'lineItems') l
+              FROM jsonb_array_elements(shipping_json->'fulfillments') f
+              CROSS JOIN LATERAL jsonb_array_elements(f->'lineItems') l
              WHERE f->>'shippedDate' IS NOT NULL) AS shipped
       FROM {{ ref('int_ebay_versions') }} v
 )
@@ -28,5 +28,5 @@ SELECT snapshot_id,source_system,source_account_id,order_json->>'orderId' AS sou
        (order_json#>>'{pricingSummary,total,value}')::NUMERIC(20,6) AS source_order_total_amount,
        '{{ var("mapping_version") }}'::TEXT AS mapping_version,
        '{{ var("transformation_version") }}'::TEXT AS transformation_version,
-       '{{ var("batch_id") }}'::UUID AS batch_id
+       {{ batch_uuid() }} AS batch_id
   FROM quantities

@@ -1,7 +1,7 @@
 {{ config(enabled=(var('validation_mode', 's01') == 's01')) }}
 SELECT 1 AS failure
- WHERE (SELECT COUNT(*) FROM {{ ref('candidate_order_snapshot_history') }}) <> 3
-    OR (SELECT COUNT(*) FROM {{ ref('candidate_order_line_snapshot_history') }}) <> 3
+ WHERE (SELECT COUNT(1) FROM {{ ref('candidate_order_snapshot_history') }}) <> 3
+    OR (SELECT COUNT(1) FROM {{ ref('candidate_order_line_snapshot_history') }}) <> 3
     OR EXISTS (
         SELECT 1 FROM {{ ref('candidate_order_line_snapshot_history') }}
          WHERE mapping_status <> 'CONFIRMED'

@@ -1,6 +1,7 @@
-SELECT r.*, build.etsy_canonical_json(r.parsed_payload) AS order_json,
-       sha256(convert_to(build.canonical_jsonb_text(build.etsy_canonical_json(r.parsed_payload)), 'UTF8')) AS content_fingerprint
-  FROM {{ source('acquisition','raw_records') }} r
-  JOIN {{ source('operations','batch_inputs') }} i USING(raw_record_id)
- WHERE i.batch_id='{{ var("batch_id") }}'::UUID AND r.source_system='etsy_sim'
-   AND r.source_account_id='7001' AND r.resource_type='etsy_receipt' AND r.response_status=200
+{{ config(pre_hook="{{ populate_etsy_cache() }}") }}
+-- Keep every acquisition and frozen membership; cache only the pure computation.
+SELECT r.raw_record_id, r.run_id, r.source_system, r.source_account_id, r.acquired_at, r.byte_sha256, r.parsed_payload,c.order_json,c.content_fingerprint
+  FROM ({{ etsy_cache_inputs() }}) r
+  INNER JOIN {{ source('canonical_cache','etsy_payloads') }} c
+    ON (c.source_system,c.source_account_id,c.byte_sha256,c.normalization_version)=
+       (r.source_system,r.source_account_id,r.byte_sha256,'{{ etsy_cache_version() }}')

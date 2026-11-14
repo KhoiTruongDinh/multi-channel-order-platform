@@ -53,7 +53,7 @@ if page=='Pipeline Monitoring':
     for col,label,value in zip(st.columns(4),['Measured stage attempts','Terminal stage errors','Error rate / terminal attempts','Pending / leased / failed work'],
             [attempts,errors,f'{errors/terminal:.1%} (n={terminal})' if terminal else 'Unknown (n=0)',pending]):
         col.metric(label,value)
-    st.subheader('Processing activity by channel')
+    st.subheader('Pipeline attempts by channel')
     st.caption('Five-minute buckets. Physical stage/slot attempts, NOT new unique orders. S01/replay may reprocess existing orders.')
     chart(monitor['series'],'bucket:T','sum(attempts):Q','source_system:N','line')
     st.subheader('Failures and outcomes by channel')
@@ -137,7 +137,7 @@ else:
     st.session_state['publication_signature']=panel['signature']
 summary=panel['summary']
 if page=='Multi-channel Overview':
-    st.caption('Published, source/account-scoped unique orders. Includes canceled orders. Amounts are original activity, not recognized revenue.')
+    st.caption('Source-created date cohort (UTC). Unique published orders, including canceled orders; latest known states. Amounts are original order values, not recognized revenue or ingestion throughput.')
     for col,label,value in zip(st.columns(3),['Published orders','Orders to review','Ordered units'],
             [summary['orders'],summary['reviews'],panel['lines']['units']]):
         col.metric(label,value)
@@ -146,9 +146,9 @@ if page=='Multi-channel Overview':
         col.metric(label,value)
     st.subheader('Orders by channel')
     chart(panel['channels'],'source_system:N','orders:Q','source_system:N')
-    st.subheader('Order activity over time')
+    st.subheader('Orders by source creation date')
     chart(panel['series'],'day:T','orders:Q','source_system:N','line')
-    st.caption('Source order creation dates, not pipeline processing time.')
+    st.caption('Orders grouped by source creation day. Late ingestion can update an older day; this is not received-data or processing volume.')
     left,right=st.columns(2)
     with left:
         st.subheader('Ordered units by channel')

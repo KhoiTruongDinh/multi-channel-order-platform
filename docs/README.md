@@ -45,7 +45,13 @@ Original source snapshot: 2026-10-24; local documentation review: 2026-10-30
 | [16_M08_LIVE_LOCAL.md](16_M08_LIVE_LOCAL.md) | Current single-stack live admission, APIs, source worker and scheduling | Current M08B architecture |
 | [17_M08C_RECOVERY.md](17_M08C_RECOVERY.md) | Scoped fault runner, case evidence and operator outcomes | Declared local matrix verified; assertion boundaries and rerun requirements |
 | [19_M08D_MEASUREMENT.md](19_M08D_MEASUREMENT.md) | Finite warm-history baseline, safety limits and honest observation clocks | First M08D measurement slice; not full load/soak certification |
+| [20_M08D_REUSE_COORDINATION.md](20_M08D_REUSE_COORDINATION.md) | Versioned canonical cache, durable source ownership and worker-free reschedule waits | Approved priorities1/2; rollout and recovery boundaries |
+| [21_M08D_DELTA_RUNTIME.md](21_M08D_DELTA_RUNTIME.md) | Compiled dbt plans, affected-order manifests and atomic delta publication | Approved ten-second redesign; activation and measured acceptance in STATUS |
 | [STATUS.md](STATUS.md) | Actual completed work, checks, blockers, next task | Every coding session |
+| [22_M08D_EBAY_ACQUISITION.md](22_M08D_EBAY_ACQUISITION.md) | Multi-source page-payload reuse, two detail workers where needed, set-based downstream and provenance/checkpoint gates | Revised owner-selected design only; not implemented |
+| [23_M08D_BUILD_TIMING.md](23_M08D_BUILD_TIMING.md) | Actual unchanged900 model/test timings, unitemized time and proposed profiling priorities | Evidence review; no new load run or optimization implementation |
+| [24_ACTIVITY_TIME_REVIEW.md](24_ACTIVITY_TIME_REVIEW.md) | Per-report clocks, bounded daily scope/publisher, staging duplicate work and parallel-runner limits | Current M08D correction; exact acceptance in STATUS |
+| [../transformations/SQL_STYLE.md](../transformations/SQL_STYLE.md) | Explicit dbt projections, counts/joins/grouped deduplication, index review limits and release gates | Owner-requested SQL cleanup; actual checks in STATUS |
 | [CODEX_VSCODE.md](CODEX_VSCODE.md) | Setup, first task prompt, review and Git workflow | Initial IDE setup and resuming work |
 | [PROVENANCE.md](PROVENANCE.md) | Source links/revision and synchronization rules | Refreshing the coding contract |
 

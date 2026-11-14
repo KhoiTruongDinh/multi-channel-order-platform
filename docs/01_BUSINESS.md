@@ -81,6 +81,14 @@ Data-health page: acquisition success/window by source, last successful publicat
 
 Include a current-order detail table (one row per order), product totals including an unmapped bucket, and a source-health table. Keep unknown/unavailable values distinct from zero and false. A product filter affects line/product metrics; order-level monetary cards are not recomputed from filtered line joins. Either leave those cards explicitly unfiltered or provide a separately labeled selected-order cohort.
 
+Report-clock clarification2026-11-14: order/product daily activity is a UTC
+source-created cohort, with latest justified order values/states. Pipeline
+monitoring is actual execution-time attempt activity, not order count or sales.
+Observed-version activity and first-integrated-order activity are distinct future
+metrics; a single generic "received date" does not replace all report dates.
+Daily mart maintenance uses old/new affected days, not CURRENT_DATE-only or a
+whole-history rebuild each poll. Late data may revise an older justified bucket.
+
 ### A5.2 Data sufficiency and boundaries
 
 Approved source fields and S01 evidence are sufficient for these outputs. Remaining preparation is technical: target column constraints, metric SQL, report access views and freshness behavior. Revenue recognition, margin, settlement, confirmed refunds and promised delivery/SLA analysis are outside the initial report. No new business discovery is required for S01.

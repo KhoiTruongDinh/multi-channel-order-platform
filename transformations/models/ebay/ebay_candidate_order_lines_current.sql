@@ -15,4 +15,4 @@ SELECT o.source_system,
        l.currency,
        o.published_batch_id
   FROM {{ ref('ebay_candidate_orders_current') }} o
-  JOIN {{ ref('ebay_candidate_order_line_snapshot_history') }} l USING (snapshot_id)
+  INNER JOIN {{ ref('ebay_candidate_order_line_snapshot_history') }} l USING (snapshot_id)
