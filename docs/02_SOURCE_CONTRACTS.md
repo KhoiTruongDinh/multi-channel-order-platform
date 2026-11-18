@@ -1,5 +1,14 @@
 # B. Source contracts and S01 acceptance
 
+Opt-in acquisition refinement2026-11-14: sequential discovery may reuse validated
+eBay Order/Etsy receipt page elements, with at most two required-detail workers.
+Append-only raw+index references identify actual acquired elements, never synthetic
+single-order responses. Existing canonical source fingerprints and S01 request
+defaults remain. Etsy SIM/Website are unchanged; eBay SIM adds documented orderIds
+and request-state snapshots. Full input/parity qualification and explicit new
+release/bootstrap remain pending, not authorized by focused unit checks. See
+22_M08D_EBAY_ACQUISITION.md and ingestion/ACQUISITION.md.
+
 Daily local live source revision2026-11-01: [16_M08_LIVE_LOCAL.md](16_M08_LIVE_LOCAL.md).
 Pre-generated source timelines are admitted append-only and shifted to actual
 live time; collector SQL/HTTP contracts and fingerprint semantics stay unchanged.

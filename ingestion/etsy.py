@@ -6,6 +6,7 @@ import re
 import random
 import math
 import time
+import threading
 import uuid
 from datetime import timedelta
 from email.utils import parsedate_to_datetime
@@ -18,11 +19,28 @@ from ingestion.etsy_common import (connect, now, uid, shop, origin, validate_url
                                    start_run, finish_run, raw_record, enqueue)
 from ingestion.etsy_recovery import PageSetChanged, begin_scan, finish_scan, page_history
 from ingestion.pagination import page_size
+from ingestion.acquisition import (policy, bounded_jobs, pin_options, accept_element,
+                                   etsy_complete,check_legacy_options)
 
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs):
         return None
+
+
+_http = threading.local()
+
+
+def http_opener():
+    """Reuse TLS/proxy setup per worker thread, never request/response state.
+
+    Building an opener loads the system CA store even for local HTTP. Keep
+    certificate verification and redirect refusal intact; credentials remain
+    request-scoped and each response is closed by fetch().
+    """
+    if not hasattr(_http, 'opener'):
+        _http.opener = build_opener(NoRedirect)
+    return _http.opener
 
 
 def retry_after_seconds(headers, reference):
@@ -42,11 +60,12 @@ def retry_after_seconds(headers, reference):
 
 
 def require_source_ready(conn):
-    row=conn.execute('''SELECT r.sanitized_headers,a.recorded_at
+    rows=conn.execute('''SELECT r.sanitized_headers,a.recorded_at
         FROM ops.etsy_http_attempts a JOIN raw.raw_records r USING(raw_record_id)
         WHERE r.source_system='etsy_sim' AND r.source_account_id=%s AND r.response_status IN (429,503)
-          AND r.sanitized_headers ? 'retry-after' ORDER BY a.recorded_at DESC LIMIT 1''',(shop(),)).fetchone()
-    if row and (now()-row[1]).total_seconds()<retry_after_seconds(row[0],row[1]):
+          AND r.sanitized_headers ? 'retry-after'
+          AND a.recorded_at>=clock_timestamp()-INTERVAL '366 days' ''',(shop(),)).fetchall()
+    if any((now()-row[1]).total_seconds()<retry_after_seconds(row[0],row[1]) for row in rows):
         raise RuntimeError('source Retry-After cooldown not elapsed; no new HTTP attempt allocated')
 
 
@@ -63,7 +82,7 @@ def require_recovery_allowed(conn, receipt):
 def fetch(url):
     request = Request(url, headers={'Authorization': 'Bearer ' + os.environ['ETSY_SIM_TOKEN']})
     try:
-        with build_opener(NoRedirect).open(request, timeout=10) as response:
+        with http_opener().open(request, timeout=10) as response:
             body = response.read(2097153)
             return response.status, body, dict(response.headers)
     except HTTPError as error:
@@ -76,7 +95,7 @@ def claim(conn, only=None, collection_run=None):
     require_source_ready(conn)
     row = conn.execute('''SELECT w.work_id,c.run_id,c.resource_url,w.cycle_attempts,w.inbox_id
         FROM ops.processing_work w JOIN ops.etsy_work_context c USING(work_id)
-        WHERE w.work_type='ETSY_RECEIPT' AND w.source_account_id=%s
+        WHERE w.work_type='ETSY_RECEIPT' AND w.source_system='etsy_sim' AND w.source_account_id=%s
           AND w.cycle_attempts<5 AND (%s::UUID[] IS NULL OR w.work_id=ANY(%s::UUID[]))
           AND ((w.state='PENDING' AND (w.next_attempt_at IS NULL OR w.next_attempt_at<=now()))
                OR (w.state='LEASED' AND w.lease_until<=clock_timestamp()))
@@ -149,7 +168,8 @@ def process(conn, lease, observed=None):
 def expire_exhausted(conn):
     rows = conn.execute('''UPDATE ops.processing_work SET state='FAILED',lease_token=NULL,lease_until=NULL,
         updated_at=clock_timestamp(),last_error_code='LEASE_EXHAUSTED' WHERE work_type='ETSY_RECEIPT'
-        AND state='LEASED' AND lease_until<=clock_timestamp() AND cycle_attempts>=5 RETURNING work_id,inbox_id''').fetchall()
+        AND source_system='etsy_sim' AND source_account_id=%s
+        AND state='LEASED' AND lease_until<=clock_timestamp() AND cycle_attempts>=5 RETURNING work_id,inbox_id''',(shop(),)).fetchall()
     for work, inbox in rows:
         run = conn.execute('SELECT run_id FROM ops.etsy_work_context WHERE work_id=%s', (work,)).fetchone()[0]
         finish_run(conn, run, False, 'exhausted interrupted lease')
@@ -159,25 +179,36 @@ def expire_exhausted(conn):
     conn.commit()
 
 
-def drain(conn, observed=None, only=None, collection_run=None):
+def drain(conn, observed=None, only=None, collection_run=None, workers=1):
+    if type(workers) is not int or workers not in (1,2):
+        raise ValueError('detail workers must be1 or2')
     expire_exhausted(conn)
     if only is None:
         only = [r[0] for r in conn.execute('''SELECT work_id FROM ops.processing_work
-            WHERE work_type='ETSY_RECEIPT' AND source_account_id=%s AND state IN ('PENDING','LEASED')''', (shop(),))]
+            WHERE work_type='ETSY_RECEIPT' AND source_system='etsy_sim' AND source_account_id=%s AND state IN ('PENDING','LEASED')''', (shop(),))]
         conn.commit()
     if not only:
         return
     # Bound this invocation by its initial work set, not an arbitrary 100 claims.
     # Successful work is no longer claimable; new arrivals wait for the next call.
     # HTTP/lease failures still stop the call and retain their durable budgets.
-    for _ in range(len(only)):
-        lease = claim(conn, only, collection_run)
-        if not lease:
-            break
-        if not process(conn, lease, observed):
-            raise RuntimeError('receipt work incomplete; attempts retained for next scheduled invocation')
+    def consume(connection, next_job):
+        while next_job() is not None:
+            lease = claim(connection, only, collection_run)
+            if not lease:
+                break
+            if not process(connection, lease, observed):
+                raise RuntimeError('receipt work incomplete; attempts retained for next scheduled invocation')
+    if workers==1:
+        jobs=iter(range(len(only)))
+        consume(conn,lambda:next(jobs,None))
+    else:
+        def worker(next_job):
+            with connect() as own_connection:
+                consume(own_connection,next_job)
+        bounded_jobs(range(len(only)),workers,worker)
     unfinished = conn.execute('''SELECT count(*) FROM ops.processing_work WHERE work_type='ETSY_RECEIPT'
-        AND source_account_id=%s AND state<>'SUCCEEDED'
+        AND source_system='etsy_sim' AND source_account_id=%s AND state<>'SUCCEEDED'
         AND (%s::UUID[] IS NULL OR work_id=ANY(%s::UUID[]))''', (shop(), only, only)).fetchone()[0]
     conn.commit()
     if unfinished:
@@ -226,7 +257,9 @@ def recovery_pages(conn, args, run, scan):
         expected = count
         if count > 10000 or offset+len(results)>count:
             raise ValueError('invalid recovery page cardinality')
-        for receipt in results:
+        for element_index, receipt in enumerate(results):
+            if not isinstance(receipt,dict):
+                raise ValueError('invalid recovery receipt object')
             receipt_id = receipt.get('receipt_id')
             if type(receipt_id) is not int or receipt_id <= 0:
                 raise ValueError('missing receipt identity')
@@ -238,7 +271,8 @@ def recovery_pages(conn, args, run, scan):
                 raise PageSetChanged('duplicate or unsorted recovery page; reconcile window')
             seen.add(receipt_id)
             previous = order
-            works.append((receipt_id, raw))
+            works.append((receipt_id,raw,element_index,receipt) if
+                         getattr(args,'acquisition_mode','legacy')=='page-reuse' else (receipt_id,raw))
         conn.commit()
         offset += len(results)
         if offset >= count:
@@ -265,12 +299,17 @@ def recover(conn, args, run):
     if status == 'RUNNING':
         finish_scan(conn, run, scan, True)
     works = []
-    for receipt_id, raw in pages:
+    for row in pages:
+        receipt_id,raw=row[:2]
         require_recovery_allowed(conn, receipt_id)
+        if (getattr(args,'acquisition_mode','legacy')=='page-reuse' and etsy_complete(row[3])
+                and str(row[3].get('shop_id',shop()))==shop()):
+            accept_element(conn,raw,receipt_id,row[2],run,scan)
+            continue
         works.append(enqueue(conn, f'recovery:{args.execution_id}:{receipt_id}', receipt_id, raw))
     conn.commit()
     if works:
-        drain(conn, args.observed_at, works, run)
+        drain(conn, args.observed_at, works, run, workers=getattr(args,'detail_workers',1))
     conn.execute('''INSERT INTO ops.extraction_checkpoints
         (source_system,source_account_id,stream_name,completed_window_end,successful_run_id,updated_at)
         VALUES ('etsy_sim',%s,%s,%s,%s,%s) ON CONFLICT (source_system,source_account_id,stream_name)
@@ -289,7 +328,10 @@ def main():
     p.add_argument('--observed-at', type=parse_time)
     p.add_argument('--checkpoint-stream', default='receipts')
     p.add_argument('--page-size', type=int, default=1)
+    p.add_argument('--acquisition-mode',choices=('legacy','page-reuse'),default='legacy')
+    p.add_argument('--detail-workers',type=int,choices=(1,2),default=1)
     args = p.parse_args()
+    policy(args.acquisition_mode,args.detail_workers)
     args.page_size = page_size(args.page_size, 100)
     if not re.fullmatch(r'receipts(?:_polling|_test_[0-9a-f]{32})?',args.checkpoint_stream):
         p.error('invalid receipt checkpoint scope')
@@ -304,13 +346,22 @@ def main():
     run = uid('collection:' + args.execution_id)
     with connect() as conn:
         conn.execute('SELECT pg_advisory_lock(hashtextextended(%s,0))', (str(run),))
+        if not conn.execute('SELECT pg_try_advisory_lock(hashtextextended(%s,0))',
+                            (f'http-collection:etsy_sim:{shop()}',)).fetchone()[0]:
+            raise RuntimeError('another Etsy collector owns the account')
         prior = conn.execute('SELECT status,requested_window_start,requested_window_end FROM ops.pipeline_runs WHERE run_id=%s', (run,)).fetchone()
+        if prior and args.acquisition_mode=='legacy':
+            check_legacy_options(conn,run)
         bounds = (args.window_start, args.window_end) if args.mode == 'recovery' else (None, None)
         if prior and prior[1:] != bounds:
             raise ValueError('collection identity already bound to another window')
         if prior and prior[0] == 'SUCCEEDED':
+            if args.acquisition_mode=='page-reuse':
+                pin_options(conn,run,args.acquisition_mode,args.detail_workers,args.page_size)
             return
         start_run(conn, run, args.checkpoint_stream if args.mode == 'recovery' else 'inbox', f'm06:{args.execution_id}', bounds)
+        if args.acquisition_mode=='page-reuse':
+            pin_options(conn,run,args.acquisition_mode,args.detail_workers,args.page_size)
         conn.execute("UPDATE ops.pipeline_runs SET status='RUNNING',finished_at=NULL WHERE run_id=%s", (run,))
         conn.commit()
         try:
@@ -323,9 +374,9 @@ def main():
                     raise ValueError('unknown Etsy work for replay')
                 work = enqueue(conn, f'replay:{args.execution_id}:{args.work_id}', old[0], old[1], old[2],args.work_id)
                 conn.commit()
-                drain(conn, args.observed_at, [work], run)
+                drain(conn, args.observed_at, [work], run, workers=args.detail_workers)
             else:
-                drain(conn, args.observed_at, collection_run=run)
+                drain(conn, args.observed_at, collection_run=run, workers=args.detail_workers)
             finish_run(conn, run, True)
             conn.commit()
         except Exception as error:

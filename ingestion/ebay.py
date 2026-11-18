@@ -81,7 +81,9 @@ class Collector:
 
     def get(self, url, kind, metadata=None):
         safe_url(url, self.args.origin)
-        for attempt in range(1, 6):
+        for attempt in range(getattr(self,'prior_attempts',0)+1, 6):
+            if hasattr(self,'cooldown'):
+                self.cooldown()
             headers, status, body = {}, None, b''
             try:
                 request = Request(url, headers={'Authorization': 'Bearer ' + os.environ.get('EBAY_SIM_TOKEN','local-s01-test-token')})
@@ -221,7 +223,11 @@ def main():
     parser.add_argument('--overlap-seconds', type=int, default=120)
     parser.add_argument('--fail-after-page', action='store_true')
     parser.add_argument('--page-size', type=int, default=1)
+    parser.add_argument('--acquisition-mode',choices=('legacy','page-reuse'),default='legacy')
+    parser.add_argument('--detail-workers',type=int,choices=(1,2),default=1)
     args = parser.parse_args()
+    from ingestion.acquisition import policy,pin_options
+    policy(args.acquisition_mode,args.detail_workers)
     args.page_size = page_size(args.page_size, 200)
     if args.overlap_seconds < 0:
         parser.error('overlap must be nonnegative')
@@ -233,15 +239,32 @@ def main():
             args.window_start = prior[0] - timedelta(seconds=args.overlap_seconds)
         if not args.window_start <= args.window_end <= args.observed_at:
             parser.error('require start <= end <= observed time')
-        run_id = uuid.uuid4()
+        if not conn.execute('SELECT pg_try_advisory_lock(hashtextextended(%s,0))',
+                            (f'http-collection:{SOURCE}:{ACCOUNT}',)).fetchone()[0]:
+            raise RuntimeError('another eBay collector owns the account')
+        run_id = (uuid.uuid5(uuid.NAMESPACE_URL,'ebay:page-reuse:'+args.execution_id)
+                  if args.acquisition_mode=='page-reuse' else uuid.uuid4())
+        prior=conn.execute('SELECT status,requested_window_start,requested_window_end FROM ops.pipeline_runs WHERE run_id=%s',(run_id,)).fetchone()
+        if prior and prior[1:]!=(args.window_start,args.window_end):
+            raise ValueError('collection identity already bound to another window')
+        if prior and prior[0]=='SUCCEEDED':
+            pin_options(conn,run_id,args.acquisition_mode,args.detail_workers,args.page_size)
+            return
         conn.execute('''INSERT INTO ops.pipeline_runs
             (run_id,stage,source_system,source_account_id,stream_name,requested_window_start,
              requested_window_end,started_at,status,log_reference)
-            VALUES (%s,'ACQUIRE',%s,%s,'orders',%s,%s,%s,'RUNNING',%s)''',
+            VALUES (%s,'ACQUIRE',%s,%s,'orders',%s,%s,%s,'RUNNING',%s) ON CONFLICT DO NOTHING''',
             (run_id,SOURCE,ACCOUNT,args.window_start,args.window_end,args.observed_at,f'm05:{args.execution_id}'))
         conn.commit()
         try:
-            Collector(conn,args,run_id).acquire()
+            collector=Collector
+            if args.acquisition_mode=='page-reuse':
+                pin_options(conn,run_id,args.acquisition_mode,args.detail_workers,args.page_size)
+                from ingestion.ebay_reuse import ReuseCollector
+                collector=ReuseCollector
+                conn.execute("UPDATE ops.pipeline_runs SET status='RUNNING',finished_at=NULL WHERE run_id=%s",(run_id,))
+                conn.commit()
+            collector(conn,args,run_id).acquire()
             conn.execute('''INSERT INTO ops.extraction_checkpoints
                 (source_system,source_account_id,stream_name,completed_window_end,successful_run_id,updated_at)
                 VALUES (%s,%s,%s,%s,%s,%s)
@@ -249,7 +272,7 @@ def main():
                 SET completed_window_end=EXCLUDED.completed_window_end,successful_run_id=EXCLUDED.successful_run_id,updated_at=EXCLUDED.updated_at
                 WHERE EXCLUDED.completed_window_end >= ops.extraction_checkpoints.completed_window_end''',
                 (SOURCE,ACCOUNT,args.checkpoint_stream,args.window_end,run_id,args.observed_at))
-            conn.execute("UPDATE ops.pipeline_runs SET status='SUCCEEDED',finished_at=%s WHERE run_id=%s", (args.observed_at,run_id))
+            conn.execute("UPDATE ops.pipeline_runs SET status='SUCCEEDED',finished_at=%s,error_code=NULL,error_message=NULL WHERE run_id=%s", (args.observed_at,run_id))
             conn.commit()
             print(f'M05 acquire PASS run={run_id} execution={args.execution_id}')
         except Exception as error:

@@ -1,5 +1,111 @@
 # TẠM THỜI — Giải trình M08 để chủ dự án kiểm tra
 
+## Checkpoint mới nhất: kiểm tra dbt với raw page mới (18/11/2026)
+
+Phần này cập nhật sau các mục 14/11 bên dưới. Các ghi chú cũ là lịch sử,
+không có nghĩa mọi thay đổi hiện tại đã triển khai lên main.
+
+### Đang kiểm tra gì và tại sao?
+
+Collect mới đã PASS bài DB riêng ngày 14/11: giữ raw thật, lưu tham chiếu
+`ops.acquisition_elements`, lấy detail khi cần, hai worker và checkpoint khi lỗi.
+Lỗi CHECK cho phép JSON null trong migration014 đã sửa. Bài đó **chưa chạy dbt**.
+
+Bây giờ kiểm tra bước kế tiếp: dbt đọc raw page có còn cho kết quả nghiệp vụ
+đúng như đọc raw đơn lẻ không? Không chạy lại collect, Airflow, webhook receiver,
+publish, campaign900 hay test hiệu năng. Không đọc `.env`, không sửa stack main.
+
+```mermaid
+flowchart LR
+    A[Cùng dữ liệu nguồn mẫu] --> L[Nhánh legacy: raw từng đơn]
+    A --> P[Nhánh mới: raw page + element được chấp nhận]
+    P --> F[Detail thật cho đơn cần fallback]
+    L --> D1[dbt build và tests]
+    P --> D2[dbt build và tests]
+    F --> D2
+    D1 --> C[So từng dòng của 7 đầu ra nghiệp vụ mỗi nguồn]
+    D2 --> C
+    D2 --> E[Kiểm tra evidence, fingerprint và cache riêng]
+```
+
+### Cách bài kiểm tra hoạt động
+
+Script: `tests/dbt_acquisition_probe.py`. Tạo PostgreSQL tạm dùng RAM, không mở
+port máy; dùng Python/dbt trong image Airflow có sẵn nhưng **không chạy Airflow**.
+Áp dụng migrations001..011 và014 trên DB test; chưa cần delta012/013.
+Code và fixture mount read-only; artifacts dbt nằm trong `/tmp` của client test.
+
+Hai manifest test độc lập chọn hai cách biểu diễn cùng dữ liệu. Đây là fixture
+để kiểm tra SQL, không phải một lượt thu thập HTTP hoặc freeze/publish thực tế.
+Raw vẫn được giữ nguyên trong suốt bài test; không xóa raw để làm kết quả khớp.
+
+| Nội dung | Mong đợi |
+| --- | --- |
+| dbt build/test ở cả hai nhánh | Tất cả model/test của graph runtime thành công; không chỉ parse/compile |
+| Đơn, line, current, history, daily và status | So đủ 7 bảng nghiệp vụ/nguồn, chỉ bỏ batch lineage khác nhau có chủ đích |
+| Website | Giữ kết quả nhánh không đổi để phát hiện tác động lan sang nguồn khác |
+| eBay | Page có nhiều order; đơn cancellation dùng detail; shipping collection thiếu trường dùng fulfillment detail thật |
+| Etsy | Page có nhiều receipt; receipt thiếu trường dùng raw detail; entry chưa được chấp nhận không trở thành snapshot |
+| Đọc lại cùng phiên bản | Giữ quan sát/evidence, không tăng logical history/current |
+| Fingerprint | So với hàm chuẩn độc lập trong fixture utilities, không sửa quy tắc định danh phiên bản |
+| Evidence | Trỏ raw thuộc đúng manifest; hash đúng bytes; role đúng nguồn. Không đòi raw UUID hai nhánh giống nhau |
+| Cache Etsy | Page lặp lại dùng chung cache theo nội dung element; không lấy hash cả page làm danh tính receipt |
+
+Không so evidence bằng phép bằng nhau đơn thuần: cách lấy dữ liệu đã thay đổi
+nên raw ID và loại response có thể khác. Ví dụ page thật phải mang role
+`EBAY_ORDERS`/`ETSY_RECEIPTS`, không tự dựng một response detail chưa từng nhận.
+Website vẫn dùng role riêng `WEBSITE_RELATIONAL_SNAPSHOT` đã có từ trước.
+
+### Tự chạy ở máy bạn
+
+Bật Docker Engine, không cần bật Compose main hoặc DAG. Từ thư mục gốc repo:
+
+```powershell
+python tests/dbt_acquisition_probe.py
+```
+
+Cần sẵn image `postgres:16.15-bookworm` và `multi-channel-order-platform-airflow`
+có project venv/dbt. Script không cài package host hay tự đổi image main.
+Kết thúc sẽ in PASS/FAILED và đường dẫn report `runtime/dbt-acquisition-*.json`.
+Chỉ container test có tên/label do script tạo và dữ liệu tmpfs của chúng bị dọn;
+không xóa volume, DB hoặc dữ liệu chính. Xem `checks.builds`, `checks.parity`,
+`checks.fingerprints`, `checks.evidence`, `checks.element_cache` và `cleanup`.
+
+### Kết quả thực tế và giới hạn
+
+**Kết quả cuối: PASS**, report
+`runtime/dbt-acquisition-157f78dfe5b2.json`, source hash
+`673cbce2ca50fe5105f541df2184a799ba138e188701d1b6c4f90dd85b5c4c5c`.
+
+- Legacy: 60node success/pass; page mới: 60node success/pass; không có node lỗi.
+  Số node bao gồm model, test và hook, không phải 60model.
+- 21phép so sánh: 7bảng nghiệp vụ × 3nguồn, so đủ giá trị/từng dòng chứ không
+  chỉ so count. Chỉ loại batch lineage khác nhau giữa hai manifest.
+- Mỗi marketplace có 2đơn current, 3snapshot từ 4quan sát. Quan sát lặp không
+  tạo thêm logical snapshot. Website vẫn 1đơn/1snapshot như fixture đối chứng.
+- 4kiểm tra fingerprint (2nguồn × 2nhánh) đúng utility độc lập; 6kiểm tra
+  evidence (3nguồn × 2nhánh) đúng manifest/raw bytes/role. Evidence eBay legacy
+  8dòng, page11dòng vì có page/detail/shipping thật khác nhau; không ép count bằng nhau.
+- Cache element Etsy: trước nhánh page0dòng, sau2dòng; hai page lặp cùng phiên bản
+  dùng chung entry. Không cần sửa thêm model/macro nghiệp vụ để đạt kết quả này.
+- Client/DB test đã dọn, không còn container chạy ở kiểm tra cuối; main vẫn dừng
+  như trước. Không stage/commit/push.
+
+Trong lúc dựng probe có3lần chưa PASS, đều ghi report thay vì bỏ qua:
+`5b2e20f0957e` thiếu finished_at trong metadata fixture (chưa chạy dbt);
+`7d89d38a218c` dbt legacy đã chạy qua nhưng helper evidence áp sai role cho Website,
+đồng thời helper cleanup chưa nhận dạng chuỗi lowercase "no such object" khi
+client đã tự xóa; `5182e546fff1` chờ nhầm server PostgreSQL khởi tạo tạm.
+Đã sửa helper đúng contract và chờ TCP final readiness, không sửa constraint,
+không sửa SQL nghiệp vụ hoặc giả PASS. Lượt cuối chạy lại đủ hai nhánh và PASS.
+
+Ngay cả khi PASS, đây chỉ là kiểm chứng dbt với input mới trên fixture nhỏ:
+**không** chứng nhận thời gian dưới10giây, tải900, compiled delta runtime,
+scheduler/restart, release/bootstrap hoặc main đã bật page-reuse.
+Để bật main theo đường delta đang có, bước tiếp theo vẫn là yêu cầu riêng cho
+qualification compiled plan/release/bootstrap. Không tự đổi `.env` hay bypass
+stale-plan guard chỉ vì dbt build thông thường đã PASS.
+
 ## Sửa daily aggregate/publish và nghĩa ngày trên report (14/11)
 
 Không chọn một loại ngày cho toàn hệ thống: đơn/sản phẩm theo cohort ngày tạo

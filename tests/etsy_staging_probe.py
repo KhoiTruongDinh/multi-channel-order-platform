@@ -24,8 +24,14 @@ def render(text,version='a'*32):
     text=text.replace('{{ config(pre_hook=populate_etsy_cache()) }}','')
     text=text.replace('{{ config(pre_hook="{{ populate_etsy_cache() }}") }}','')
     text=text.replace('{{ etsy_cache_inputs() }}',inputs)
+    for name in ('populate_etsy_element_cache','etsy_element_inputs'):
+        body=re.search(r'{% macro '+name+r'\(\) %}(.*?){% endmacro %}',cache,re.S).group(1)
+        text=text.replace('{{ '+name+'() }}',body)
+    text=text.replace('{{ batch_uuid() }}',"'"+BATCH+"'::UUID")
     text=text.replace('{{ etsy_cache_version() }}',version)
     text=text.replace("{{ source('canonical_cache','etsy_payloads') }}",'cache.etsy_payloads')
+    text=text.replace("{{ source('canonical_cache','etsy_elements') }}",'cache.etsy_elements')
+    text=text.replace("{{ source('operations','acquisition_elements') }}",'probe_elements')
     text = re.sub(r"{{\s*source\('acquisition','raw_records'\)\s*}}", 'probe_raw', text)
     text = re.sub(r"{{\s*source\('operations','batch_inputs'\)\s*}}", 'probe_inputs', text)
     return re.sub(r'{{\s*var\("batch_id"\)\s*}}', BATCH, text)
@@ -40,7 +46,8 @@ def cache_sql(version='a'*32):
     return render(re.search(r'{% macro populate_etsy_cache\(\) %}(.*?){% endmacro %}',text,re.S).group(1),version)
 
 
-BASELINE = """SELECT r.*, build.etsy_canonical_json(r.parsed_payload) AS order_json,
+BASELINE = """SELECT r.raw_record_id,r.run_id,r.source_system,r.source_account_id,
+r.acquired_at,r.byte_sha256,r.parsed_payload,build.etsy_canonical_json(r.parsed_payload) AS order_json,
 sha256(convert_to(build.canonical_jsonb_text(build.etsy_canonical_json(r.parsed_payload)), 'UTF8')) AS content_fingerprint
 FROM probe_raw r JOIN probe_inputs i USING(raw_record_id)
 WHERE i.batch_id='%s'::uuid AND r.source_system='etsy_sim'
@@ -85,8 +92,10 @@ def setup_sql():
     return 'CREATE SCHEMA build;\n' + '\n'.join(functions) + """
 CREATE TABLE probe_raw(raw_record_id uuid PRIMARY KEY, source_system text,
 source_account_id text, acquired_at timestamptz, byte_sha256 bytea,
-parsed_payload jsonb, resource_type text, response_status integer, audit_note text);
+parsed_payload jsonb, resource_type text, response_status integer, audit_note text,
+run_id uuid DEFAULT '00000000-0000-0000-0000-000000000002');
 CREATE TABLE probe_inputs(batch_id uuid,raw_record_id uuid);
+CREATE TABLE probe_elements(raw_record_id uuid,source_entity_id text,element_index integer);
 """
 
 
@@ -133,6 +142,11 @@ def run():
         query('CREATE ROLE platform_owner; CREATE ROLE platform_transform; CREATE TABLE public.schema_migrations(migration_name text PRIMARY KEY);')
         query((ROOT/'migrations/platform/010_etsy_payload_cache.sql').read_text())
         query((ROOT/'migrations/platform/010_etsy_payload_cache.sql').read_text())
+        # This legacy-cache-only probe has no real ops tables. Create the exact
+        # new empty cache relation, not fake page acceptance or migration PASS.
+        element_ddl=re.search(r'CREATE TABLE IF NOT EXISTS cache.etsy_elements \(.*?\n\);',
+            (ROOT/'migrations/platform/014_acquisition_elements.sql').read_text(),re.S).group(0)
+        query(element_ddl)
         fixtures = [json.loads(p.read_text()) for p in sorted((ROOT / 'fixtures/s01/source_states/etsy').glob('*.json'))]
         aliases = copy.deepcopy(fixtures[0])
         aliases['create_timestamp'] = aliases['created_timestamp']

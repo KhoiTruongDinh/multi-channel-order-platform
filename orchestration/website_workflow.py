@@ -133,6 +133,8 @@ def perform(conn, args, stage, number):
             arguments = ['ingestion.etsy', mode, '--execution-id', f'm04-{args.execution_id}',
                          '--checkpoint-stream', args.checkpoint_stream,
                          '--page-size', str(getattr(args, 'page_size', 1))]
+            if getattr(args,'acquisition_mode','legacy')=='page-reuse':
+                arguments += ['--acquisition-mode','page-reuse','--detail-workers',str(args.detail_workers)]
             if args.validation_mode == 's01':
                 arguments += ['--observed-at', args.observed_at.isoformat()]
             if mode == 'recovery':
@@ -146,6 +148,8 @@ def perform(conn, args, stage, number):
                      '--execution-id', f'm04-{args.execution_id}', '--checkpoint-stream', args.checkpoint_stream]
         if args.source == 'ebay_sim':
             arguments += ['--page-size', str(getattr(args, 'page_size', 1))]
+            if getattr(args,'acquisition_mode','legacy')=='page-reuse':
+                arguments += ['--acquisition-mode','page-reuse','--detail-workers',str(args.detail_workers)]
         if args.fault_after_raw_once and number == 1:
             arguments.append('--fail-after-raw' if args.source=='internal_web' else '--fail-after-page')
         command(*arguments)

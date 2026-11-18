@@ -1,5 +1,13 @@
 # Experimental M08D delta execution
 
+Collect input refinement2026-11-14 adds migration014_acquisition_elements.sql,
+page-element staging/routing and a separate receipt-element cache. These are
+necessary acquisition-input adapters, not changed business mart clocks. Existing
+plans/evidence are NOT automatically valid for this changed graph. Guarded deploy
+applies014 after012/013, but no new rollout was run in that coding task. Defaults
+remain legacy/1; see ingestion/ACQUISITION.md and STATUS. Ask the owner before
+running broader full-dbt/bootstrap/scheduler gates, never bypass stale-plan refusal.
+
 Checkpoint2026-11-13: retained-main rollout and the UNCHANGED900 finite envelope
 PASS (900orders/3801lines, zero reconciliation errors, observed drain96.438s).
 The MAX<=10s target is NOT achieved; marketplace collection, including mutable

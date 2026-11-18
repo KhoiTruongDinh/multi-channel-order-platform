@@ -2,8 +2,9 @@
 WITH observations AS MATERIALIZED (
     SELECT o.source_account_id,o.content_fingerprint,o.run_id,o.raw_record_id,
            o.order_json->>'orderId' AS order_id,
-           o.order_json->>'lastModifiedDate' AS modified_at
+           o.order_json->>'lastModifiedDate' AS modified_at,parent.resource_type AS order_kind
       FROM {{ ref('stg_ebay_observations') }} o
+      INNER JOIN {{ source('acquisition','raw_records') }} parent ON parent.raw_record_id=o.raw_record_id
 ), eligible_raw AS MATERIALIZED (
     SELECT r.raw_record_id,r.run_id,r.resource_type,r.byte_sha256,
            r.acquired_at,r.metadata,r.parsed_payload
@@ -29,6 +30,7 @@ WITH observations AS MATERIALIZED (
            r.raw_record_id,r.resource_type,r.byte_sha256,r.acquired_at
       FROM observations o INNER JOIN eligible_raw r
         ON r.run_id=o.run_id AND r.metadata->>'order_raw_id'=o.raw_record_id::TEXT
+       AND coalesce(r.metadata->>'order_id',CASE WHEN o.order_kind='ebay_order' THEN o.order_id END)=o.order_id
     UNION ALL
     SELECT o.source_account_id,o.order_id,o.modified_at,o.content_fingerprint,
            r.raw_record_id,r.resource_type,r.byte_sha256,r.acquired_at

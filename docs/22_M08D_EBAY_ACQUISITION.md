@@ -1,8 +1,19 @@
 # M08D multi-source acquisition enhancement
 
-Decision date: 2026-11-14, revised after owner review. DESIGN ONLY: no collector,
-SIM, model, migration, environment or running-service change is implemented by
-this document. This revision supersedes the earlier two-PAGE-worker proposal:
+Decision date: 2026-11-14, revised after owner review. Code implemented as an
+opt-in profile; focused checks are recorded in STATUS. NOT activated or qualified
+by a full database/release/campaign run. Operational guide:
+[ingestion/ACQUISITION.md](../ingestion/ACQUISITION.md).
+Focused PostgreSQL qualification subsequently PASSed (STATUS): real migration014,
+collector CLI/HTTP page reuse/fallback, two-worker completion and failure checkpoint
+barriers, audit/grant/constraint checks and stale-token eligibility fencing.
+The DB probe found/fixed CHECK allowing JSON null; the predicate now requires TRUE.
+This is not full dbt/new-envelope parity, scheduler/rollout or load qualification.
+Ordinary dbt singleton/page-input parity subsequently PASSed on2026-11-18:
+60nodes per branch,21business comparisons and scoped evidence/fingerprint/cache
+checks. See STATUS and the owner-facing temporary Vietnamese review. This is a
+small seeded fixture, not compiled delta/runtime or live-release qualification.
+This revision supersedes the earlier two-PAGE-worker proposal:
 use up to TWO DETAIL/ENRICHMENT workers per source/account where needed, keep
 page discovery sequential, remove redundant complete-receipt refetches in Etsy
 live recovery, and retain Website's set-based snapshot read. Existing S01
@@ -15,9 +26,11 @@ The unchanged900 finite envelope passed, not MAX<=10s. Successful eBay collect
 p95 was 59.427s; five collect attempts refused mutable page totals and recovered
 on subsequent retries. See [STATUS](STATUS.md) for actual evidence.
 
-`ingestion/ebay.py:Collector.acquire()` fetches one page, records work, then
+Legacy `ingestion/ebay.py:Collector.acquire()` fetches one page, records work, then
 calls `details()` for every order before fetching the next page. `details()`
 retrieves one order, its shipping collection, and each fulfillment individually.
+The opt-in `ReuseCollector` now finishes discovery first, reuses eligible Orders,
+and overlaps only required enrichment. No measured speedup is claimed yet.
 
 The selected enhancement is **up to two DETAIL/ENRICHMENT workers**, not page
 workers or two source owners. Avoid redundant detail requests first. Concurrency
@@ -101,8 +114,10 @@ flowchart TD
 
 ## Acquisition reference dictionary, before dependent DDL/models
 
-Existing raw fields remain authoritative. New metadata names below are design
-definitions, not currently implemented columns or a new migration.
+Existing raw fields remain authoritative. Migration014 adds validated page-element
+references, immutable options, bounded eBay scans/restart markers and a separate
+Etsy element cache. Final columns/constraints are in05_TARGET_SCHEMA.md. Page
+offset/limit remain in actual response/URL, not invented extra raw columns.
 
 | Reference | Definition / constraint |
 | --- | --- |
@@ -115,9 +130,10 @@ definitions, not currently implemented columns or a new migration.
 | Source version/fingerprint | Preserve existing identity rules, separately from mapping/transformation version; transport grouping alone must not change identity. |
 
 Python owns HTTP, validation, bounded work and raw/operational audit; dbt owns
-array expansion and business normalization. Current eBay staging expects single
-`ebay_order` payloads and shipping-parent raw IDs; the batch-aware path must be
-explicitly versioned, not bypassed with fake single-order acquisitions.
+array expansion and business normalization. eBay staging now supports both legacy
+`ebay_order` payloads and accepted page elements. Shipping-parent joins retain
+raw ID plus order ID, with a legacy-only missing-order-ID fallback. The changed
+graph requires a new verified release, not fake single-order acquisitions.
 
 ## Etsy: remove redundant live recovery detail reads
 
@@ -135,8 +151,9 @@ No undocumented batch receipt-ID endpoint is introduced.
   `recover()` enqueues these and `drain()` fetches each receipt again. Replace
   redundant live refetches with eligibility references to validated page elements.
   Keep page membership/window checks, actual acquisition time and the real page raw.
-- Current staging/cache consumes `etsy_receipt`, not `etsy_receipts` arrays.
-  Update route, cache inputs, dbt normalization and evidence together. No synthetic
+- Legacy staging/cache consumes `etsy_receipt`; the opt-in branch now consumes
+  accepted `etsy_receipts` elements. Route, cache inputs, dbt normalization and
+  evidence changed together. No synthetic
   detail HTTP record or successful receipt-HTTP attempt may be created for a
   request that did not happen. Keep webhook delivery/inbox audits distinct.
 - One page hash represents many receipts. Before dependent DDL, finalize an
@@ -179,7 +196,8 @@ Etsy implementation sequence (collector-focused, necessary input adaptations onl
 Build/test DOES depend on the acquired envelope shape. See the actual historical
 node timings, unmeasured remainder and proposed profiling order in
 [23_M08D_BUILD_TIMING.md](23_M08D_BUILD_TIMING.md). No speedup is inferred merely
-from a smaller HTTP count. This task does not implement collector or build changes.
+from a smaller HTTP count. This slice changes only necessary acquired-input
+adapters, not unrelated business mart definitions or publication semantics.
 
 ## Website: retain set-based source extraction
 
@@ -226,10 +244,11 @@ fetchall memory and window sizes remain future measurement points.
   scoped shipping-parent joins and source-version consistency.
 - `ingestion/etsy.py`, Etsy cache/route/staging/evidence: direct eligible page
   elements for recovery, two-worker leased detail/fallback pool for inbox as needed.
-- Proposed live-only settings: `LIVE_EBAY_ACQUISITION_MODE=page-reuse`,
-  `LIVE_EBAY_DETAIL_WORKERS=2`, `LIVE_ETSY_DETAIL_WORKERS=2` (each 1 or2),
-  `LIVE_EBAY_ORDER_BATCH_SIZE=50` (1..50, only for grouped lookup).
-  These names are NOT currently supported `.env` options. Existing live page-size
+- Supported live-only settings: `LIVE_EBAY_ACQUISITION_MODE=page-reuse`,
+  `LIVE_ETSY_ACQUISITION_MODE=page-reuse`, `LIVE_EBAY_DETAIL_WORKERS=2`,
+  `LIVE_ETSY_DETAIL_WORKERS=2` (each1 or2). Defaults remain legacy/1.
+  Grouped lookup supports at most50 IDs through the explicit client/SIM interface;
+  it is not a second fetch or a batch-size environment setting. Existing live page-size
   settings remain independently bounded at200 for eBay and100 for Etsy. Persist settings per cycle;
   legacy missing settings keep the old path, including on retry.
 - Base/manual S01 keeps existing request/audit behavior and page-size default1.
@@ -267,7 +286,12 @@ fetchall memory and window sizes remain future measurement points.
    Keep collect-to-publication distinct from source-eligibility observation delay.
    Fewer requests alone do not satisfy MAX<=10s; burst/soak remain later gates.
 
-No runtime gate above has been run for this revised design. Next implementation
-order: remove redundant eBay/Etsy reads and qualify dbt/evidence inputs, add bounded
-detail concurrency with lease/audit/SIM lock tests, then release/parity/bootstrap
-and unchanged900. No source is forced into concurrency without a measured need.
+Focused unit/control-flow, loopback SIM, Jinja/lineage and SQL-style checks PASS.
+The subsequently authorized collect-only DB probe also PASSed migration014,
+reuse/fallback/barrier, selected grants/immutability and stale-token checks; exact
+coverage/failure/fix evidence is in STATUS. Neither proves full warehouse semantic
+parity, crash/lease-expiry races, release/scheduler or performance acceptance.
+Owner workflow requires explicit approval before broader gates. Next: new-input
+dbt parity qualification and an explicit new release/bootstrap before activation;
+unchanged900 is a later separately requested check. No automatic campaign,
+scheduler, reset, main service restart or source-mode switch in this task.

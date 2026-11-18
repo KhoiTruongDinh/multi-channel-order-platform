@@ -1,5 +1,11 @@
 # M08D activity time and staging review
 
+Later collect-input refinement2026-11-14: accepted marketplace page elements need
+additive014 and staging/cache/evidence adapters. The cohort/business correction
+below remains; its earlier runtime PASS does not qualify that new input shape.
+Only focused checks were run for collect. See22_M08D_EBAY_ACQUISITION.md,
+ingestion/ACQUISITION.md and current STATUS before any explicit release activation.
+
 2026-11-14 owner correction: each report uses the clock appropriate to its metric,
 not one globally selected date. Implemented bounded daily-cohort model/publisher
 scope and clearer UI labels; no universal receipt-date switch or parallel runner.

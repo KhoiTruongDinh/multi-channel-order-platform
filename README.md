@@ -123,6 +123,7 @@ services expose due updates through the same SQL/HTTP interfaces used by collect
 | Explicit product and status mappings | Channel-specific identifiers become comparable while original source values remain available. |
 | Frozen batch inputs and tested publication | A build uses a declared raw manifest; stable tables change only after required validation passes. |
 | Durable work, checkpoints and bounded retries | Acquisition progress and materialization progress are tracked separately. |
+| Opt-in marketplace page reuse | Complete order/receipt elements reference the actual acquired page; required details use at most two workers with one completion barrier. |
 | Bounded, read-only reporting | Filters and keyset pagination avoid loading every order or order ID into the dashboard. |
 
 ### One order's path through the system
@@ -137,6 +138,21 @@ services expose due updates through the same SQL/HTTP interfaces used by collect
 Order-level money stays at order grain; line-level quantities and amounts stay
 at line grain. Polling current state may skip fast intermediate changes, so the
 platform preserves what was actually observed rather than manufacturing history.
+
+### Verification highlights
+
+The marketplace page-reuse path has focused local PostgreSQL and dbt evidence:
+
+- Acquisition checks cover complete-page reuse, detail fallback, concurrent
+  workers, retained raw evidence and failure without advancing the checkpoint.
+- Equivalent singleton and page-shaped inputs each pass all 60 runtime dbt nodes
+  (models, tests and hooks). All 21 business-output comparisons across three
+  sources match, with separate fingerprint, evidence and receipt-cache checks.
+
+These are small correctness fixtures, not throughput benchmarks or a claim that
+the opt-in path is deployed. See the [acquisition guide](ingestion/ACQUISITION.md)
+for reproducible commands and activation requirements, and the
+[verification log](docs/STATUS.md) for exact scope and outcomes.
 
 ## Technology stack
 

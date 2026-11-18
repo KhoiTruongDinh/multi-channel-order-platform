@@ -78,7 +78,11 @@ WITH candidates AS MATERIALIZED (
    AND r.resource_type IN
    {% if var('release_source')=='internal_web' %}('website_order_window')
    {% elif var('release_source')=='ebay_sim' %}('ebay_orders','ebay_order','ebay_fulfillments','ebay_fulfillment')
-   {% else %}('etsy_receipt'){% endif %}
+   {% else %}('etsy_receipt','etsy_receipts'){% endif %}
+   {% if var('release_source')=='etsy_sim' %}
+   AND (r.resource_type='etsy_receipt' OR EXISTS (
+       SELECT 1 FROM ops.acquisition_elements e WHERE e.raw_record_id=r.raw_record_id))
+   {% endif %}
    {% if var('release_source')!='internal_web' %}AND r.response_status=200{% endif %}
    AND NOT EXISTS (SELECT 1 FROM ops.delta_raw_keys k WHERE k.raw_record_id=r.raw_record_id)
 ), routed AS (
@@ -96,7 +100,8 @@ WITH candidates AS MATERIALIZED (
  CASE WHEN r.resource_type='ebay_orders' THEN r.parsed_payload->'orders'
       WHEN r.resource_type='ebay_order' THEN jsonb_build_array(r.parsed_payload)
       ELSE jsonb_build_array(jsonb_build_object('orderId',coalesce(r.metadata->>'order_id',parent.parsed_payload->>'orderId'))) END
- {% else %}jsonb_build_array(r.parsed_payload){% endif %}) x ON TRUE
+ {% else %}CASE WHEN r.resource_type='etsy_receipts' THEN r.parsed_payload->'results'
+               ELSE jsonb_build_array(r.parsed_payload) END{% endif %}) x ON TRUE
 )
 INSERT INTO ops.delta_raw_keys(raw_record_id,source_system,source_account_id,source_order_id)
 SELECT raw_record_id,source_system,source_account_id,

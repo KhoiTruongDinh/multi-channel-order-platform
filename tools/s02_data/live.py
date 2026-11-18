@@ -177,6 +177,10 @@ def up(db,drain_guard=None):
         require_ready(db,environment['POLLING_DELTA_PLAN_DIR'])
     page_size(environment.get('EBAY_PAGE_SIZE', '1'), 200)
     page_size(environment.get('ETSY_RECOVERY_PAGE_SIZE', '1'), 100)
+    from ingestion.acquisition import policy
+    for channel in ('EBAY','ETSY'):
+        policy(environment.get(channel+'_ACQUISITION_MODE','legacy'),
+               int(environment.get(channel+'_DETAIL_WORKERS','1')))
     for name,sql in [('website_source',"SELECT to_regclass('public.orders') AS relation_name"),
                      ('data_platform',"SELECT to_regclass('ops.polling_cycles') AS relation_name")]:
         if not query(db,sql,name)[0]['relation_name']: raise ValueError('run existing M01-M07 migrations first')
@@ -186,7 +190,7 @@ def up(db,drain_guard=None):
         require_no_orphaned_source_owners(db)
     drain(db,guard=guard)
     db.sql((ROOT/'migrations/platform/009_etsy_recovery_scans.sql').read_text(),'data_platform')
-    for name in ('010_etsy_payload_cache.sql','011_coordinator_waits.sql'):
+    for name in ('010_etsy_payload_cache.sql','011_coordinator_waits.sql','014_acquisition_elements.sql'):
         db.sql((ROOT/'migrations/platform'/name).read_text(),'data_platform')
     migrations(db)
     db.sql((ROOT/'migrations/marketplace_sim/003_live_batches.sql').read_text())

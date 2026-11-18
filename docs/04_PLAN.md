@@ -298,7 +298,8 @@ remaining D/reproducibility gates. Generated code alone is not runtime evidence.
     observed drain96.438s within900s. MAX<=10s NOT achieved; actual collection
     and mutable eBay pagination retries dominate. Review list-crawl/detail work
     separation next. No further burst/soak/escalation or fullD PASS is implied.
-    Owner-selected acquisition enhancement2026-11-14 (DESIGN ONLY):
+    Owner-selected acquisition enhancement2026-11-14 (opt-in code implemented;
+    focused checks only, full runtime qualification/activation pending):
     [22_M08D_EBAY_ACQUISITION.md](22_M08D_EBAY_ACQUISITION.md), revised after
     owner review: up to TWO DETAIL/ENRICHMENT workers per source/account where
     needed, NOT two page workers. Keep sequential discovery; reuse complete eBay
@@ -316,7 +317,19 @@ remaining D/reproducibility gates. Generated code alone is not runtime evidence.
     Update dbt/cache/evidence inputs,
     version compiled plans and requalify parity/bootstrap before live activation
     and unchanged900. Transform/publish remain multi-order set-based SQL with
-    atomic publication. Base/S01 is unchanged; no runtime enhancement is claimed.
+    atomic publication. Migration014 and actual option/element/cache dictionary
+    are in05_TARGET_SCHEMA.md; runbook ingestion/ACQUISITION.md. Unit and loopback
+    checks are distinct from the pending broader gates; do not run those without
+    an explicit owner request. Base/S01 defaults remain legacy/1; no main
+    activation or runtime performance enhancement is claimed.
+    Subsequent collect-only PostgreSQL probe PASS: real014 migration/idempotence,
+    CLI/HTTP reuse/fallback, two-worker/failure checkpoint barriers, immutable
+    references/grants and stale-token fencing. Fixed JSON-null option CHECK.
+    Exact command/evidence in STATUS; repeatable tests/acquisition_db_probe.py.
+    Ordinary new-input dbt parity subsequently PASS2026-11-18:60nodes per
+    singleton/page branch;21business comparisons, fingerprints/evidence/cache.
+    Fixture-only test command tests/dbt_acquisition_probe.py; no collect/publish.
+    Compiled delta/runtime/release/bootstrap gates remain separate and unrun.
     Build/test review2026-11-14: [23_M08D_BUILD_TIMING.md](23_M08D_BUILD_TIMING.md).
     Historical900 node evidence shows Etsy mean3.653s unitemized and an empty
     6.607s cycle; Website product activity max5.061s. Next profiling priorities:

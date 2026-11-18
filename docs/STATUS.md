@@ -1,8 +1,368 @@
 # Actual project status
 
-Updated: 2026-11-14 (Asia/Bangkok).
+Updated: 2026-11-18 (Asia/Bangkok).
 
 ## Current checkpoint
+
+### Owner-authorized feature commit packaging (2026-11-18)
+
+Owner explicitly requested a README review/update followed by a local commit.
+Scope: opt-in marketplace page reuse/bounded workers, migration014 and its
+dictionary, required staging/cache/evidence adapters, migration/config wiring,
+focused tests/runbooks and the README verification summary. Updated README with
+the feature and the recorded collect/dbt correctness evidence, without throughput
+or deployed-path claims. Existing screenshots/project introduction preserved.
+
+Reused recorded collect PASS and dbt60nodes per branch/21comparisons only for
+unchanged code. No new Docker service, DB/HTTP/dbt/full-flow test, campaign or load
+run for packaging. Python AST17files/README20local links and diff --check PASS;
+explicit staged-file review PASS:41feature files only. Initial PowerShell quoting of the AST file
+list failed before checking code; corrected argv invocation PASS. No credentials, runtime reports,
+artifacts, local configs, unrelated CI/campaign/measurement/layout/AGENTS changes
+or HANDOFF_SHA256SUMS.txt in the commit scope. Git author configured; no push.
+Compiled delta/runtime/release/bootstrap qualification remains the next separately
+authorized task, not waived by this feature checkpoint. See Git history for the
+resulting commit ID; older no-commit entries below describe prior task history.
+
+### Partial-commit readiness review (2026-11-18)
+
+Owner asked whether a portion can be committed for the CV/portfolio handoff.
+Read-only review only; no new integration, dbt build, scheduler or campaign.
+Retained collect report ce912fab58fc PASS/cleanup PASS and ordinary dbt report
+157f78dfe5b2 PASS/21comparisons. Current source hash673cbce2ca50fe5105f541df2184a799ba138e188701d1b6c4f90dd85b5c4c5c
+still matches that dbt evidence. diff --check PASS, index empty, Git author
+configured. .env/runtime are not tracked; both README dashboard assets exist.
+
+Suitable feature checkpoint: opt-in marketplace page reuse + bounded detail
+workers, migration014/dictionary, necessary dbt input/cache/evidence adapters,
+configuration/migration wiring and their focused tests/runbooks. Keep these
+dependencies together, not a dbt-only commit that omits the new relations.
+Suggested title: `feat(ingestion): add verified marketplace page reuse and bounded workers`.
+"Verified" here means the documented collect/ordinary-dbt fixture scope only;
+compiled delta/release/bootstrap/main activation and load remain pending.
+
+Exclude unrelated dirty CI/campaign/measurement/layout/AGENTS changes, local
+workload configs and HANDOFF_SHA256SUMS.txt from this proposed feature checkpoint.
+README/dashboard portfolio packaging already exists in committed history; CV
+claims need not wait for further M08D tuning. A local commit alone does not update
+the remote GitHub page. No stage/commit/push performed for this review question;
+await explicit instruction to create the proposed commit. No source code changed.
+
+### M08D new acquired-input dbt parity (2026-11-18)
+
+Owner authorized the next dbt check and requested the temporary Vietnamese review
+doc be updated. Ran dbt-only legacy/page-input parity, NOT another collection,
+publish, scheduler/restart, deployment or load/campaign test. Main containers were
+all stopped before and after; .env, owner credentials/volumes/plans untouched.
+Branch main/HEAD0fc82bb; no stage/commit/push. Existing dirty changes preserved.
+
+Added explicit `tests/dbt_acquisition_probe.py`: real PostgreSQL16.15 tmpfs test
+container (512MiB/1CPU, no external network/ports) plus project-venv dbt client
+(768MiB/1CPU) sharing only its network namespace. Existing image, read-only code/
+fixture/profile mounts; generated dbt artifacts in client /tmp. Real platform
+prerequisites001..011 and014; no delta012/013. Two test-owned immutable manifests
+select equivalent singleton or page+accepted-element raw. No production freeze
+workflow is invoked; this fixture isolates SQL representation parity only.
+
+Exact host command (each attempt below):
+
+```powershell
+python tests/dbt_acquisition_probe.py
+```
+
+Final `runtime/dbt-acquisition-157f78dfe5b2.json`: PASS; both cleanup entries PASS.
+Source hash673cbce2ca50fe5105f541df2184a799ba138e188701d1b6c4f90dd85b5c4c5c.
+Report retains exact Docker/dbt command arguments and each node status. dbt uses
+`build --project-dir /review/transformations --profiles-dir /review/infra/dbt`
+with branch-specific /tmp target/log paths, mapping s01-v1, transformation
+acquisition-dbt-probe, release_source etsy_sim, validation_mode runtime and the
+actual batch UUID. This is the ordinary complete runtime dbt graph, not a new
+compiled delta plan or the fixed-S01 full acceptance suite.
+
+- Legacy60nodes and page60nodes all success/pass, zero failing/skipped nodes;
+  counts include models/tests/hooks, not60models. No business SQL changes needed.
+-21exact multiset comparisons PASS: all7business outputs x3sources, excluding
+  only batch_id/published_batch_id lineage. Includes history/current, lines,
+  source-created daily order/product activity and independent status/money fields.
+  Each marketplace has2current orders/3snapshots from4observations; Website1/1.
+-4fingerprint checks (both marketplaces/both representations) match the independent
+  fixture utility. Source-version identity unchanged, repeated reads preserve
+  observations without duplicate logical snapshots; unaccepted entities excluded.
+-6evidence checks: actual manifest membership/raw byte hash/resource role; Website
+  retains WEBSITE_RELATIONAL_SNAPSHOT. eBay legacy8/page11evidence rows reflect
+  real differing page/detail/shipping shapes. Evidence UUID/role/count equality
+  between transports is intentionally NOT required. No fabricated detail records.
+- Page input covers multi-order envelopes, actual cancellation detail fallback,
+  partial shipping collection + actual fulfillment detail, Etsy missing-field
+  receipt fallback, a subsequent source version, duplicate pages and unaccepted
+  page entities. Etsy element cache0->2rows; duplicate page shares content entry.
+  Stable core.orders_current remains empty: no publication occurred.
+
+Earlier failed probe attempts retained, not labelled dbt business failures:
+
+- `dbt-acquisition-5b2e20f0957e.json`: fixture SUCCEEDED run omitted finished_at;
+  actual schema rejected it before dbt. Fixed fixture, not the constraint.
+- `dbt-acquisition-7d89d38a218c.json`: legacy build passed, evidence helper wrongly
+  expected resource-uppercase role for Website. Preserved its established role.
+  Cleanup helper also misclassified lowercase 'no such object' after --rm client
+  deletion; corrected recognition, no owner target involved.
+- `dbt-acquisition-5182e546fff1.json`: pg_isready saw socket-only init server;
+  subsequent psql raced its shutdown. Now waits for final TCP readiness.
+- Final fresh attempt reran both representations successfully. Subsequent host
+  stdout compaction is presentation-only/AST-checked, not another dbt invocation.
+
+Updated docs/TAM_THOI_M08_GIAI_TRINH_VI.md with scope, diagram, cases, command,
+expected fields, failures, actual PASS and boundaries. AST/diff checks PASS;
+index empty. Test containers/tmpfs data removed (test data not recoverable);
+no owner data deleted. Final docker ps empty, matching initial running state.
+
+Not run: collector/HTTP integration rerun, invalid-money/negative-page extension,
+compiled delta route/runtime parity, release/bootstrap, scheduler/crash/rate-budget
+matrix, main activation, unchanged900, performance or campaigns. The existing
+collect-only DB proof remains separately scoped. This closes ordinary dbt input
+parity for this fixture; not full M08D or a live release. Next needs explicit
+authorization for compiled-plan/release/bootstrap qualification before enabling
+page-reuse on main; do not bypass guards or auto-run broader gates.
+
+### M08D collect-only PostgreSQL qualification (2026-11-14)
+
+Owner explicitly authorized only the new collect path on a test DB. Main
+containers were all stopped at preflight and were not started/reconfigured.
+No .env, main credentials, retained volumes, source data or published plans used.
+HEAD remains0fc82bb; all task changes unstaged, no commit/push.
+
+Added `tests/acquisition_db_probe.py`: stdlib host orchestrator starts a uniquely
+labelled, no-network/no-port PostgreSQL16.15 container with512MiB/1CPU and tmpfs
+PGDATA. A512MiB/1CPU client uses the existing Airflow image's project Python,
+read-only ingestion/tests mounts and the test DB's network namespace. Actual
+collector CLI subprocesses connect as platform_ingest and call a controlled
+loopback HTTP server. No Airflow scheduler, Compose, production SIM/backing DB,
+dbt models or business oracle. Real platform migrations001..011 and014 applied;
+014 applied a second time successfully. Delta012/013 are not collect prerequisites
+and were not run. Exact Docker commands and output are retained in each report.
+
+Actual command, run three times during development:
+
+```powershell
+python tests/acquisition_db_probe.py
+```
+
+- `runtime/collect-db-67076dc7c2e5.json`: PASS,2tests/16.989s, cleanup PASS.
+- `runtime/collect-db-3279ed11cd61.json`: FAILED,3tests/17.586s; two source tests
+  passed but JSON-null options were incorrectly accepted by migration014's CHECK.
+  PostgreSQL CHECK accepts UNKNOWN. Finalized the non-null dictionary in05, then
+  fixed the new migration predicate to require `IS TRUE`. No applied main
+  migration/data changed. Stale-token fencing had passed before that assertion.
+- `runtime/collect-db-ce912fab58fc.json`: final PASS,3tests/9.730s, cleanup PASS.
+  Expected SQL failures assert SQLSTATE23514/P0001/42501, not just any DB error.
+  These durations describe the small test suite, NOT throughput or an SLA result.
+
+Final verified scope:
+
+- eBay four orders/two pages: two accepted page references, two actual order-detail
+  responses (cancellation and missing fields), four successful work items and
+  required shipping requests. Two shipping requests rendezvous concurrently;
+  parent succeeds only after workers finish. Successful collection reentry adds
+  no raw/HTTP. A403 on a new collection retains audit/FAILED state and leaves the
+  prior successful checkpoint unchanged. Persisted raw byte hashes match bytes.
+- Etsy four receipts/two pages: two accepted page elements, two actual fallback
+  receipt fetches with distinct lease tokens and overlapping HTTP requests.
+  Successful reentry adds no HTTP. A403 leaves the preceding checkpoint unchanged
+  and retains its HTTP attempt. Array references resolve through real raw, HTTP
+  attempt and validated scan records; wrong-index/identity/scan inserts rejected.
+- Immutable options/elements and terminal eBay scans reject rewrites; report role
+  cannot read element evidence; transform can INSERT element cache, ingest cannot.
+  JSON-null mode/workers/page_size and invalid bounds rejected. With an actual
+  claimed Etsy work item, a stale-token response is audited once, creates no
+  eligible receipt and cannot change the real owner's LEASED work state.
+
+The probe removes only its exact fresh labelled client/DB containers and their
+disposable tmpfs data (not recoverable; no owner data removed). Main was not
+started, stopped or reset. Added the repeatable command/scope to ACQUISITION.md.
+AST parse and `git -c core.safecrlf=false diff --check` PASS; index remains empty.
+
+Not run: full dbt/new-input semantic parity, production-SIM integration,
+crash/restart/lease-expiry races, persisted multi-cycle cooldown/attempt-exhaustion
+fault matrix, scheduler gates, release/bootstrap/main activation, campaigns,
+unchanged900, performance or load. Earlier mock/loopback evidence remains scoped
+as recorded below. This closes this requested collect-only DB slice, not full
+M08D or permission to activate the new acquired-envelope graph. Next: explicit
+new-input dbt parity and release-plan qualification before any main activation;
+ask before broader gates, do not bypass existing guards.
+
+### M08D collect page reuse: code and focused checks (2026-11-14)
+
+Owner requested the agreed acquisition enhancement, not another full-flow test.
+Implemented opt-in page-reuse mode with defaults legacy/1; main services, .env,
+data, mappings and verified deployed plans were NOT changed. No stage/commit/push.
+Existing unrelated dirty CI/campaign/measurement/layout/config files preserved.
+
+Final dictionary in05 precedes014_acquisition_elements.sql: immutable collection
+options, eBay bounded scans and append-only enrichment restart markers, actual
+raw+entity+array-index eligibility references, and separate versioned Etsy element
+cache (source/account/receipt/element hash/normalization version). Guard references
+against the actual successful response and validated scan; preserve parent raw
+bytes/hash and source fingerprints. New indexes support real cooldown lookups.
+Migration014 is wired into fresh/ordinary/guarded migration entry points but was
+NOT executed here; SQL trigger/grant/runtime behavior is not yet verified.
+
+eBay: finish sequential discovery before enrichment; reuse complete NONE_REQUESTED
+Orders, retain authoritative cancellation/missing-field detail and shipping
+requests. Complete shipping collections skip redundant fulfillment detail reads;
+partial collections require actual consistent detail. Two-worker bounded pool,
+separate DB/client per worker, parent account fence, durable UUID/scan/work and
+five HTTP attempts per URL spanning retries/scans. Malformed200 bodies cannot
+poison success cache; cached requests match scan/parent metadata. Enrichment
+version drift appends restart evidence and permits the next bounded scan instead
+of fabricating a combined order. Parent joins workers before checkpoint.
+eBay SIM adds orderIds1..50/query precedence/list cancellation gap; request-state
+and fault counters are reserved under lock, HTTP/DB reads/delays/socket writes
+occur outside that lock. No Etsy SIM or Website extraction changes.
+
+Etsy: validated complete recovery elements are eligible without redundant receipt
+GET/work/HTTP-success records. Incomplete elements retain normal leased receipt
+GET fallback. Inbox/replay still fetch receipts, with up to2 independently
+connected/token-fenced workers. Retain unresolved-work checks, attempts, source
+scope and completion barrier. Shared429/503 cooldown checks honor the longest
+still-active recorded delay instead of letting a newer shorter response cancel it.
+Already in-flight HTTP cannot be revoked. Website remains set-based/read-only.
+
+Necessary input-only dbt changes: accepted page routes, source-private staging,
+Etsy element cache/evidence and eBay raw+order shipping-parent joins. Legacy
+single-order rows lacking redundant order_id metadata remain readable; no such
+fallback for multi-order pages. Business marts, observed-version fingerprints
+and atomic publication semantics are unchanged by design, not newly full-parity
+certified. Adjusted legacy Etsy probe renderer/empty-element setup for compatibility;
+did NOT run that database/profile probe. Opt-in options persist per polling cycle;
+old missing options/retries remain legacy/1. Current compiled source hash:
+673cbce2ca50fe5105f541df2184a799ba138e188701d1b6c4f90dd85b5c4c5c.
+Older dbt/runtime evidence does not qualify this acquired-envelope change.
+
+Checks actually run:
+
+- Host `python -m unittest -q tests.test_etsy_drain tests.test_etsy_http
+  tests.test_dbt_sql_style` failed importing the first two modules because host
+  Python lacks psycopg. No DB was contacted. Used the existing project image
+  instead of installing host packages or rebuilding/restarting main services.
+- The following exact isolated unit invocation exited0:44tests PASS/5.304s.
+  This includes mock-DB control flow, real loopback SIM requests, Jinja rendering
+  and style checks, NOT warehouse integration or a pipeline latency measurement.
+
+```powershell
+$collectRoot=(Get-Location).Path
+$unitMounts=@()
+foreach ($part in @('ingestion','simulator','orchestration','transformation','transformations','tests','fixtures/s01')) {
+    $unitMounts+=@('--mount',"type=bind,source=$collectRoot/$part,target=/review/$part,readonly")
+}
+docker run --rm --network none --read-only --memory 512m --cpus 1 --tmpfs /tmp -e PYTHONDONTWRITEBYTECODE=1 -e PYTHONPATH=/review -e PROJECT_ROOT=/review --workdir /review @unitMounts --entrypoint /opt/airflow/project-venv/bin/python multi-channel-order-platform-airflow -m unittest -q tests.test_acquisition_reuse tests.test_ebay_reuse_sim tests.test_acquisition_sql tests.test_etsy_drain tests.test_etsy_http tests.test_dbt_sql_style
+```
+
+- Added cycle-retry policy tests, then same isolated image/flags with
+  `-m unittest -q tests.test_acquisition_reuse.CyclePolicyTests`:2PASS/0.492s.
+  That invocation mounted only ingestion/orchestration/transformation/
+  transformations/tests. Saved legacy and worker counts override changed env.
+- After cache/lookup hardening and updating the legacy probe renderer, same
+  isolated command/mounts as44test run, replacing module list with
+  `tests.test_acquisition_reuse.EbayReuseTests tests.test_acquisition_sql`:
+  17PASS/2.390s. Includes malformed cached200 response, scoped cached pages,
+  grouped membership, enrichment conflicts and5offline SQL/render checks.
+- Changed Python files compileall PASS; `git -c core.safecrlf=false diff --check`
+  PASS; inspected actual diff, no staged files. The final worker connect/SQL-lock
+  timeout settings were statically checked, not fault-injected against PostgreSQL.
+
+Not run: migration014/trigger/grant execution, live PostgreSQL lease/cooldown/crash
+races, new-mode full dbt/input parity, S01 verification suite, new image deployment,
+bootstrap, scheduler/restart, unchanged900, performance/burst/soak or campaigns.
+No claim of throughput/SLA improvement or full M08D PASS. These require a separate
+explicit owner request; do not auto-run broader gates or bypass plan validation.
+Next: owner code review, then authorize input/database qualification and new
+verified release/bootstrap before enabling page-reuse on main. Operational/code
+map and supported settings: ingestion/ACQUISITION.md; design22 updated accordingly.
+
+### Owner testing-workflow revision (2026-11-14)
+
+Default to small, change-focused checks. Full-flow testing requires an explicit
+owner request for the current task; fixing, continuing, deployment or committing
+does not automatically authorize full regression, scheduler/restart gates, load
+or campaigns. If broader testing is a mandatory gate, report it before running;
+do not bypass the gate or claim unrun coverage. Persisted in AGENTS.md. This
+documentation-only revision launches no tests and changes no running service.
+
+### M08D dbt scope closed from retained evidence (2026-11-14)
+
+Owner narrowed closure to dbt correctness only: do not rerun tests, performance
+checks or campaigns. Read existing reports only; no new test was launched for
+this confirmation. The committed dbt checkpoint is0fc82bb.
+
+runtime/delta-main-rollout-20261114-01.json records PUBLISHED bootstraps for
+internal_web, ebay_sim and etsy_sim. For EACH source: full_dbt_oracle PASS,
+60 nodes success/pass (zero non-passing nodes), all8 output comparisons PASS,
+preserved_observed_source_versions=true. Migration013 was already verified in
+the preceding deployment. This is sufficient to close the requested dbt scope.
+Fresh strict scheduler/restart/mapping prerequisite report also PASS:
+runtime/delta-startup-mapping-20261114-01.json.
+
+At the history read, the deployment report was RUNNING/scheduled-warm-observation,
+with no error; activation had passed and the existing process was observing native
+schedules. Do not equate this unfinished observation with a dbt failure or claim
+the entire deployment/M08D/load/ten-second target is certified. No new campaign
+or performance measurement is authorized by this closure. Leave services alone.
+
+Additional UI-only history: first AppTest invocation was rejected by PowerShell
+stdin syntax, the next discovered0tests (not PASS), then4tests ran with one stale
+title expectation failure. Updated that expectation to the approved source-created
+heading, not the business query. Its rerun was interrupted/unconfirmed; do not
+claim UI AppTest PASS. This is separate from the completed dbt oracles above.
+STATUS and the one-line layout-test correction remain unstaged; no new commit/push.
+
+### M08D retained daily-scope rollout in progress (2026-11-14)
+
+Owner authorized step1 only: deploy the committed dbt revision on retained main,
+without collection enhancements, load escalation or a data reset. HEAD0fc82bb.
+Preflight: all main services initially stopped; Docker memory4109369344bytes.
+Started only main PostgreSQL, then verified no queued/running DAG runs, active
+FROZEN/BUILDING/TESTED batches or nonterminal source owners. Seven pause flags:
+website_polling/ebay_polling/etsy_inbox/etsy_recovery unpaused, three replay/manual
+DAGs paused. Retained baseline Web/eBay/Etsy current2919/2723/2837,
+history3195/2736/2869, raw629/16826/24517. No abort required.
+
+Created an owned maintenance drain `dbt-rollout-20261114-step1` before starting
+the existing Airflow container, preventing new intervals during prequalification.
+Airflow became healthy. Local ignored .env release changed from delta-20261113-v1
+to delta-20261114-v2; no credential changed. Ran21offline SQL/plan/deploy/report
+clock tests PASS. Started fresh strict scheduler/restart/mapping gate:
+`python tests/delta_scheduler_probe.py --allow-owner-idle-stop --mapping-check
+--report runtime/delta-startup-mapping-20261114-01.json`.
+Scope identity26bc6795cc70 PASS: three native cycle tasks SUCCESS/try2, two
+scheduled successes after restart, preserved113source snapshots/234raw in mapping
+transition and full60-node dbt/all8-output parity. Main exact container/health,
+seven pause flags and owned drain restored; disposable resources cleaned up.
+From fixtures/s01, verify.py PASS and test_tools.py10PASS. Compose config--quiet
+and build airflow/report PASS. Restarted existing live SIM/receiver/source worker/
+observer and rebuilt report, all healthy; no new generated campaign.
+
+After verifying its exact content, removed only this task's maintenance signal
+to hand over to the guarded deployment's drain. Command started:
+`python -m tools.s02_data.delta_deploy --startup-report
+runtime/delta-startup-mapping-20261114-01.json --report
+runtime/delta-main-rollout-20261114-01.json --confirm-local`.
+Report initially RUNNING/draining-main. Guarded012/013 applied; catalog confirms
+013 stamp and both required SELECT grants. All three retained-main cold bootstraps
+PUBLISHED after full60-node dbt PASS, exact8-output parity and preserved observed
+source versions: Web4295987c-da1e-4b35-a774-16dec4ed0e69 (46.162s),
+eBay4e421e94-1136-4ac6-8749-a526adb5d62e (73.762s),
+Etsy36d08995-2e6c-4214-a615-675f25fef4b3 (256.692s). Cold times are not warm SLA.
+One read-only diagnostic mistakenly selected source_system from transform_batches
+(column absent); corrected to batch_id/status, with no data mutation. Another
+diagnostic read a disposable container just after its normal cleanup and reported
+No such container; neither was an acceptance gate failure.
+
+Turn interruption occurred while the deployment continued in background.
+Read-only recovery confirmed the same retained process/report, all three batches
+published and no active batch; no command/bootstrap was duplicated. Deployment
+now activating verified plans; main Airflow recreated and health starting, drain
+still present. Scheduled-success and dashboard-read gates remain pending.
+No commit/push.
 
 ### M08D owner-authorized dbt checkpoint commit (2026-11-14)
 

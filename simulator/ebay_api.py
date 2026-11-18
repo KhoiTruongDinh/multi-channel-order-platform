@@ -44,7 +44,18 @@ def handlers(state):
             pass  # Never log Authorization or URL query credentials.
 
         def send_json(self, status, value):
-            broken = state.faults.response(self.path, status)
+            # Reserve the shared fault exactly once; delay/socket writes must
+            # not hold the source state lock and serialize both detail workers.
+            with state.lock:
+                faults=getattr(self,'snapshot',state).faults
+                local=copy.copy(faults)
+                parts=urlsplit(self.path)
+                fault_path=parts.path if 'orderIds' in parse_qs(parts.query,keep_blank_values=True) else self.path
+                eligible=(status==200 and faults.left>0 and parts.path not in ('/health','/state','/control')
+                          and int(parse_qs(urlsplit(fault_path).query).get('offset',['0'])[0])==faults.offset)
+                local.left=1 if eligible else 0
+                if eligible: faults.left-=1
+            broken = local.response(fault_path, status)
             raw = broken if broken is not None else json.dumps(value, ensure_ascii=False, separators=(',', ':')).encode()
             self.send_response(status)
             self.send_header('Content-Type', 'application/json')
@@ -64,17 +75,32 @@ def handlers(state):
                 return self.send_json(401, {'error': 'unauthorized'})
             try:
                 with state.lock:
-                    return self.serve()
+                    snapshot=copy.copy(state)
+                    snapshot.data=copy.deepcopy(state.data)
+                    if isinstance(state.s02,Store):
+                        snapshot.s02=copy.copy(state.s02)
+                        snapshot.s02.rows=dict(state.s02.rows)
+                    parts=urlsplit(self.path)
+                    query=parse_qs(parts.query,keep_blank_values=True)
+                    reserve=(parts.path==ROOT and 'orderIds' not in query
+                             and re.fullmatch(r'lastmodifieddate:\[(.+)\.\.(.+)\]',query.get('filter',[''])[0])
+                             and int(query.get('offset',['0'])[0])==state.fail_offset and state.errors_left>0)
+                    snapshot.errors_left=1 if reserve else 0
+                    if reserve: state.errors_left-=1
+                    self.snapshot=snapshot
+                return self.serve(snapshot)
             except (ValueError, KeyError, TypeError):
                 return self.send_json(400, {'error': 'invalid request'})
 
-        def serve(self):
+        def serve(self, state):
             split = urlsplit(self.path)
-            query = parse_qs(split.query)
+            query = parse_qs(split.query,keep_blank_values=True)
+            if split.path==ROOT and 'orderIds' in query:
+                return self.by_ids(state,query)
             if split.path=='/s02/clock' and not query and isinstance(state.s02,PostgresStore) and not isinstance(state.s02,LivePostgresStore):
                 return self.send_json(200,state.s02.clock())
             if state.s02 is not None:
-                return self.serve_s02(split, query)
+                return self.serve_s02(split, query,state)
             data = state.data
             order = copy.deepcopy(data['order'])
             if state.extra_order and split.path.startswith(ROOT + '/12-10001-10002'):
@@ -125,7 +151,32 @@ def handlers(state):
                     return self.send_json(200, fulfillment)
             return self.send_json(404, {'error': 'not found'})
 
-        def serve_s02(self, split, query):
+        def by_ids(self,state,query):
+            if len(query['orderIds'])!=1: raise ValueError('one orderIds parameter required')
+            ids=query['orderIds'][0].split(',')
+            if not 1<=len(ids)<=50 or len(set(ids))!=len(ids) or any(
+                    not re.fullmatch(r'[A-Za-z0-9-]{1,128}',x) for x in ids):
+                raise ValueError('1..50 unique order IDs required')
+            rows=[]
+            for identity in ids:
+                if state.s02 is not None:
+                    value=state.s02.get(identity) if isinstance(state.s02,PostgresStore) else state.s02.rows.get(identity)
+                    order=copy.deepcopy(value['order']) if value else None
+                else:
+                    order=copy.deepcopy(state.data['order'])
+                    if identity!=order['orderId']:
+                        if state.extra_order and identity=='12-10001-10002':
+                            old=order['orderId']; order['orderId']=identity
+                            order['fulfillmentHrefs']=[h.replace(old,identity) for h in order['fulfillmentHrefs']]
+                        else: order=None
+                if order:
+                    order['cancelStatus']['cancelRequests']=[]
+                    rows.append(order)
+            # As documented, orderIds takes precedence over all other query keys.
+            return self.send_json(200,dict(orders=rows,total=len(rows),limit=50,offset=0,
+                href=os.environ.get('EBAY_PUBLIC_ORIGIN','http://ebay-sim')+self.path))
+
+        def serve_s02(self, split, query, state):
             from datetime import datetime
             if split.path == ROOT:
                 match = re.fullmatch(r'lastmodifieddate:\[(.+)\.\.(.+)\]', query.get('filter', [''])[0])

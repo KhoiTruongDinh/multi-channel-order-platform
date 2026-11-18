@@ -4,6 +4,7 @@ sources:
     schema: cache
     tables:
       - name: etsy_payloads
+      - name: etsy_elements
   - name: acquisition
     schema: raw
     tables:
@@ -16,6 +17,7 @@ sources:
       - name: pipeline_runs
       - name: processing_work
       - name: data_exceptions
+      - name: acquisition_elements
   - name: configuration
     schema: config
     tables:

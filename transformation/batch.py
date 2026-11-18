@@ -70,7 +70,9 @@ def freeze(args: argparse.Namespace) -> None:
                        AND r.resource_type IN ('ebay_orders','ebay_order','ebay_fulfillments','ebay_fulfillment')
                        AND r.response_status = 200)
                    OR (%s = 'etsy_sim' AND r.source_system='etsy_sim' AND r.source_account_id='7001'
-                       AND r.resource_type='etsy_receipt' AND r.response_status=200))""",
+                       AND r.response_status=200 AND (r.resource_type='etsy_receipt'
+                           OR (r.resource_type='etsy_receipts' AND EXISTS (
+                               SELECT 1 FROM ops.acquisition_elements e WHERE e.raw_record_id=r.raw_record_id)))))""",
             (args.batch_id, 'ebay_sim' if args.source == 'etsy_sim' else args.source, args.source),
         )
         if result.rowcount == 0:

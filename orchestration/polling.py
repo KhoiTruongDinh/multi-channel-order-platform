@@ -14,6 +14,7 @@ from transformation.batch import connect as release_connection
 from transformation.source_config import SOURCES
 from orchestration import telemetry
 from ingestion.pagination import page_size
+from ingestion.acquisition import policy
 from orchestration.coordinator import CoordinatorBusy
 
 
@@ -61,19 +62,27 @@ def prepare(args):
         if args.source in ('ebay_sim', 'etsy_sim') and not (prior and getattr(args,'reuse_cycle_config',False)):
             args.page_size = page_size(configured, maximum)
             settings['page_size'] = args.page_size
+            channel='EBAY' if args.source=='ebay_sim' else 'ETSY'
+            mode,workers=policy(os.environ.get(channel+'_ACQUISITION_MODE','legacy'),
+                                int(os.environ.get(channel+'_DETAIL_WORKERS','1')))
+            settings.update(acquisition_mode=mode,detail_workers=workers)
+            args.acquisition_mode,args.detail_workers=mode,workers
         if prior:
             prior_settings = dict(prior[8])
             if args.source in ('ebay_sim', 'etsy_sim'):
                 if type(prior_settings.get('page_size', 1)) is not int:
                     raise ValueError('invalid persisted page size')
                 prior_settings['page_size'] = page_size(prior_settings.get('page_size', 1), maximum)
+                prior_settings.setdefault('acquisition_mode','legacy')
+                prior_settings.setdefault('detail_workers',1)
+                policy(prior_settings['acquisition_mode'],prior_settings['detail_workers'])
             if len(prior)>9 and prior[9] != (args.airflow_run_id if args.dag_id else None):
                 raise ValueError('existing cycle has different bounds/context/configuration')
             if getattr(args,'reuse_cycle_config',False):
                 if prior[1]!=args.window_end or prior[2]!=args.dag_id:
                     raise ValueError('existing cycle has different bounds/context/configuration')
                 args.mapping_version,args.transformation_version,args.overlap_seconds=prior[5:8]
-                if set(prior_settings)-{'fault_after_raw_once','fault_after_freeze_once','inject_test_failure','collection_mode','checkpoint_stream','logical_clock','window_policy','page_size','delta_plan_sha256'}:
+                if set(prior_settings)-{'fault_after_raw_once','fault_after_freeze_once','inject_test_failure','collection_mode','checkpoint_stream','logical_clock','window_policy','page_size','delta_plan_sha256','acquisition_mode','detail_workers'}:
                     raise ValueError('unsupported persisted cycle settings')
                 for key,value in prior_settings.items():
                     setattr(args,key,value)

@@ -48,7 +48,7 @@ Original source snapshot: 2026-10-24; local documentation review: 2026-10-30
 | [20_M08D_REUSE_COORDINATION.md](20_M08D_REUSE_COORDINATION.md) | Versioned canonical cache, durable source ownership and worker-free reschedule waits | Approved priorities1/2; rollout and recovery boundaries |
 | [21_M08D_DELTA_RUNTIME.md](21_M08D_DELTA_RUNTIME.md) | Compiled dbt plans, affected-order manifests and atomic delta publication | Approved ten-second redesign; activation and measured acceptance in STATUS |
 | [STATUS.md](STATUS.md) | Actual completed work, checks, blockers, next task | Every coding session |
-| [22_M08D_EBAY_ACQUISITION.md](22_M08D_EBAY_ACQUISITION.md) | Multi-source page-payload reuse, two detail workers where needed, set-based downstream and provenance/checkpoint gates | Revised owner-selected design only; not implemented |
+| [22_M08D_EBAY_ACQUISITION.md](22_M08D_EBAY_ACQUISITION.md) | Multi-source page reuse, bounded detail workers and provenance gates; [code/runbook](../ingestion/ACQUISITION.md) | Opt-in implementation/focused checks; not activated or full-runtime qualified |
 | [23_M08D_BUILD_TIMING.md](23_M08D_BUILD_TIMING.md) | Actual unchanged900 model/test timings, unitemized time and proposed profiling priorities | Evidence review; no new load run or optimization implementation |
 | [24_ACTIVITY_TIME_REVIEW.md](24_ACTIVITY_TIME_REVIEW.md) | Per-report clocks, bounded daily scope/publisher, staging duplicate work and parallel-runner limits | Current M08D correction; exact acceptance in STATUS |
 | [../transformations/SQL_STYLE.md](../transformations/SQL_STYLE.md) | Explicit dbt projections, counts/joins/grouped deduplication, index review limits and release gates | Owner-requested SQL cleanup; actual checks in STATUS |

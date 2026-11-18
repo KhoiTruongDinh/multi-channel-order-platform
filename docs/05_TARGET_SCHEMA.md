@@ -422,3 +422,25 @@ history rules in `docs/02_SOURCE_CONTRACTS.md` B3–B5, the approved CSV contrac
 in `docs/contracts/`, and architecture sections C3.3–C3.5. Exact S01 fingerprint
 behavior remains defined by `fixtures/s01/fixture_tools.py` and its tests; this
 schema does not redefine it.
+
+### M08D page reuse dictionary (finalized before migration014)
+
+No source/business columns or fingerprints change. New acquisition references
+identify actual JSON elements; never synthesize an HTTP response per element.
+
+| Relation / grain | Columns and constraints |
+| --- | --- |
+| ops.collection_options: one opted-in collection | run_id UUID PK/FK pipeline_runs; settings JSONB object NOT NULL; immutable on retry, includes non-null mode='page-reuse', workers1..2 and page size1..200. The validation predicate must be TRUE, not SQL UNKNOWN; JSON null is invalid. |
+| ops.ebay_collection_scans: one bounded discovery scan | run_id UUID FK, scan_number SMALLINT1..5 composite PK; status RUNNING/VALIDATED/INVALID; started_at actual TIMESTAMPTZ; finished_at nullable iff RUNNING. HTTP budgets span scans; only RUNNING can finish. |
+| ops.ebay_scan_restarts: one enrichment conflict after a validated scan | (run_id,scan_number) PK/FK ebay_collection_scans; recorded_at TIMESTAMPTZ actual; immutable append-only marker, permits the next bounded discovery scan without rewriting terminal scan audit. |
+| ops.acquisition_elements: one accepted entity in an actual page | raw_record_id UUID FK, source_entity_id TEXT nonempty composite PK; element_index INTEGER>=0, UNIQUE(raw_record_id,element_index); collection_run_id UUID FK, scan_number SMALLINT1..5; recorded_at actual TIMESTAMPTZ. Immutable. Trigger validates raw source/account/status, page index/identity and a VALIDATED source-specific scan. Source/account derive from raw, not another copied payload. |
+| cache.etsy_elements: one versioned receipt computation | source_system TEXT='etsy_sim', source_account_id TEXT nonempty, source_entity_id TEXT nonempty, element_sha256 BYTEA32, normalization_version TEXT MD5 composite PK; source_payload/order_json JSONB objects, content_fingerprint BYTEA32, cached_at TIMESTAMPTZ actual. Hash derives from JSONB element text, not parent page bytes; raw/evidence still retains whole-response byte hash. Immutable. |
+
+Ingest may SELECT/INSERT options/elements, SELECT/INSERT/UPDATE scan state; no
+UPDATE/DELETE accepted elements/options. Transform may SELECT these and
+SELECT/INSERT derived element cache; publisher reads references only as needed.
+PUBLIC/report receive no new access. New mode remains disabled until migration,
+new compiled/full-dbt qualification and explicit release/bootstrap are approved.
+Cooldown lookup indexes: raw(source_system,source_account_id,metadata fetched_at)
+restricted to429/503, plus Etsy HTTP attempts(raw_record_id,recorded_at). These
+support actual shared-cooldown predicates, not speculative business-model indexes.

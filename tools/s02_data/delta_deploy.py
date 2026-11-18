@@ -108,6 +108,7 @@ def run(db,startup_report,report,confirmed=False):
         assert not query(db,"SELECT run_id FROM dag_run WHERE state IN ('queued','running')",'airflow_meta')
         db.sql((ROOT/'migrations/platform/012_delta_runtime.sql').read_text(),'data_platform')
         db.sql((ROOT/'migrations/platform/013_daily_scope_access.sql').read_text(),'data_platform')
+        db.sql((ROOT/'migrations/platform/014_acquisition_elements.sql').read_text(),'data_platform')
         result['phase']='verified-cold-bootstrap'; save()
         for source in SOURCES:
             print('Delta deploy: compile and full-dbt verified cold bootstrap '+source,flush=True)

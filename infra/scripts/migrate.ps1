@@ -33,7 +33,8 @@ foreach ($file in @(
     "/migrations/platform/008_report_queries_telemetry.sql",
     "/migrations/platform/009_etsy_recovery_scans.sql",
     "/migrations/platform/010_etsy_payload_cache.sql",
-    "/migrations/platform/011_coordinator_waits.sql"
+    "/migrations/platform/011_coordinator_waits.sql",
+    "/migrations/platform/014_acquisition_elements.sql"
 )) {
     docker compose --env-file $composeEnv --file $compose exec -T postgres sh -c `
         "psql --set ON_ERROR_STOP=1 --username `"`$POSTGRES_USER`" --dbname data_platform --file '$file'"

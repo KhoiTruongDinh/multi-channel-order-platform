@@ -1,16 +1,19 @@
 # C. Technical architecture and pipeline — DRAFT
 
-Planned multi-source acquisition slice, owner revision2026-11-14:
+Opt-in multi-source acquisition code, owner revision2026-11-14:
 [22_M08D_EBAY_ACQUISITION.md](22_M08D_EBAY_ACQUISITION.md). Sequential pages,
 reuse complete eBay Orders/Etsy recovery receipts, then up to TWO DETAIL workers
 per source/account for necessary enrichment/webhook/fallback. Not two page workers
 or competing source owners. Website keeps its consistent set-based source read.
 Actual raw/element evidence, dbt ownership, bounded reconciliation, work leases
 and one completion barrier remain. Transform/publish already operate on multi-order
-sets, not a Python graph per order. Design only; base/S01 and runtime unchanged.
+sets, not a Python graph per order. Migration014 adds actual raw-element references,
+bounded scan/restart audit and a separate versioned receipt-element cache. Focused
+checks only; no main activation or full runtime parity qualification in this slice.
+Base/S01 defaults remain legacy/1. Runbook: ingestion/ACQUISITION.md.
 
 Owner scope clarification: Etsy SIM remains unchanged for collector payload reuse;
-only collection and necessary eligibility/dbt/cache/evidence inputs are planned.
+only collection and necessary eligibility/dbt/cache/evidence inputs changed.
 Historical900 build/test breakdown and remaining measurement gaps:
 [23_M08D_BUILD_TIMING.md](23_M08D_BUILD_TIMING.md). Fewer HTTP calls do not prove
 lower build time; page-element cache identity and compiled-plan parity are gates.
